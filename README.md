@@ -1,26 +1,11 @@
 # TEMPO CQ/LO experiment pipeline
 
-Repository này chứa phần đặc thù CQ/LO và các Modal entry point để tạo dữ liệu
-theo pha P1--P4, chạy điền khuyết, cân bằng lớp và huấn luyện mô hình tuần tự.
+This repository organizes the CQ/LO pipeline for phase-based P1--P4 data
+creation, imputation, class balancing, recurrent-model training, and
+reproducible artifact/fact storage. The two tasks remain separated under
+`CQ/` and `LO/`.
 
-## Phạm vi repository
-
-Commit hiện tại cố ý chỉ gồm `CQ/`, `LO/` và `modal_jobs/`; dữ liệu, report
-Word và TEMPO shared source không được đưa vào repository này. Trước khi chạy
-Modal, đặt/cài các package dùng chung từ repository đồng hành ở Python path:
-
-```text
-imputation_core/
-augmentation_core/
-metrics_core/
-model/
-tempo_core/
-```
-
-Các package trên là dependency runtime của `modal_jobs/`, không phải artifact
-thực nghiệm. Hai task được giữ tách biệt trong `CQ/` và `LO/`.
-
-## 1. Cấu trúc mã nguồn
+## 1. Source layout
 
 ```text
 CQ/Feature_extraction/          # CQ: label, feature, split, view, audit
@@ -29,13 +14,9 @@ modal_jobs/                     # Modal entry points
 README.md                        # this run guide
 ```
 
-`CQ/` and `LO/` are not sufficient on their own for the Modal stages: their
-views are inputs for `modal_jobs/`, which imports the shared packages above.
-
 ## 2. Prerequisites
 
-Use Python 3.12+, install the companion shared packages, then authenticate the
-desired Modal account:
+Use Python 3.12+ and authenticate the desired Modal account:
 
 ```powershell
 python -m modal setup
