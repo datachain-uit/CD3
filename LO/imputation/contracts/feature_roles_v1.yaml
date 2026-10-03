@@ -1,0 +1,64 @@
+# Populate only after reading the frozen local LO schema and DQ baseline.
+version: feature_roles_v1
+task: LO
+status: template_not_yet_fitted
+excluded_v1:
+  - age_at_enroll
+  - year_of_birth
+  - most_common_day
+label_provenance_excluded:
+  - LO_performance_label_3
+  - LO_performance_label_5
+  - performance_score
+  - decision
+  - proxy_reason
+structural_masks:
+  - video_observed_mask
+  - problem_observed_mask
+  - comment_observed_mask
+categorical_id_codes:
+  user_id:
+    source_pattern: "U_<integer>"
+    transform: "strip first 2 characters; parse remaining string as integer"
+    model_role: categorical_code_train_vocabulary_with_UNK
+    imputation: never_impute
+  course_id:
+    source_pattern: "C_<integer>"
+    transform: "strip first 2 characters; parse remaining string as integer"
+    model_role: categorical_code_train_vocabulary_with_UNK
+    imputation: never_impute
+excluded_identifier_keys:
+  - enrollment_id
+  - offering_id
+categorical_features:
+  gender:
+    observed_codes: [0, 1, 2]
+    transform: categorical_train_vocabulary_with_UNK
+  timeline_source:
+    observed_codes: [course_specific_timeline, global_template_fallback, enrollment_anchored_proxy]
+    transform: one_hot_or_embedding_context
+cyclical_features:
+  most_common_hour:
+    domain: 0_to_23
+    transform: sin_cos_period_24
+temporal_sequence_context:
+  phase:
+    role: ordered_sequence_timestep
+    transform: derive_phase_index_and_progress_ratio_not_imputed
+    current_phase_index: {P1: 1, P2: 2, P3: 3, P4: 4}
+    current_progress_ratio: {P1: 0.25, P2: 0.50, P3: 0.75, P4: 0.90}
+    extension_policy: append_new_ordered_phase_and_progress_ratio
+numeric_count_features:
+  - teacher_count
+  - school_count
+  - resource_count
+  - video_counts
+  - ex_counts
+metadata_excluded_from_predictors:
+  - temporal_block
+  - window
+  - split
+  - split_id
+  - scenario
+  - label_availability_source
+  - label_rule_version

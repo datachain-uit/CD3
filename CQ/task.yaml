@@ -1,0 +1,16 @@
+task: CQ
+task_id: course_quality
+protocol_version: v1
+label:
+  column: CQ_label_final
+  rule_version: cq_vector_proximity_v1
+  classes: [warning, average, good]
+  builder: labels.build_cq_labels
+  artifact: labels/cq_labels_v1
+views:
+  builder: views.materialize_label_stratified_views
+  phase: tasks/CQ/hybrid/phase_views_v1
+  manifest: tasks/CQ/hybrid/split_manifest_v1
+  audit: tasks/CQ/hybrid/phase_views_v1_audit
+split: chronological_A60_then_label_count_stratified_B_to_G
+phases: [P1, P2, P3, P4]

@@ -1,0 +1,8 @@
+{
+  "task": "LO",
+  "split_version": "v3_1",
+  "phase_version": "wide_prefix_v3_1",
+  "feature_dictionary_version": "schema_from_phase_views_v3_1",
+  "label_rule_version": "lo_final_score_catalog_normalized_v3_1",
+  "label_threshold_set": "CATALOG_NORMALIZED_PRIMARY_V3_1__EXCLUDE_NO_SCORED_SIGNAL"
+}

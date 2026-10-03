@@ -1,0 +1,25 @@
+task: CQ
+base_output: local_artifacts/CQ/imputation_v1/{window}
+variants:
+  V0-Raw: {family: raw, imputer: none, augmentation: none}
+  V1-Median: {family: median, imputer: median, augmentation: none}
+  V2-Median-CDSMOTE: {family: median, imputer: median, augmentation: CDSmote}
+  V3-Median-SASMOTE: {family: median, imputer: median, augmentation: SASmote}
+  V4-Median-Radius-SMOTE: {family: median, imputer: median, augmentation: Radius-SMOTE}
+  V5-Mean: {family: mean, imputer: mean, augmentation: none}
+  V6-Mean-CDSMOTE: {family: mean, imputer: mean, augmentation: CDSmote}
+  V7-Mean-SASMOTE: {family: mean, imputer: mean, augmentation: SASmote}
+  V8-Mean-Radius-SMOTE: {family: mean, imputer: mean, augmentation: Radius-SMOTE}
+  V9-ExtraTrees: {family: extra_trees, imputer: iterative_extra_trees, augmentation: none}
+  V10-ExtraTrees-CDSMOTE: {family: extra_trees, imputer: iterative_extra_trees, augmentation: CDSmote}
+  V11-ExtraTrees-SASMOTE: {family: extra_trees, imputer: iterative_extra_trees, augmentation: SASmote}
+  V12-ExtraTrees-Radius-SMOTE: {family: extra_trees, imputer: iterative_extra_trees, augmentation: Radius-SMOTE}
+  V13-MICE: {family: mice, imputer: iterative_bayesian_ridge, augmentation: none}
+  V14-MICE-CDSMOTE: {family: mice, imputer: iterative_bayesian_ridge, augmentation: CDSmote}
+  V15-MICE-SASMOTE: {family: mice, imputer: iterative_bayesian_ridge, augmentation: SASmote}
+  V16-MICE-Radius-SMOTE: {family: mice, imputer: iterative_bayesian_ridge, augmentation: Radius-SMOTE}
+policy: classify_missingness_then_encoder_scaler_then_imputer_then_train_only_augmentation
+scope: task_CQ__scenario_hybrid__window_Wk__fit_TRAIN_POOLED_P1_P4__transform_split_phase
+fit_transform_contract: fit_TRAIN_POOLED_P1_P4_only__transform_validation_and_test_with_frozen_train_state
+future_phase_null_policy: structurally_unavailable__exclude_from_model_input__never_impute
+label_policy: never_impute_labels

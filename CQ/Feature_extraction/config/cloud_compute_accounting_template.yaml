@@ -1,0 +1,51 @@
+{
+  "version": "cloud_compute_accounting_v1",
+  "run_identity": {
+    "provider": "vast_ai | modal",
+    "provider_instance_or_task_id_hash": null,
+    "billing_mode": "on_demand | reserved | interruptible | serverless",
+    "currency": "USD"
+  },
+  "actual_hardware": {
+    "gpu_name": null,
+    "gpu_count": null,
+    "gpu_fraction": 1.0,
+    "gpu_uuid_hashes": [],
+    "driver_version": null,
+    "cuda_runtime_version": null,
+    "cpu_cores": null,
+    "ram_gb": null,
+    "container_image_digest": null
+  },
+  "placement": {
+    "cloud_provider": null,
+    "region": null,
+    "country_or_geolocation": null,
+    "region_source": "runtime_metadata | provider_api | unavailable"
+  },
+  "telemetry": {
+    "backend": "nvml | codecarbon | unavailable",
+    "sample_interval_seconds": null,
+    "telemetry_missing_rate": null,
+    "energy_status": "measured | estimated | unavailable",
+    "energy_boundary": "gpu_only | it_estimate | facility_estimate"
+  },
+  "carbon": {
+    "carbon_status": "estimated | unavailable",
+    "carbon_factor_basis": "location_based | market_based | unknown",
+    "carbon_intensity_value": null,
+    "carbon_intensity_unit": "gCO2e/kWh | kgCO2e/kWh",
+    "factor_source": null,
+    "factor_version_or_retrieval_time": null,
+    "pue": null,
+    "pue_source": null
+  },
+  "cost": {
+    "pricing_snapshot_source": "provider_invoice | provider_api | unavailable",
+    "gpu_compute_cost": null,
+    "cpu_memory_cost": null,
+    "storage_cost": null,
+    "bandwidth_cost": null,
+    "total_cost": null
+  }
+}

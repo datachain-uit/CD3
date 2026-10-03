@@ -1,0 +1,140 @@
+"""CPU-only exporter for the locked CQ V2.2 RNN seed-42 L2 facts.
+
+It reads only immutable L1/L2 artifacts, selects the successful V2.2 run for
+each pipeline/window and produces compact report tables.  No model is trained
+and no input/checkpoint artifact is modified.
+"""
+from __future__ import annotations
+
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
+import modal
+
+
+APP_NAME, VOLUME_NAME, MOUNT = "tempo-cq-report-export-v1", "tempo-data-v1", "/data"
+META_RELEASE, TASK, REGIME = "imputation-v1", "CQ", "CQ_RAW_EARLY"
+SPLIT_VERSION, PHASE_VERSION, MODEL_NAME, SEED = "v2_2", "wide_prefix_v2_2", "RNN", 42
+
+app = modal.App(APP_NAME)
+volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=False)
+image = modal.Image.debian_slim(python_version="3.12").pip_install("pandas>=2.2", "pyarrow>=16")
+
+
+def _latest_successful_runs(base: Path) -> list[tuple[Path, dict]]:
+    # Volume mtimes are not a reliable retry ordering after copies/commits.
+    # The immutable attempt suffix is monotonic and is the canonical selector.
+    selected: dict[tuple[str, str], tuple[int, float, Path, dict]] = {}
+    pattern = ("task=CQ/feature_regime=CQ_RAW_EARLY/window_id=*/pipeline_id=*/"
+               "model_name=RNN/seed=42/run_id=*/attempt_id=*/run_manifest.json")
+    for manifest_path in base.glob(pattern):
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if manifest.get("run_status") != "SUCCESS":
+            continue
+        if manifest.get("split_version") != SPLIT_VERSION or manifest.get("phase_version") != PHASE_VERSION:
+            continue
+        window, pipeline = manifest.get("window_id"), manifest.get("pipeline_id")
+        if window not in {"W1", "W2", "W3"} or pipeline not in {f"V{i}" for i in range(17)}:
+            continue
+        key = pipeline, window
+        suffix = str(manifest.get("attempt_id", "")).rsplit("-", 1)[-1]
+        attempt_number = int(suffix) if suffix.isdigit() else 0
+        candidate = (attempt_number, manifest_path.stat().st_mtime, manifest_path.parent, manifest)
+        if key not in selected or candidate[:2] > selected[key][:2]:
+            selected[key] = candidate
+    return [(path, manifest) for _, _, path, manifest in selected.values()]
+
+
+def _read_all(folder: Path):
+    import pandas as pd
+
+    files = sorted(folder.rglob("*.parquet")) if folder.exists() else []
+    return pd.concat([pd.read_parquet(file) for file in files], ignore_index=True) if files else pd.DataFrame()
+
+
+# Report facts are compact parquet tables; 2 physical cores / 4 GiB avoids
+# reserving the 16 GiB used by training-adjacent jobs.
+@app.function(image=image, volumes={MOUNT: volume}, cpu=2, memory=4096, timeout=60 * 60)
+def export_cq_rnn_seed42_facts() -> dict:
+    import pandas as pd
+
+    base = Path(MOUNT) / f"meta_release={META_RELEASE}"
+    runs = _latest_successful_runs(base / "L1_runs")
+    if len(runs) != 51:
+        raise RuntimeError(f"Expected 51 successful CQ RNN V2.2 cells, found {len(runs)}")
+
+    metrics_frames, sanity_frames, resource_frames, run_rows = [], [], [], []
+    for model_root, manifest in runs:
+        pipeline, window = manifest["pipeline_id"], manifest["window_id"]
+        run_id, attempt_id = manifest["run_id"], manifest["attempt_id"]
+        common = {"pipeline_id": pipeline, "window_id": window, "run_id": run_id, "attempt_id": attempt_id}
+        run_rows.append({**common, "best_epoch": manifest.get("best_epoch"), "train_rows": manifest.get("train_rows"),
+                         "validation_rows": manifest.get("validation_rows"), "split_version": manifest.get("split_version"),
+                         "phase_version": manifest.get("phase_version")})
+        facts = base / "L2_facts"
+        metrics = _read_all(facts / "metrics_overall" / "task=CQ" / f"feature_regime={REGIME}" /
+                            f"window_id={window}")
+        if not metrics.empty:
+            metrics = metrics[(metrics.get("pipeline_id") == pipeline) & (metrics.get("model_name") == MODEL_NAME) &
+                              (metrics.get("run_id") == run_id) & (metrics.get("attempt_id") == attempt_id)]
+            if "eval_split" in metrics:
+                metrics = metrics[metrics["eval_split"] == "TEST"]
+            metrics_frames.append(metrics)
+        sanity = _read_all(facts / "sanity_components" / "task=CQ" / f"feature_regime={REGIME}" /
+                           f"window_id={window}")
+        if not sanity.empty:
+            sanity = sanity[(sanity.get("pipeline_id") == pipeline) & (sanity.get("model_name") == MODEL_NAME) &
+                            (sanity.get("run_id") == run_id) & (sanity.get("attempt_id") == attempt_id)]
+            if "eval_split" in sanity:
+                sanity = sanity[sanity["eval_split"] == "TEST"]
+            sanity_frames.append(sanity)
+        resource = _read_all(facts / "resource_usage" / "task=CQ" / f"feature_regime={REGIME}" /
+                             f"window_id={window}")
+        if not resource.empty:
+            resource = resource[(resource.get("pipeline_id") == pipeline) & (resource.get("model_name") == MODEL_NAME) &
+                                (resource.get("run_id") == run_id) & (resource.get("attempt_id") == attempt_id)]
+            resource_frames.append(resource)
+
+    metrics = pd.concat(metrics_frames, ignore_index=True) if metrics_frames else pd.DataFrame()
+    sanity = pd.concat(sanity_frames, ignore_index=True) if sanity_frames else pd.DataFrame()
+    resource = pd.concat(resource_frames, ignore_index=True) if resource_frames else pd.DataFrame()
+    runs_df = pd.DataFrame(run_rows)
+    required = {"metrics_test": 51 * 4, "sanity_test": 51 * 4, "resource": 51}
+    actual = {"metrics_test": len(metrics), "sanity_test": len(sanity), "resource": len(resource)}
+    if actual != required:
+        raise RuntimeError(f"Incomplete L2 facts: expected={required}, actual={actual}")
+
+    # One report row per pipeline/window: P1--P4 TEST means.  Keep only the
+    # principal metrics so it is compact and directly usable in Word tables.
+    metric_fields = [field for field in ("f1_macro", "balanced_accuracy", "mcc", "roc_auc_macro_ovr",
+                                         "pr_auc_macro", "multiclass_nll", "multiclass_brier", "top_label_ece_15")
+                     if field in metrics.columns]
+    test_summary = metrics.groupby(["pipeline_id", "window_id"], as_index=False)[metric_fields].mean()
+    sanity_fields = [field for field in ("s_nan", "s_maj_jsd", "s_ent", "s_drift", "s_eff", "s_leak",
+                                         "s_san_plus", "s_cal", "s_san_plus_v2", "s_perf", "acctempo_m3")
+                     if field in sanity.columns]
+    sanity_summary = sanity.groupby(["pipeline_id", "window_id"], as_index=False)[sanity_fields].mean()
+
+    export = base / "L2_facts" / "report_exports" / "task=CQ" / "report_id=RNN_seed42_v2_2"
+    export.mkdir(parents=True, exist_ok=True)
+    metrics.to_parquet(export / "metrics_test_long.parquet", index=False)
+    sanity.to_parquet(export / "sanity_test_long.parquet", index=False)
+    resource.to_parquet(export / "resource_long.parquet", index=False)
+    runs_df.to_parquet(export / "run_inventory.parquet", index=False)
+    test_summary.to_parquet(export / "test_summary_p1_p4_mean.parquet", index=False)
+    sanity_summary.to_parquet(export / "sanity_summary_p1_p4_mean.parquet", index=False)
+    metadata = {"task": TASK, "model_name": MODEL_NAME, "seed": SEED, "split_version": SPLIT_VERSION,
+                "phase_version": PHASE_VERSION, "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+                "expected_rows": required, "actual_rows": actual,
+                "paths": {name: str(export / name) for name in (
+                    "metrics_test_long.parquet", "sanity_test_long.parquet", "resource_long.parquet",
+                    "run_inventory.parquet", "test_summary_p1_p4_mean.parquet", "sanity_summary_p1_p4_mean.parquet")}}
+    (export / "export_manifest.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+    volume.commit()
+    return metadata
+
+
+@app.local_entrypoint()
+def cli() -> None:
+    print(json.dumps(export_cq_rnn_seed42_facts.remote(), indent=2))

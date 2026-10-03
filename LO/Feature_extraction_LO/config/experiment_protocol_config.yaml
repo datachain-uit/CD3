@@ -1,0 +1,50 @@
+{
+  "version": "experiment_protocol_v1",
+  "output_base": "preprocessed",
+  "raw_base": "raw",
+  "paths": {
+    "comment_events_clean": "comment_v1/comment_events_clean",
+    "comment_enriched": "comment_v1/comments_enriched",
+    "comment_unmapped": "comment_v1/comments_unmapped",
+    "analysis_base": "split_analysis",
+    "feature_base": "features/scenarios",
+    "task_feature_base": "tasks",
+    "contract_base": "contracts",
+    "logs": "logs",
+    "cq_label_components": "labels/cq_label_components_v1",
+    "cq_label_release": "labels/cq_label_release_v1",
+    "cq_labels": "labels/cq_labels_v1",
+    "lo_labels": "labels/lo_labels_v3_1_scored_signal_excluded",
+    "lo_labels_sensitivity": "labels/lo_labels_v3_1_tempo_legacy_clip",
+    "release_audit": "release_audit"
+  },
+  "labels": {
+    "cq_version": "cq_vector_proximity_v1",
+    "cq_artifact_key": "cq_labels",
+    "lo_version": "lo_final_score_catalog_normalized_v3_1",
+    "lo_artifact_key": "lo_labels",
+    "lo_decision": "primary_catalog_normalized_activity_score_label__exclude_no_scored_signal_courses",
+    "lo_semantics": "activity-derived score with video, assignment, and final-chapter exam components normalized by their course catalog; excludes courses with no observed attempt in every positively weighted assignment/exam component; not an independently observed final grade, completion, or dropout",
+    "lo_sensitivity_version": "lo_tempo_legacy_clip_v3_1",
+    "lo_sensitivity_decision": "sensitivity_tempo_legacy_score_clipped_at_100"
+  },
+  "phases": [{"phase": "P1", "ratio": 0.25}, {"phase": "P2", "ratio": 0.50}, {"phase": "P3", "ratio": 0.75}, {"phase": "P4", "ratio": 0.90}],
+  "scenarios": ["hybrid"],
+  "blocks": {"A": 0.60, "B": 0.0666666667, "C": 0.0666666667, "D": 0.0666666667, "E": 0.0666666667, "F": 0.0666666667, "G": 0.0666666667},
+  "outer_folds": [
+    {"window": "W1", "train_blocks": ["A"], "validation_blocks": ["B"], "test_blocks": ["C"]},
+    {"window": "W2", "train_blocks": ["A", "B", "C"], "validation_blocks": ["D"], "test_blocks": ["E"]},
+    {"window": "W3", "train_blocks": ["A", "B", "C", "D", "E"], "validation_blocks": ["F"], "test_blocks": ["G"]}
+  ],
+  "event_availability": {"video": "event_time", "problem": "submit_time; automatic scoring", "comment": "event_time"},
+  "label_availability": {"cq": "offering_end_exclusive = offering_end_date + 1 day", "lo": "offering_end_exclusive = offering_end_date + 1 day"},
+  "split": {
+    "version": "offering_label_stratified_v1",
+    "scheme": "chronological_A60_then_label_count_stratified_B_to_G",
+    "group_unit": "offering_id; inferred pseudo_offering_id for hybrid fallback",
+    "A_ordering_field": "offering_end_date",
+    "B_to_G_ordering": "none; deterministic count-aware allocation",
+    "random_split": false
+  },
+  "split_status": "locked_v1"
+}
