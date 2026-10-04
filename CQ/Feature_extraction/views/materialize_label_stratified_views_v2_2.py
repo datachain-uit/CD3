@@ -98,6 +98,29 @@ log_run_context(logger, spark, {
     "label_filter": "canonical eligible CQ V3 rows only; no downsampling",
 })
 
+
+def require_one_row_per_enrollment(frame, source_name):
+    """Remove byte-for-byte duplicate rows; reject conflicting source rows.
+
+    Every downstream split, imputation, balancing and model run has
+    ``enrollment_id`` as its analytical unit.  Silently choosing one of two
+    non-identical source rows would corrupt that contract, so only complete
+    duplicate records are collapsed here.  Any remaining repeated key stops
+    materialization and must be repaired at its upstream producer.
+    """
+    deduplicated = frame.dropDuplicates()
+    repeated = (deduplicated.groupBy("enrollment_id").count()
+        .filter(F.col("count") > 1))
+    if repeated.limit(1).count():
+        examples = [row["enrollment_id"] for row in repeated.limit(10).collect()]
+        raise ValueError(
+            f"{source_name} has non-identical repeated enrollment_id values; "
+            f"examples={examples}. Repair the upstream source instead of selecting arbitrarily."
+        )
+    print(f"[materialize_cq] grain_ok source={source_name}; exact_duplicates_collapsed")
+    return deduplicated
+
+
 labels = (spark.read.parquet(LABEL_SOURCE)
     .filter(F.col("cq_exclusion_reason").isNull() & F.col("CQ_label_final").isNotNull())
     .select("enrollment_id", "CQ_label_final", "label_availability_time",
@@ -107,11 +130,11 @@ labels = (spark.read.parquet(LABEL_SOURCE)
             "COELO_final", "AFELO_final", "ACELO_final", "CQ_label_vector",
             "CQ_distance_euclidean_final", "CQ_proximity_final",
             "TRIAD_distance_final", "observed_dimension_mask"))
-features = spark.read.parquet(FEATURE_SOURCE)
-windows = (spark.read.parquet(WINDOWS_SOURCE)
+labels = require_one_row_per_enrollment(labels, "labels")
+features = require_one_row_per_enrollment(spark.read.parquet(FEATURE_SOURCE), "features")
+windows = require_one_row_per_enrollment((spark.read.parquet(WINDOWS_SOURCE)
     .select("enrollment_id", F.col("offering_id").cast("string").alias("_source_offering_id"),
-            F.col("window_end_date").alias("_offering_end_date"))
-    .dropDuplicates(["enrollment_id"]))
+            F.col("window_end_date").alias("_offering_end_date"))), "enrollment_windows")
 base = features.join(labels, "enrollment_id", "inner").join(windows, "enrollment_id", "left")
 if "offering_id" in features.columns:
     base = base.withColumn("offering_id", F.coalesce(
@@ -119,6 +142,7 @@ if "offering_id" in features.columns:
 else:
     base = base.withColumn("offering_id", F.col("_source_offering_id"))
 base = base.drop("_source_offering_id")
+base = require_one_row_per_enrollment(base, "joined_base")
 if base.filter(F.col("offering_id").isNull() | F.col("_offering_end_date").isNull()).limit(1).count():
     raise ValueError("Each eligible enrollment must have offering_id and window_end_date.")
 

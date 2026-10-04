@@ -16,12 +16,12 @@ INPUT_DIR = {"CQ": "CQ_v2_2", "LO": "LO_v3_1"}
 REGIME = {"CQ": "CQ_RAW_EARLY", "LO": "LO_FULL_EARLY"}
 LABEL = {"CQ": "CQ_label_final", "LO": "LO_performance_label_3"}
 PHASE_DIRS = {
-    "CQ": ("phase_views_v2_2",),
-    "LO": ("phase_views_v3_1_scored_signal_excluded", "phase_views_v3_1"),
+    "CQ": ("phase_views_v2_2", "phase_views_v1"),
+    "LO": ("phase_views_v3_1_scored_signal_excluded", "phase_views_v3_1", "phase_views_v1"),
 }
 TEST_DIRS = {
-    "CQ": ("test_prefix_views_v2_2",),
-    "LO": ("test_prefix_views_v3_1_scored_signal_excluded", "test_prefix_views_v3_1"),
+    "CQ": ("test_prefix_views_v2_2", "test_prefix_views_v1"),
+    "LO": ("test_prefix_views_v3_1_scored_signal_excluded", "test_prefix_views_v3_1", "test_prefix_views_v1"),
 }
 
 app = modal.App(APP_NAME)
@@ -50,6 +50,7 @@ def _grain(path: Path, label: str, filters: list[tuple[str, str]] | None = None)
     """Return row grain and duplicate diagnostics for one logical table."""
     import pyarrow.dataset as ds
 
+    print(json.dumps({"event": "grain_table_read_started", "path": str(path), "filters": filters or []}), flush=True)
     dataset = ds.dataset(str(path), format="parquet", partitioning="hive")
     names = set(dataset.schema.names)
     selected = [column for column in ("enrollment_id", label, "window", "split", "offering_id", "timeline_source")
@@ -61,7 +62,15 @@ def _grain(path: Path, label: str, filters: list[tuple[str, str]] | None = None)
         term = ds.field(column) == value
         expression = term if expression is None else expression & term
     frame = dataset.to_table(columns=selected, filter=expression).to_pandas()
-    result: dict = {"rows": int(len(frame)), "columns_read": selected, "files": _parquet_files(path)}
+    print(json.dumps({"event": "grain_table_read_complete", "path": str(path), "rows": int(len(frame))}), flush=True)
+    files = _parquet_files(path)
+    result: dict = {
+        "rows": int(len(frame)),
+        "columns_read": selected,
+        "parquet_file_count": len(files),
+        "parquet_files_head": files[:20],
+        "parquet_files_truncated": len(files) > 20,
+    }
     if "enrollment_id" not in frame:
         result["error"] = "enrollment_id column not found"
         return result
@@ -73,6 +82,9 @@ def _grain(path: Path, label: str, filters: list[tuple[str, str]] | None = None)
         "rows_per_enrollment_hist": {str(key): int(value) for key, value in counts.value_counts().sort_index().items()},
         "ratio_rows_over_distinct": round(float(len(frame)) / float(counts.size), 4) if counts.size else None,
     })
+    print(json.dumps({"event": "grain_table_summary", "path": str(path),
+                      "distinct_enrollment_id": result["distinct_enrollment_id"],
+                      "ratio_rows_over_distinct": result["ratio_rows_over_distinct"]}), flush=True)
     duplicate_ids = counts[counts > 1].index
     result["enrollments_with_duplicates"] = int(len(duplicate_ids))
     if not len(duplicate_ids):
@@ -109,10 +121,16 @@ def _latest_v0_inputs(task: str, window: str) -> Path | None:
 
 
 @app.function(image=image, volumes={MOUNT: volume}, cpu=4, memory=32768, timeout=60 * 60)
-def audit(task: str = "CQ") -> dict:
+def audit(task: str = "CQ", window: str = "", scope: str = "all") -> dict:
     if task not in INPUT_DIR:
         raise ValueError("task must be CQ or LO")
-    print(json.dumps({"event": "grain_audit_started", "task": task}), flush=True)
+    allowed_scopes = {"all", "release_train", "release_validation", "release_test", "v0_train", "v0_validation", "v0_test"}
+    if scope not in allowed_scopes:
+        raise ValueError(f"scope must be one of {sorted(allowed_scopes)}")
+    windows = (window,) if window else ("W1", "W2", "W3")
+    if any(item not in {"W1", "W2", "W3"} for item in windows):
+        raise ValueError("window must be empty, W1, W2, or W3")
+    print(json.dumps({"event": "grain_audit_started", "task": task, "window": window or "ALL", "scope": scope}), flush=True)
     volume.reload()
     input_root = Path(MOUNT) / "input" / INPUT_DIR[task]
     phase_root = _first_existing(input_root, PHASE_DIRS[task])
@@ -125,27 +143,40 @@ def audit(task: str = "CQ") -> dict:
         "release_views": {},
         "v0_model_inputs": {},
     }
-    for window in ("W1", "W2", "W3"):
-        if phase_root:
-            for split in ("train", "validation"):
-                report["release_views"][f"{window}/{split}"] = _grain(
-                    phase_root, LABEL[task], [("window", window), ("split", split)]
+    wants_release = scope in {"all", "release_train", "release_validation", "release_test"}
+    if wants_release and (phase_root is None or test_root is None):
+        report["error"] = "release view or test-prefix directory not found"
+        report["verdict"] = "INPUT_VIEWS_NOT_FOUND"
+        return report
+    for scoped_window in windows:
+        if phase_root and scope in {"all", "release_train", "release_validation"}:
+            splits = (("train",) if scope == "release_train" else
+                      ("validation",) if scope == "release_validation" else ("train", "validation"))
+            for split in splits:
+                report["release_views"][f"{scoped_window}/{split}"] = _grain(
+                    phase_root, LABEL[task], [("window", scoped_window), ("split", split)]
                 )
-        if test_root:
+        if test_root and scope in {"all", "release_test"}:
             for phase in ("P1", "P2", "P3", "P4"):
                 folder = test_root / phase
                 if folder.exists():
-                    report["release_views"][f"{window}/test_{phase}"] = _grain(
-                        folder, LABEL[task], [("window", window), ("split", "test")]
+                    report["release_views"][f"{scoped_window}/test_{phase}"] = _grain(
+                        folder, LABEL[task], [("window", scoped_window), ("split", "test")]
                     )
-        inputs = _latest_v0_inputs(task, window)
-        if inputs is None:
-            report["v0_model_inputs"][window] = {"error": "no SUCCESS V0 model_inputs"}
+        if scope not in {"all", "v0_train", "v0_validation", "v0_test"}:
             continue
-        for name in ("train", "validation", "test_P1", "test_P2", "test_P3", "test_P4"):
+        inputs = _latest_v0_inputs(task, scoped_window)
+        if inputs is None:
+            report["v0_model_inputs"][scoped_window] = {"error": "no SUCCESS V0 model_inputs"}
+            continue
+        names = (("train",) if scope == "v0_train" else
+                 ("validation",) if scope == "v0_validation" else
+                 (("test_P1", "test_P2", "test_P3", "test_P4") if scope == "v0_test" else
+                  ("train", "validation", "test_P1", "test_P2", "test_P3", "test_P4")))
+        for name in names:
             path = inputs / f"{name}.parquet"
             if path.exists():
-                report["v0_model_inputs"][f"{window}/{name}"] = _grain(path, LABEL[task])
+                report["v0_model_inputs"][f"{scoped_window}/{name}"] = _grain(path, LABEL[task])
 
     flagged = {
         key: value.get("ratio_rows_over_distinct")
@@ -159,6 +190,6 @@ def audit(task: str = "CQ") -> dict:
 
 
 @app.local_entrypoint()
-def cli(task: str = "CQ") -> None:
-    print(json.dumps({"event": "grain_audit_submitted", "task": task}), flush=True)
-    print(json.dumps(audit.remote(task), indent=2, ensure_ascii=False, default=str))
+def cli(task: str = "CQ", window: str = "", scope: str = "all") -> None:
+    print(json.dumps({"event": "grain_audit_submitted", "task": task, "window": window or "ALL", "scope": scope}), flush=True)
+    print(json.dumps(audit.remote(task, window, scope), indent=2, ensure_ascii=False, default=str))
