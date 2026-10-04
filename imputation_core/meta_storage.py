@@ -18,6 +18,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from release_core.runtime_config import EXTRA_TREES, MICE
 
 from .wide_imputation import COUNT_RE, PHASES, PHASE_SUFFIX_RE, _structural_mask
 
@@ -42,21 +43,15 @@ IMPUTER_PARAMS = {
     "v0": {"fill": 0.0, "imputer": "NONE"},
     "median": {"strategy": "median", "fit_rows": "ALL_TRAIN"}, "mean": {"strategy": "mean", "fit_rows": "ALL_TRAIN"},
     "extra_trees": {
-        "estimator": "ExtraTreesRegressor",
-        "n_estimators": 1,
-        "max_depth": 5,
-        "max_iter": 1,
+        "estimator": "ExtraTreesRegressor", **EXTRA_TREES,
         "source": "TEMPO_extra_trees_baseline", "fit_sample_rows_default": "ALL_TRAIN",
     },
     "mice": {
-        "estimator": "NaNSafeBayesianRidge",
-        "max_iter": 3,
-        "initial_strategy": "constant_0_for_finite_chained_predictors",
+        "estimator": "NaNSafeBayesianRidge", **MICE,
         "internal_model_space": "TRAIN_FITTED_ROBUST_SCALE__INVERSE_TRANSFORM_BEFORE_OUTPUT_SCALE",
         "imputed_value_bounds": "OBSERVED_TRAIN_FEATURE_MIN_MAX__INTERNAL_MODEL_SPACE",
         "sparse_predictor_fallback": "TRAIN_MEDIAN__ZERO_IF_ALL_MISSING",
-        "sample_posterior": False,
-        "fit_sample_rows_default": 1000000,
+        "fit_sample_rows_default": MICE["fit_sample_rows"],
         "fit_scope": "TRAIN_POOLED_P1_P4__DETERMINISTIC_BOUNDED_SAMPLE",
     },
 }

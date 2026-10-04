@@ -79,7 +79,8 @@ Mean fit exact univariate statistics on all training values. `extra_trees` prese
 the lightweight TEMPO baseline: `IterativeImputer(ExtraTreesRegressor)` with
 one shallow tree (`max_depth=5`) and one iteration, fitted on all training
 values for the current full-train experiment. `mice` uses full-train Bayesian
-Ridge conditional models for up to five iterations. Run V0 first as the baseline,
+Ridge conditional models for up to three iterations, fitted on the locked
+1,000,000-row sample. Run V0 first as the baseline,
 then run each learned variant on the same frozen window; never reuse an
 imputer fitted in another window.
 
@@ -124,4 +125,12 @@ foreach ($w in "W1","W2","W3") {
 The generic runner accepts `-Task LO` for all four recurrent architectures
 (`RNN`, `LSTM`, `GRU`, `BILSTM`) and all V0--V16 pipelines. For LO W2/W3 it
 also materializes the registered small-support facts; paired bootstrap is a
-separate post-hoc comparison after paired prediction rows exist.
+separate post-hoc comparison after paired prediction rows exist. It also writes
+the registered offering-cluster sensitivity when a class appears in no more
+than two offerings:
+
+```powershell
+python -X utf8 -m modal run .\modal_jobs\model_bootstrap_app.py `
+  --task LO --window W2 --pipeline-id V1 --reference-pipeline-id V0 `
+  --model-name RNN --seed 42 --repetitions 2000
+```

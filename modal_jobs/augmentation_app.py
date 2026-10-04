@@ -45,6 +45,9 @@ def _augmentation_quality_metrics(train, synthetic, batch, numeric_columns, labe
             "synth_cross_phase_rate": 0.0,
             "synth_cross_phase_columns": 0,
             "synth_cross_phase_check": "no_synthetic_rows",
+            "synth_unavailable_slot_nonzero_rate": 0.0,
+            "synth_unavailable_slot_nonzero_cells": 0,
+            "synth_unavailable_slot_check": "no_synthetic_rows",
         }
 
     rng = np.random.default_rng(seed)
@@ -117,6 +120,23 @@ def _augmentation_quality_metrics(train, synthetic, batch, numeric_columns, labe
     cross_phase_cells = len(synthetic) * len(cross_phase_columns)
     possible_cells = max(len(synthetic) * len(numeric_columns), 1)
 
+    # P4 has no future suffixes, so the suffix-only test above is necessarily
+    # zero for the production full-sequence train artifact.  Verify the real
+    # structural invariant as well: a synthetic row must not carry a nonzero
+    # phase value when that phase is unavailable to both parents.
+    unavailable_nonzero_cells, unavailable_total = 0, 0
+    for phase_number in range(1, int(phase_id[1:]) + 1):
+        phase_name = f"P{phase_number}"
+        available_name = f"phase_available_{phase_name}"
+        phase_columns = [column for column in numeric_columns if column.endswith(f"_{phase_name}")]
+        if available_name not in synthetic or not phase_columns:
+            continue
+        unavailable = pd.to_numeric(synthetic[available_name], errors="coerce").fillna(0).to_numpy() <= 0
+        if unavailable.any():
+            values = synthetic.loc[unavailable, phase_columns].to_numpy(dtype=np.float32, copy=False)
+            unavailable_nonzero_cells += int((np.abs(values) > 1e-6).sum())
+            unavailable_total += int(values.size)
+
     return {
         "quality_metric_version": "augmentation_dq_v1",
         "fidelity_sample_cap_per_class": cap,
@@ -132,6 +152,9 @@ def _augmentation_quality_metrics(train, synthetic, batch, numeric_columns, labe
         "synth_cross_phase_rate": float(cross_phase_cells / possible_cells),
         "synth_cross_phase_columns": int(len(cross_phase_columns)),
         "synth_cross_phase_check": "interpolated_feature_suffixes",
+        "synth_unavailable_slot_nonzero_rate": float(unavailable_nonzero_cells / unavailable_total) if unavailable_total else 0.0,
+        "synth_unavailable_slot_nonzero_cells": int(unavailable_nonzero_cells),
+        "synth_unavailable_slot_check": "phase_available_intersection_of_parents",
     }
 
 
@@ -200,15 +223,22 @@ def run_augmentation(task: str, window: str, phase: str, parent_pipeline: str = 
     import numpy as np
     import pandas as pd
     from augmentation_core import CDSmote, RadiusSMOTE, SASmote, augmentable_model_columns, materialize_synthetic_rows
-    from release_core import resolve_release
+    from release_core import BALANCERS, SAMPLING, resolve_release
 
     if task not in REGIME or window not in {"W1", "W2", "W3"} or phase != "P4":
         raise ValueError("TEMPO full-sequence augmentation requires task=CQ|LO, window=W1..W3, phase=P4")
     if parent_pipeline not in PARENT or method not in {"CDSMOTE", "SASMOTE", "RADIUS_SMOTE"}:
         raise ValueError("parent_pipeline=V1|V5|V9|V13; method=CDSMOTE|SASMOTE|RADIUS_SMOTE")
     spec = resolve_release(task, release_id)
-    balancer = {"CDSMOTE": CDSmote(random_state=seed), "SASMOTE": SASmote(random_state=seed),
-                "RADIUS_SMOTE": RadiusSMOTE(random_state=seed)}[method]
+    balancer = {
+        "CDSMOTE": CDSmote(random_state=seed, ir_target=SAMPLING["ir_target"],
+                             max_expansion_per_class=SAMPLING["max_expansion_per_class"], **BALANCERS["CDSMOTE"]),
+        "SASMOTE": SASmote(random_state=seed, ir_target=SAMPLING["ir_target"],
+                            max_expansion_per_class=SAMPLING["max_expansion_per_class"], **BALANCERS["SASMOTE"]),
+        "RADIUS_SMOTE": RadiusSMOTE(random_state=seed, ir_target=SAMPLING["ir_target"],
+                                      max_expansion_per_class=SAMPLING["max_expansion_per_class"],
+                                      radius=BALANCERS["RADIUS_SMOTE"]["radius"]),
+    }[method]
     algorithm_config = {
         "algorithm": getattr(balancer, "algorithm", method),
         "sampling_strategy_id": balancer.sampling_strategy_id,
@@ -465,13 +495,16 @@ def inspect_completed_augmentation(task: str, window: str,
             "real_vs_synth_jsd_mean", "real_vs_synth_wasserstein_norm_mean",
             "synth_out_of_domain_rate", "synth_non_integer_count_rate",
             "synth_invalid_mask_rate", "synth_cross_phase_rate",
+            "synth_unavailable_slot_nonzero_rate",
         )
         report["quality_metrics_present"] = all(key in quality for key in required_quality)
         report["qa_synthetic_mask_ok"] = quality.get("synth_invalid_mask_rate") == 0.0
         report["qa_synthetic_phase_ok"] = quality.get("synth_cross_phase_rate") == 0.0
+        report["qa_synthetic_availability_ok"] = quality.get("synth_unavailable_slot_nonzero_rate") == 0.0
         report["qa_quality_ok"] = (report["quality_metrics_present"] and
                                    report["qa_synthetic_mask_ok"] and
-                                   report["qa_synthetic_phase_ok"])
+                                   report["qa_synthetic_phase_ok"] and
+                                   report["qa_synthetic_availability_ok"])
         results.append(report)
         print(json.dumps(report, sort_keys=True), flush=True)
     return results

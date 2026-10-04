@@ -32,6 +32,11 @@ import json
 import os
 from typing import Dict, List, Optional
 
+from release_core.runtime_config import BALANCERS as RUNTIME_BALANCERS
+from release_core.runtime_config import EXTRA_TREES as RUNTIME_EXTRA_TREES
+from release_core.runtime_config import MICE as RUNTIME_MICE
+from release_core.runtime_config import MODEL as RUNTIME_MODEL
+
 try:
     from .seeds import sha256_of, SEED_PREPROCESS
 except ImportError:  # Supports ``python LO/registries.py`` as documented.
@@ -81,18 +86,16 @@ SAMPLING_STRATEGY = {
                       'scheme is kept; the consequence table in PLAN §2.3 and the sampling note must be rewritten with these numbers.',
     'status': 'PRIMARY_CONFIRMED 2026-10-01 [V3.1 §6]',
 }
-MICE_PARAMS = {'initial_strategy': 'constant_0_for_finite_chained_predictors', 'max_iter': 3, 'tol': 1e-3,
+MICE_PARAMS = {**RUNTIME_MICE,
                'internal_scaler': 'RobustScaler(train_only, inverse_transform_before_output)',
                'sparse_predictor_fallback': 'train_median (0 if all missing)',
-               'fit_sample_rows': 1000000, 'report': 'trpool_post_fallback_rate'}
-EXTRATREES_PARAMS = {'n_estimators': 1, 'max_depth': 5, 'max_iter': 1, 'n_jobs': -1,
+               'fit_sample_rows': RUNTIME_MICE['fit_sample_rows'], 'report': 'trpool_post_fallback_rate'}
+EXTRATREES_PARAMS = {**RUNTIME_EXTRA_TREES,
                       'source': 'TEMPO_extra_trees_light_baseline'}
 BALANCER_PARAMS = {
-    'CDSMOTE': {'n_clusters': 5, 'within_cluster_interpolation': True},
-    'SASMOTE': {'visible_k': 16, 'max_inspectors': 4, 'inspector_trees': 16,
-                'uncertainty_threshold': 0.5, 'candidate_batch_size': 262144,
-                'max_candidate_rounds': 32},
-    'RADIUS_SMOTE': {'radius': 0.092, 'radius_space': 'scaled_numeric_model_input'},
+    'CDSMOTE': {**RUNTIME_BALANCERS['CDSMOTE'], 'within_cluster_interpolation': True},
+    'SASMOTE': dict(RUNTIME_BALANCERS['SASMOTE']),
+    'RADIUS_SMOTE': dict(RUNTIME_BALANCERS['RADIUS_SMOTE']),
 }
 
 
@@ -145,7 +148,8 @@ def validate_pipeline_registry(rows: List[Dict]) -> None:
 # ---------------------------------------------------------------------------------------------
 INPUT_CHANNELS = ['X', 'M_missing', 'M_available', 'delta_t', 'phase_id', 'observed_length']
 COMMON_HPARAMS = {'hparam_config_id': 'HP_RNN_FAMILY_v1', 'loss_name': 'cross_entropy', 'class_weighting': 'NONE',
-                  'lr': 1e-3, 'batch_size': 2048, 'max_epochs': 50, 'early_stopping_patience': 5,
+                  'lr': RUNTIME_MODEL['learning_rate'], 'batch_size': RUNTIME_MODEL['batch_size'],
+                  'max_epochs': RUNTIME_MODEL['max_epochs'], 'early_stopping_patience': RUNTIME_MODEL['patience'],
                   'selection_metric': 'MEAN_PHASE_MACRO_F1', 'selection_tiebreak': 'MEAN_PHASE_CROSS_ENTROPY_MIN',
                   'selection_log': ['selection_margin', 'selected_epoch', 'n_checkpoints_within_margin'],
                   'amp_dtype': 'bfloat16'}

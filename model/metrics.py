@@ -86,7 +86,7 @@ def stratified_bootstrap_per_class_ci(y_true: np.ndarray, y_pred: np.ndarray, la
                                       class_codes: tuple[str, ...], *, repetitions: int = 2000,
                                       seed: int = 42, alpha: float = .05,
                                       small_support_threshold: int = 400) -> list[dict]:
-    """CI for classes with small support using efficient stratified bootstrap.
+    """CI for every present class using efficient stratified bootstrap.
 
     Each true-class stratum is resampled with replacement at its original
     size. For a target class, TP and each source-class FP count are binomial
@@ -98,7 +98,7 @@ def stratified_bootstrap_per_class_ci(y_true: np.ndarray, y_pred: np.ndarray, la
     for index, label in enumerate(labels):
         target = y_true == label
         support = int(target.sum())
-        if support >= small_support_threshold or support == 0:
+        if support == 0:
             continue
         tp_probability = float((y_pred[target] == label).mean())
         tp = rng.binomial(support, tp_probability, size=repetitions)
@@ -121,7 +121,8 @@ def stratified_bootstrap_per_class_ci(y_true: np.ndarray, y_pred: np.ndarray, la
             output.append({
                 "class_index": int(index), "class_code": class_codes[index],
                 "n_support": support, "small_support_threshold": int(small_support_threshold),
-                "small_support_flag": 1, "bootstrap_method": "stratified_binomial_equivalent_v1",
+                "small_support_flag": int(support < small_support_threshold),
+                "bootstrap_method": "stratified_binomial_equivalent_v1",
                 "bootstrap_repetitions": int(repetitions), "ci_level": float(1 - alpha),
                 "metric_name": metric_name, "estimate": float(samples.mean()),
                 "ci_lower": float(np.quantile(samples, low)), "ci_upper": float(np.quantile(samples, high)),

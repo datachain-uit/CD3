@@ -225,7 +225,7 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
     from model.energy import GpuEnergyMeter
     from model.metrics import per_class_metric_records, stratified_bootstrap_per_class_ci
     from model.shared_phase import evaluate_test_prefix, train_shared_checkpoint
-    from release_core import resolve_release
+    from release_core import MODEL, resolve_release
 
     if task not in REGIME or window not in {"W1", "W2", "W3"} or pipeline_id not in {f"V{i}" for i in range(17)}:
         raise ValueError("task=CQ|LO, window=W1..W3, pipeline_id=V0..V16 required")
@@ -258,7 +258,7 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
               "augmentation_seed": augmentation_seed,
               "prediction_id_salt_sha256": hashlib.sha256(prediction_salt.encode("utf-8")).hexdigest(),
               **seed_bundle,
-              "gpu_type": "L4", "precision_policy": "bf16_amp", "logits_loss_dtype": "float32",
+              "gpu_type": "L4", "precision_policy": MODEL["precision_policy"], "logits_loss_dtype": "float32",
               "training_sequence": "P1_P2_P3_P4", "checkpoint_count": 1,
               "validation_selection": "mean_macro_f1(P1,P2,P3,P4); tie=min_mean_cross_entropy",
               "small_support_contract": {"threshold": 400, "bootstrap_ci": "stratified_95pct",
@@ -267,9 +267,7 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
               "paired_bootstrap_contract": {"repetitions": 2000, "unit": "paired_prediction_rows",
                                              "applies_to": "LO_W2_W3_pipeline_comparison"},
               "long_offering_policy": "retain_flagged_no_pseudo_run_v1",
-              "test_refit_forbidden": True, "hidden_size": 128, "num_layers": 1, "dropout": .3,
-              "batch_size": 2048, "max_epochs": 50, "patience": 5, "learning_rate": .001,
-              "weight_decay": .00001, "data_release_id": input_manifest.get("data_release_id"),
+              "test_refit_forbidden": True, **MODEL, "data_release_id": input_manifest.get("data_release_id"),
               "release_id": spec["release_id"], "split_registry_id": spec["split_registry_id"],
               "split_version": input_manifest.get("split_version"), "phase_version": input_manifest.get("phase_version"),
               "expected_split_version": spec["split_version"], "expected_phase_version": spec["phase_version"],
@@ -306,9 +304,8 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
     energy_meter = GpuEnergyMeter(); energy_meter.__enter__()
     trained, runtime = train_shared_checkpoint(layout=layout, classes=classes, train_frame=train,
         validation_frame=validation, architecture=ARCHITECTURES[model_name], seed=seed_model,
-        dataloader_seed=seed_dataloader, hidden_size=128, num_layers=1,
-        dropout=.3, batch_size=2048, max_epochs=50, patience=5, learning_rate=.001,
-        weight_decay=.00001, workers=4)
+        dataloader_seed=seed_dataloader,
+        **{key: value for key, value in MODEL.items() if key != "precision_policy"})
     train_s = time.perf_counter() - started - read_s
     checkpoint_root = root / "checkpoint"; checkpoint_root.mkdir(parents=True, exist_ok=True)
     torch.save(trained["checkpoint"], checkpoint_root / "model.pt")
@@ -344,12 +341,11 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
             per_class_records.append({"task": task, "feature_regime": REGIME[task], "window_id": window, "phase_id": phase,
                                       "eval_split": "VALIDATION", "pipeline_id": pipeline_id, "model_name": model_name, "run_id": run_id,
                                       "attempt_id": attempt_id, **record})
-        if task == "LO" and window in {"W2", "W3"}:
-            for record in stratified_bootstrap_per_class_ci(prediction["y_true"], prediction["y_pred"], np.arange(len(classes)), classes,
-                                                             repetitions=2000, seed=seed):
-                bootstrap_records.append({"task": task, "feature_regime": REGIME[task], "window_id": window, "phase_id": phase,
-                                          "eval_split": "VALIDATION", "pipeline_id": pipeline_id, "model_name": model_name, "run_id": run_id,
-                                          "attempt_id": attempt_id, **record})
+        for record in stratified_bootstrap_per_class_ci(prediction["y_true"], prediction["y_pred"], np.arange(len(classes)), classes,
+                                                         repetitions=2000, seed=seed):
+            bootstrap_records.append({"task": task, "feature_regime": REGIME[task], "window_id": window, "phase_id": phase,
+                                      "eval_split": "VALIDATION", "pipeline_id": pipeline_id, "model_name": model_name, "run_id": run_id,
+                                      "attempt_id": attempt_id, **record})
         calibration_records.append({key: metric[key] for key in ("task", "feature_regime", "window_id", "phase_id", "eval_split", "pipeline_id", "model_name", "run_id", "attempt_id", "multiclass_nll", "multiclass_brier", "top_label_ece_15", "calibration_bins")})
         for true_index, true_code in enumerate(("c0", "c1", "c2")):
             for pred_index, pred_code in enumerate(("c0", "c1", "c2")):
@@ -381,12 +377,11 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
             per_class_records.append({"task": task, "feature_regime": REGIME[task], "window_id": window, "phase_id": phase,
                                       "eval_split": "TEST", "pipeline_id": pipeline_id, "model_name": model_name, "run_id": run_id,
                                       "attempt_id": attempt_id, **record})
-        if task == "LO" and window in {"W2", "W3"}:
-            for record in stratified_bootstrap_per_class_ci(prediction["y_true"], prediction["y_pred"], np.arange(len(classes)), classes,
-                                                             repetitions=2000, seed=seed):
-                bootstrap_records.append({"task": task, "feature_regime": REGIME[task], "window_id": window, "phase_id": phase,
-                                          "eval_split": "TEST", "pipeline_id": pipeline_id, "model_name": model_name, "run_id": run_id,
-                                          "attempt_id": attempt_id, **record})
+        for record in stratified_bootstrap_per_class_ci(prediction["y_true"], prediction["y_pred"], np.arange(len(classes)), classes,
+                                                         repetitions=2000, seed=seed):
+            bootstrap_records.append({"task": task, "feature_regime": REGIME[task], "window_id": window, "phase_id": phase,
+                                      "eval_split": "TEST", "pipeline_id": pipeline_id, "model_name": model_name, "run_id": run_id,
+                                      "attempt_id": attempt_id, **record})
         calibration_records.append({key: metric[key] for key in ("task", "feature_regime", "window_id", "phase_id", "eval_split", "pipeline_id", "model_name", "run_id", "attempt_id", "multiclass_nll", "multiclass_brier", "top_label_ece_15", "calibration_bins")})
         for true_index, true_code in enumerate(("c0", "c1", "c2")):
             for pred_index, pred_code in enumerate(("c0", "c1", "c2")):

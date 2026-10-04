@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 import pyarrow.dataset as ds
 from sklearn.preprocessing import RobustScaler
+from release_core.runtime_config import MICE
 
 from .id_codes import add_id_code_columns
 from .variants import BUILDERS
@@ -76,9 +77,9 @@ def fit_sample_rows_for_variant(variant: Variant, requested_rows: int) -> int:
     if variant == "mice":
         # MICE is a fixed 1M-row estimator-fit experiment.  Accepting a CLI
         # override would make the immutable registry claim false.
-        if requested_rows not in {0, 1_000_000}:
-            raise ValueError("MICE fit_sample_rows is locked to 1000000 for the active release")
-        return 1_000_000
+        if requested_rows not in {0, MICE["fit_sample_rows"]}:
+            raise ValueError(f"MICE fit_sample_rows is locked to {MICE['fit_sample_rows']} for the active release")
+        return MICE["fit_sample_rows"]
     return requested_rows
 
 

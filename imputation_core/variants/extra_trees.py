@@ -9,19 +9,20 @@ not a high-cost hyperparameter search.
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.experimental import enable_iterative_imputer  # noqa: F401
 from sklearn.impute import IterativeImputer
+from release_core.runtime_config import EXTRA_TREES
 
 
 def build(*, seed: int):
     estimator = ExtraTreesRegressor(
-        n_estimators=1,
-        max_depth=5,
+        n_estimators=EXTRA_TREES["n_estimators"],
+        max_depth=EXTRA_TREES["max_depth"],
         random_state=seed,
-        n_jobs=-1,
+        n_jobs=EXTRA_TREES["n_jobs"],
     )
     return IterativeImputer(
         estimator=estimator,
-        max_iter=1,
-        initial_strategy="median",
+        max_iter=EXTRA_TREES["max_iter"],
+        initial_strategy=EXTRA_TREES["initial_strategy"],
         sample_posterior=False,
         skip_complete=True,
         random_state=seed,

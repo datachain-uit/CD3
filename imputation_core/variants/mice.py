@@ -3,6 +3,7 @@
 from sklearn.experimental import enable_iterative_imputer  # noqa: F401
 from sklearn.impute import IterativeImputer
 from sklearn.linear_model import BayesianRidge
+from release_core.runtime_config import MICE
 
 
 class NaNSafeBayesianRidge(BayesianRidge):
@@ -38,14 +39,15 @@ class NaNSafeBayesianRidge(BayesianRidge):
 def build(*, seed: int):
     return IterativeImputer(
         estimator=NaNSafeBayesianRidge(),
-        max_iter=3,
+        max_iter=MICE["max_iter"],
         # With the full pooled P1--P4 matrix, a median initializer can retain
         # NaN in a sparse predictor during sklearn's chained-regression pass.
         # A finite constant is only the initial state; Bayesian Ridge replaces
         # eligible values over the subsequent MICE iterations.
-        initial_strategy="constant",
-        fill_value=0.0,
-        sample_posterior=False,
+        initial_strategy=MICE["initial_strategy"],
+        fill_value=MICE["fill_value"],
+        sample_posterior=MICE["sample_posterior"],
+        tol=MICE["tol"],
         skip_complete=True,
         random_state=seed,
         # Emits one concise Modal log per chained-imputation round, making a
