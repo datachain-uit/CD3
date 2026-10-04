@@ -1,8 +1,7 @@
-"""Materialize LO V3.1 labels on the immutable LO V2.2 split foundation.
+"""Materialize LO V3.1 views from the locked V3.1 split registry.
 
-The V3.1 label contract excludes courses with no scored signal. This job uses
-the frozen V2.2 offering/window assignment and materializes a new V3.1 view
-after that label filter. It never rebuilds or re-pairs the temporal split.
+The V3.1 label contract excludes courses with no scored signal and must be
+paired with the corresponding V3.1 scored-signal-excluded split manifest.
 """
 from hashlib import sha256
 import os
@@ -34,11 +33,19 @@ BASE = P["output_base"]
 FEATURE_BASE = os.environ.get("VIEW_FEATURE_BASE", f"{BASE.rstrip('/')}/features/scenarios").rstrip("/")
 TASK_BASE = os.environ.get("VIEW_TASK_BASE", path_from_config(P, "task_feature_base")).rstrip("/")
 LABEL_SOURCE = path_from_config(P, "lo_labels") + "/"
-# V3.1 uses its own label artifact but inherits the immutable V2.2
-# assignment manifest. These constants prevent an accidental split rebuild.
-EXTERNAL_MANIFEST_SOURCE = (
-    f"{TASK_BASE}/LO/hybrid/split_registry_v2_2_overlap_audit_v1/manifest"
-)
+# A materialized V3.1 view must never silently inherit a V2.2 manifest. The
+# explicit override is retained only for the identically named V3.1 release.
+EXPECTED_SPLIT_RULE_VERSION = "offering_temporal_label_balanced_v3_1_scored_signal_excluded"
+EXPECTED_MANIFEST_RELEASE = "split_registry_v3_1_scored_signal_excluded_overlap_audit_v1"
+EXTERNAL_MANIFEST_SOURCE = os.environ.get(
+    "VIEW_SPLIT_MANIFEST_SOURCE",
+    f"{TASK_BASE}/LO/hybrid/{EXPECTED_MANIFEST_RELEASE}/manifest",
+).rstrip("/")
+if EXPECTED_MANIFEST_RELEASE not in EXTERNAL_MANIFEST_SOURCE:
+    raise ValueError(
+        "LO V3.1 requires the scored-signal-excluded V3.1 manifest; "
+        f"got {EXTERNAL_MANIFEST_SOURCE!r}."
+    )
 VIEW_RELEASE = "v3_1_scored_signal_excluded"
 OUT = f"{TASK_BASE}/LO/hybrid/phase_views_{VIEW_RELEASE}/"
 MANIFEST_OUT = f"{TASK_BASE}/LO/hybrid/split_manifest_{VIEW_RELEASE}/"
@@ -188,6 +195,14 @@ if EXTERNAL_MANIFEST_SOURCE:
         raise ValueError(f"Split manifest is missing required columns: {sorted(missing_manifest_columns)}")
     if external.groupBy(*unit_columns, "window_id").count().filter(F.col("count") > 1).limit(1).count():
         raise ValueError("Split manifest must have exactly one assignment per offering/timeline/window.")
+    if "split_rule_version" not in external.columns:
+        raise ValueError("LO V3.1 manifest must declare split_rule_version.")
+    if (external.filter(F.col("split_rule_version") != F.lit(EXPECTED_SPLIT_RULE_VERSION))
+            .limit(1).count()):
+        raise ValueError(
+            "LO V3.1 manifest split_rule_version does not match "
+            f"{EXPECTED_SPLIT_RULE_VERSION!r}."
+        )
     manifest = external.withColumnRenamed("window_id", "window")
     if VIEW_RELEASE in {"v2_2", "v2_2_sourcefaithful", "v2_3", "v3_catalog_normalized", "v3_1_scored_signal_excluded"}:
         required_v22 = {"duration_days", "long_offering_flag"}

@@ -1,0 +1,53 @@
+{
+  "config_version": "1.0.0",
+  "experiment": {
+    "model_family": "F1_RECURRENT",
+    "model_name": "RNN",
+    "model_revision": "recurrent_shared_phase_v2_3_epoch50",
+    "pipeline_id": "V0",
+    "pipeline_name": "RAW_CONSTANT_FILL_WITH_MASKS",
+    "augmentation": "NONE",
+    "class_weighting": "NONE",
+    "selection_objective": "mean_validation_macro_f1_p1_p4",
+    "selection_tiebreak": "mean_validation_cross_entropy_p1_p4"
+  },
+  "temporal_contract": {
+    "training_sequence": "P1_P2_P3_P4",
+    "checkpoint_count_per_run": 1,
+    "train_loss": "mean_cross_entropy_per_real_enrollment_over_p1_p4",
+    "validation_phases": ["P1", "P2", "P3", "P4"],
+    "test_phases": ["P1", "P2", "P3", "P4"],
+    "test_refit_forbidden": true,
+    "future_unavailable_never_read": true
+  },
+  "input_contract": {
+    "input_mode": "v0_mask",
+    "dynamic_channels": ["numeric_value", "missing_mask", "availability_mask"],
+    "static_branch": "numeric_static_as_of_time_only",
+    "raw_identifiers_forbidden": ["enrollment_id", "offering_id", "user_id", "course_id", "teacher_id", "school_id", "user_id_code", "course_id_code", "teacher_id_code", "school_id_code"],
+    "scaler_refit_forbidden": true
+  },
+  "architecture": {
+    "hidden_size": 128,
+    "num_layers": 1,
+    "dropout": 0.3,
+    "recurrent_nonlinearity": "tanh",
+    "static_fusion": "concat_last_recurrent_state_and_static_then_linear_head"
+  },
+  "optimization": {
+    "optimizer": "AdamW",
+    "learning_rate": 0.001,
+    "weight_decay": 0.00001,
+    "batch_size": 2048,
+    "max_epochs": 50,
+    "patience": 5
+  },
+  "seeds": [42],
+  "compute_contract": {
+    "gpu": "L4",
+    "mixed_precision": "bfloat16",
+    "logits_and_cross_entropy": "float32"
+  },
+  "metrics_version": "model_metrics_v1",
+  "acctempo_definition_version": "acctempo_m3_v1"
+}
