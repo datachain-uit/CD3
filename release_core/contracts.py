@@ -19,6 +19,7 @@ RELEASE_SPECS: dict[str, dict[str, str]] = {
         "test_prefix_views_dir": "test_prefix_views_v2_2",
         "split_registry_id": "split_registry_v2_2_overlap_audit_v1_r2",
         "label_rule_version": "cq_vector_proximity_v1_zero_activity_policy",
+        "label_threshold_set": "CQ_VECTOR_PROXIMITY_PRIMARY_V1",
     },
     "LO_V3_1": {
         "task": "LO",
@@ -29,6 +30,7 @@ RELEASE_SPECS: dict[str, dict[str, str]] = {
         "test_prefix_views_dir": "test_prefix_views_v3_1_scored_signal_excluded",
         "split_registry_id": "split_registry_v3_1_scored_signal_excluded_overlap_audit_v1",
         "label_rule_version": "lo_final_score_catalog_normalized_v3_1",
+        "label_threshold_set": "CATALOG_NORMALIZED_PRIMARY_V3_1__EXCLUDE_NO_SCORED_SIGNAL",
     },
 }
 
@@ -54,20 +56,16 @@ def resolve_release(task: str, release_id: str = "") -> dict[str, str]:
 
 def validate_release_manifest(manifest: dict[str, Any], spec: dict[str, str], *, source: str) -> None:
     """Ensure uploaded input identifies exactly the selected immutable release."""
-    required = ("task", "split_version", "phase_version", "feature_dictionary_version", "label_rule_version")
+    required = ("task", "release_id", "split_registry_id", "split_version", "phase_version",
+                "feature_dictionary_version", "label_rule_version", "label_threshold_set")
     missing = [field for field in required if not manifest.get(field)]
     if missing:
         raise ValueError(f"Release manifest lacks required fields at {source}: {missing}")
     mismatches = {
         field: (manifest.get(field), spec[field])
-        for field in ("task", "split_version", "phase_version", "label_rule_version")
+        for field in ("task", "release_id", "split_registry_id", "split_version", "phase_version",
+                      "label_rule_version", "label_threshold_set")
         if manifest.get(field) != spec[field]
     }
-    manifest_id = manifest.get("release_id")
-    if manifest_id is not None and manifest_id != spec["release_id"]:
-        mismatches["release_id"] = (manifest_id, spec["release_id"])
-    registry_id = manifest.get("split_registry_id")
-    if registry_id is not None and registry_id != spec["split_registry_id"]:
-        mismatches["split_registry_id"] = (registry_id, spec["split_registry_id"])
     if mismatches:
         raise ValueError(f"Release manifest does not match {spec['release_id']} at {source}: {mismatches}")

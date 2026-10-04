@@ -13,9 +13,14 @@ from .contracts import SyntheticBatch, synthetic_available_mask, synthetic_missi
 
 IDENTITY_CODES = {"user_id_code", "course_id_code", "teacher_id_code", "school_id_code"}
 PROVENANCE = {"enrollment_id", "offering_id", "window", "split", "task", "scenario"}
+# WideImputer encodes these nominal values as integer codes for model input.
+# Numeric encoding does not make them continuous: synthetic rows inherit the
+# parent-A category rather than interpolating invalid fractional codes.
+CATEGORICAL_CODES = IDENTITY_CODES | {"gender", "timeline_source"}
 
 
-def augmentable_model_columns(source: pd.DataFrame, *, label_column: str, phase_id: str) -> list[str]:
+def augmentable_model_columns(source: pd.DataFrame, *, label_column: str, phase_id: str,
+                              categorical_columns: Sequence[str] = ()) -> list[str]:
     """Return the complete numeric model input eligible for interpolation.
 
     At prefix ``Pk`` a synthetic row contains every dynamic value from
@@ -27,7 +32,7 @@ def augmentable_model_columns(source: pd.DataFrame, *, label_column: str, phase_
     allowed_phases = {f"P{index}" for index in range(1, int(phase_id[1:]) + 1)}
     result: list[str] = []
     for column in source.columns:
-        if column in IDENTITY_CODES | PROVENANCE | {label_column} or column.startswith("context__"):
+        if column in CATEGORICAL_CODES | set(categorical_columns) | PROVENANCE | {label_column} or column.startswith("context__"):
             continue
         if column.startswith(("missing__", "phase_available_", "video_observed_mask_",
                               "problem_observed_mask_", "comment_observed_mask_")):
@@ -61,8 +66,8 @@ def materialize_synthetic_rows(
     inherited from parent A; available masks are the intersection, and missing
     flags are the union, of both parents.
     """
-    if any(column in IDENTITY_CODES for column in numeric_columns):
-        raise ValueError("identity codes must be inherited from parent_a, never interpolated")
+    if any(column in CATEGORICAL_CODES for column in numeric_columns):
+        raise ValueError("categorical codes must be inherited from parent_a, never interpolated")
     if len(batch.labels) == 0:
         return source.iloc[0:0].copy(), pd.DataFrame()
     if len(numeric_columns) != batch.values.shape[1]:

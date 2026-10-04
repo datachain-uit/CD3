@@ -18,7 +18,7 @@
     "release_audit": "release_audit"
   },
   "labels": {
-    "cq_version": "cq_vector_proximity_v1",
+    "cq_version": "cq_vector_proximity_v1_zero_activity_policy",
     "cq_artifact_key": "cq_labels",
     "lo_version": "lo_operational_performance_v1",
     "lo_artifact_key": "lo_labels",

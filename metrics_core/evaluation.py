@@ -18,6 +18,9 @@ from sklearn.preprocessing import StandardScaler
 
 CLASS_IDS = np.array([0, 1, 2])
 EPS = 1e-12
+# Registered floor for composite quality/performance scores.  Keep numerical
+# probability/JSD smoothing separate so this policy does not distort either.
+COMPOSITE_EPS = 1e-3
 
 
 def _jsd_base2(left: np.ndarray, right: np.ndarray) -> float:
@@ -106,10 +109,10 @@ def classification_metrics(y_true: np.ndarray, probabilities: np.ndarray, *, tra
     s_drift = 1 - _jsd_base2(predicted_distribution, reference)
     s_eff_value = 1.0 if s_eff is None else float(s_eff)
     s_leak_value = 1.0 if s_leak is None else float(s_leak)
-    sanity_parts = np.clip([s_nan, s_maj_jsd, s_ent, s_drift, s_eff_value, s_leak_value], EPS, 1)
+    sanity_parts = np.clip([s_nan, s_maj_jsd, s_ent, s_drift, s_eff_value, s_leak_value], COMPOSITE_EPS, 1)
     s_san_plus = float(np.prod(sanity_parts) ** (1 / 6))
-    s_perf = float(np.prod(np.clip([macro_f1, balanced_accuracy, (mcc + 1) / 2, (kappa + 1) / 2], EPS, 1)) ** 0.25)
-    acctempo = float((max(s_perf, EPS) ** 0.6) * (max(s_san_plus, EPS) ** 0.4))
+    s_perf = float(np.prod(np.clip([macro_f1, balanced_accuracy, (mcc + 1) / 2, (kappa + 1) / 2], COMPOSITE_EPS, 1)) ** 0.25)
+    acctempo = float((max(s_perf, COMPOSITE_EPS) ** 0.6) * (max(s_san_plus, COMPOSITE_EPS) ** 0.4))
     output: dict[str, Any] = {
         "n_eval_samples": int(len(y_true)), "ev_n_classes_present": int((support > 0).sum()),
         "small_subgroup_flag": bool(len(y_true) < 100), "confusion_matrix": matrix.tolist(),
@@ -121,7 +124,7 @@ def classification_metrics(y_true: np.ndarray, probabilities: np.ndarray, *, tra
         "s_perf": s_perf, "s_nan": s_nan, "s_maj_jsd": s_maj_jsd, "s_ent": s_ent,
         "s_drift": s_drift, "s_eff": s_eff_value, "s_leak": s_leak_value,
         "s_san_plus": s_san_plus, "acctempo_m3": acctempo,
-        "acctempo_alpha": 0.6, "acctempo_beta": 0.4, "acctempo_eps_floor": EPS,
+        "acctempo_alpha": 0.6, "acctempo_beta": 0.4, "acctempo_eps_floor": COMPOSITE_EPS,
     }
     output.update(_class_metrics(matrix, clipped, y_true))
     return output

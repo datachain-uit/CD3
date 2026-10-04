@@ -37,7 +37,7 @@ try:
 except ImportError:  # Supports ``python LO/registries.py`` as documented.
     from seeds import sha256_of, SEED_PREPROCESS
 
-REGISTRY_REVISION = 'registries_rev_2026-10-01_r2'
+REGISTRY_REVISION = 'registries_rev_2026-10-04_r3'
 
 # ---------------------------------------------------------------------------------------------
 # Pipeline registry V0–V16 (PLAN Table 7 / Table 14)
@@ -81,12 +81,19 @@ SAMPLING_STRATEGY = {
                       'scheme is kept; the consequence table in PLAN §2.3 and the sampling note must be rewritten with these numbers.',
     'status': 'PRIMARY_CONFIRMED 2026-10-01 [V3.1 §6]',
 }
-MICE_PARAMS = {'initial_strategy': 'constant_zero_first_round_only', 'max_iter': 10, 'tol': 1e-3,
+MICE_PARAMS = {'initial_strategy': 'constant_0_for_finite_chained_predictors', 'max_iter': 3, 'tol': 1e-3,
                'internal_scaler': 'RobustScaler(train_only, inverse_transform_before_output)',
                'sparse_predictor_fallback': 'train_median (0 if all missing)',
-               'report': 'trpool_post_fallback_rate'}
-EXTRATREES_PARAMS = {'n_estimators': 100, 'max_depth': None, 'min_samples_leaf': 5, 'n_jobs': -1}
-BALANCER_PARAMS = {'CDSMOTE': {'k_neighbors': 5}, 'SASMOTE': {'k_neighbors': 5}, 'RADIUS_SMOTE': {'radius_quantile': 0.5}}
+               'fit_sample_rows': 1000000, 'report': 'trpool_post_fallback_rate'}
+EXTRATREES_PARAMS = {'n_estimators': 1, 'max_depth': 5, 'max_iter': 1, 'n_jobs': -1,
+                      'source': 'TEMPO_extra_trees_light_baseline'}
+BALANCER_PARAMS = {
+    'CDSMOTE': {'n_clusters': 5, 'within_cluster_interpolation': True},
+    'SASMOTE': {'visible_k': 16, 'max_inspectors': 4, 'inspector_trees': 16,
+                'uncertainty_threshold': 0.5, 'candidate_batch_size': 262144,
+                'max_candidate_rounds': 32},
+    'RADIUS_SMOTE': {'radius': 0.092, 'radius_space': 'scaled_numeric_model_input'},
+}
 
 
 def build_pipeline_registry(sampling: Dict = SAMPLING_STRATEGY['primary']) -> List[Dict]:
@@ -138,7 +145,7 @@ def validate_pipeline_registry(rows: List[Dict]) -> None:
 # ---------------------------------------------------------------------------------------------
 INPUT_CHANNELS = ['X', 'M_missing', 'M_available', 'delta_t', 'phase_id', 'observed_length']
 COMMON_HPARAMS = {'hparam_config_id': 'HP_RNN_FAMILY_v1', 'loss_name': 'cross_entropy', 'class_weighting': 'NONE',
-                  'lr': 1e-3, 'batch_size': 256, 'max_epochs': 50, 'early_stopping_patience': 5,
+                  'lr': 1e-3, 'batch_size': 2048, 'max_epochs': 50, 'early_stopping_patience': 5,
                   'selection_metric': 'MEAN_PHASE_MACRO_F1', 'selection_tiebreak': 'MEAN_PHASE_CROSS_ENTROPY_MIN',
                   'selection_log': ['selection_margin', 'selected_epoch', 'n_checkpoints_within_margin'],
                   'amp_dtype': 'bfloat16'}
@@ -264,7 +271,7 @@ LO_PROXY_CONTRACT = {
                                     'regime; QA23 (Spearman |rho|, NMI vs final_score) is run per phase on this group and reported'},
 }
 LABEL_ARTIFACTS = {
-    'CQ': {'label_rule_version': 'CQ_TRIAD_PROXIMITY_v1', 'label_threshold_set': 'PRIMARY',
+    'CQ': {'label_rule_version': 'cq_vector_proximity_v1_zero_activity_policy', 'label_threshold_set': 'PRIMARY',
            'score': 'cq_score_g_final = 1 - TRIAD_distance_final/sqrt(3) (alias CQ_proximity_final)',
            'thresholds': {'W': '< 0.10', 'A': '[0.10, 0.30)', 'G': '>= 0.30'},
            'invalid_component_policy': 'NULL with exclusion_reason; never coerced to W',
@@ -400,13 +407,13 @@ SPLIT_REGISTRY = {
                                    'global_template_fallback': {'p50': 127, 'p90': 426, 'max': 481, 'enrollment_share_gt_270d': 0.55124},
                                    'enrollment_anchored_proxy': {'p50': 152, 'p90': 212, 'max': 212, 'enrollment_share_gt_270d': 0.0}}},
     'tasks': {
-        'CQ': {'split_version': 'v2.2', 'registry_id': 'split_registry_v2_2_overlap_audit_v1_r2', 'pairing': 'balanced',
-               'population': 2684090, 'label_rule_version': 'CQ_TRIAD_PROXIMITY_v1',
+        'CQ': {'split_version': 'v2_2', 'registry_id': 'split_registry_v2_2_overlap_audit_v1_r2', 'pairing': 'balanced',
+               'population': 2684090, 'label_rule_version': 'cq_vector_proximity_v1_zero_activity_policy',
                'blocks': {'A': 1609276, 'B': 175689, 'C': 178095, 'D': 180485, 'E': 180482, 'F': 180032, 'G': 180031},
                'qa22': {'W1': 'PASS', 'W2': 'PASS', 'W3': 'PASS'},
                'assignment_qa': {'multi_block_enrollments': 0, 'multi_split_per_window': 0, 'multi_block_units': 0, 'unmapped': 0},
                'status': 'LOCKED', 'source': '[CL §2, §7.5, §8.3]'},
-        'LO': {'split_version': 'v3_1_scored_signal_excluded', 'registry_id': 'split_registry_v3_1_scored_signal_excluded_overlap_audit_v1',
+        'LO': {'split_version': 'v3_1', 'registry_id': 'split_registry_v3_1_scored_signal_excluded_overlap_audit_v1',
                'pairing': 'rarest_first', 'population': 2605423, 'label_rule_version': 'lo_final_score_catalog_normalized_v3_1',
                'blocks': {'A': 1787557, 'B': 78090, 'C': 78591, 'D': 200842, 'E': 200844, 'F': 129426, 'G': 130073},
                'block_classes': {'A': {'c0': 1782182, 'c1': 4720, 'c2': 655}, 'B': {'c0': 77306, 'c1': 532, 'c2': 252},
@@ -448,8 +455,9 @@ PENDING_DECISIONS = [
     {'id': 3, 'topic': 'IR10_K10 PRIMARY; LO evaluation windows; probability metric for LO W2', 'status': 'CLOSED_PARTIAL 2026-10-01',
      'resolution': 'IR10_K10 and W1-primary / W2-W3-exploratory confirmed [V3.1 §6]; the probability-based metric for W2 '
                    '(log_loss or pr_auc_macro) was not addressed and is carried into item 8'},
-    {'id': 4, 'topic': 'BALANCER_PARAMS k_neighbors = 5 and radius_quantile = 0.5 are starting values, not confirmed',
-     'blocks': ['pilot balancer'], 'needs': 'QA11/QA12 on the V0 W1 pilot'},
+    {'id': 4, 'topic': 'balancer parameters', 'status': 'CLOSED 2026-10-04',
+     'resolution': 'registry records the implemented CDSMOTE cluster, SASMOTE inspector, and absolute scaled Radius-SMOTE parameters; '
+                   'all three use primary IR10_K10 with an expansion cap of 10'},
     {'id': 5, 'topic': 'AccTEMPO primary S_san+ version v1 vs v2', 'blocks': ['mm_config lock'], 'needs': '24-cell component table of the V0 runs'},
     {'id': 6, 'topic': 'LO catalog denominator: 493/711 courses (64.0% of enrollments) have an observed ceiling < 60 and 675 courses '
                        '(91.1%) < 85 [V3.1 §5]. Reading (i): true completion pattern, V3.1 final. Reading (ii): catalogs contain problems '

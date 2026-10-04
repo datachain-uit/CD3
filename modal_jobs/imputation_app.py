@@ -350,6 +350,10 @@ def run_imputation(task: str, window: str, test_phase: str, variant: str,
     checkpoint("preprocess_fit_started", fit_rows=len(train),
                fit_sample_rows=("ALL_TRAIN" if effective_fit_sample_rows == 0 else effective_fit_sample_rows))
     pipeline = WideImputer(task, variant, effective_fit_sample_rows, seed).fit(train)
+    # Preserve the exact categorical schema for downstream augmentation: these
+    # integer encodings are nominal and must be inherited, never interpolated.
+    manifest["categorical_columns"] = list(pipeline.categorical)
+    atomic_json(l1 / "run_manifest.json", manifest)
     telemetry.mark("preprocess_fit")
     checkpoint("preprocess_fit_complete")
     raw_train_sample = _profile_rows(train, S1_PROFILE_ROWS, seed)
@@ -426,7 +430,12 @@ def run_imputation(task: str, window: str, test_phase: str, variant: str,
     if not fidelity.empty:
         fidelity_partition = _fact_partition(task, FEATURE_REGIME[task], window, "P4", "S1_IMPUTED", run_id=run_id, attempt_id=attempt_id)
         atomic_parquet(fidelity.assign(attempt_id=attempt_id, pipeline_id=pipeline_id), l2 / "imputation_fidelity" / fidelity_partition / "part-00000.parquet")
-    diagnostic = l3_rows(all_facts, resource, task=task, window=window, run_id=run_id, pipeline_id=pipeline_id, seed=seed)
+    diagnostic = l3_rows(
+        all_facts, resource, task=task, window=window, run_id=run_id,
+        pipeline_id=pipeline_id, seed=seed,
+        label_rule_version=release["label_rule_version"],
+        label_threshold_set=release.get("label_threshold_set", "PRIMARY"),
+    )
     diagnostic_partition = (Path(f"task={task}") / f"feature_regime={FEATURE_REGIME[task]}" /
                             f"window_id={window}" / f"pipeline_id={pipeline_id}" /
                             "model_name=IMPUTATION_ONLY" / f"seed={seed}" /

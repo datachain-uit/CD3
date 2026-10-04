@@ -25,7 +25,7 @@ def seed_everything(seed: int) -> None:
         torch.cuda.manual_seed_all(seed)
     # Determinism is part of the experiment identity.  It is intentionally
     # enabled even though a few CUDA kernels may be slower.
-    torch.use_deterministic_algorithms(True, warn_only=True)
+    torch.use_deterministic_algorithms(True)
     if hasattr(torch.backends, "cudnn"):
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.deterministic = True
@@ -79,16 +79,19 @@ def _evaluate_prefixes(model: nn.Module, dynamic: np.ndarray, static: np.ndarray
 
 def train_shared_checkpoint(*, layout: FeatureLayout, classes: tuple[str, ...], train_frame: pd.DataFrame,
                             validation_frame: pd.DataFrame, architecture: str, seed: int,
+                            dataloader_seed: int | None = None,
                             hidden_size: int = 128, num_layers: int = 1, dropout: float = .3,
                             batch_size: int = 2048, max_epochs: int = 50, patience: int = 5,
                             learning_rate: float = 1e-3, weight_decay: float = 1e-5, workers: int = 4) -> tuple[dict, dict]:
     """Fit a single checkpoint using average CE over P1--P4 real train rows."""
     seed_everything(seed)
+    dataloader_seed = seed if dataloader_seed is None else dataloader_seed
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     class_ids = np.arange(len(classes), dtype=np.int64)
     train_dynamic, train_static, _, train_y = transform_frame(train_frame, layout, classes=classes, use_masks=True)
     val_dynamic, val_static, _, val_y = transform_frame(validation_frame, layout, classes=classes, use_masks=True)
-    train_loader = _loader(SharedPhaseDataset(train_dynamic, train_static, train_y), batch_size, True, workers, seed=seed)
+    train_loader = _loader(SharedPhaseDataset(train_dynamic, train_static, train_y), batch_size, True, workers,
+                           seed=dataloader_seed)
     model = SharedPhaseHybridRecurrentClassifier(train_dynamic.shape[2], train_static.shape[1], len(classes), architecture,
                                                   hidden_size, num_layers, dropout).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
@@ -103,9 +106,11 @@ def train_shared_checkpoint(*, layout: FeatureLayout, classes: tuple[str, ...], 
             # logits.float() below, so checkpoint selection remains fp32.
             with autocast(device_type=amp_device, dtype=torch.bfloat16,
                           enabled=device.type == "cuda"):
-                logits = model(dx, sx); loss = sum(criterion(logits[:, i].float(), target) for i in range(4)) / 4
+                logits = model(dx, sx)
+                loss = sum(criterion(logits[:, i].float(), target) for i in range(logits.size(1))) / logits.size(1)
             scaler.scale(loss).backward(); scaler.step(optimizer); scaler.update(); total += float(loss.detach()) * len(target); rows += len(target)
-        val_metrics, _ = _evaluate_prefixes(model, val_dynamic, val_static, val_y, batch_size, workers, device, class_ids, seed=seed)
+        val_metrics, _ = _evaluate_prefixes(model, val_dynamic, val_static, val_y, batch_size, workers, device, class_ids,
+                                            seed=dataloader_seed)
         mean_f1 = float(np.mean([val_metrics[p]["f1_macro"] for p in PHASES])); mean_ce = float(np.mean([val_metrics[p]["cross_entropy"] for p in PHASES]))
         history.append({"epoch": epoch, "train_cross_entropy_mean_p1_p4": total / max(rows, 1), "validation_macro_f1_mean_p1_p4": mean_f1, "validation_cross_entropy_mean_p1_p4": mean_ce})
         key = (mean_f1, -mean_ce)
@@ -126,7 +131,8 @@ def train_shared_checkpoint(*, layout: FeatureLayout, classes: tuple[str, ...], 
                               "patience": patience}, sort_keys=True), flush=True)
             break
     model.load_state_dict(best_state)
-    val_metrics, val_predictions = _evaluate_prefixes(model, val_dynamic, val_static, val_y, batch_size, workers, device, class_ids, seed=seed)
+    val_metrics, val_predictions = _evaluate_prefixes(model, val_dynamic, val_static, val_y, batch_size, workers, device, class_ids,
+                                                       seed=dataloader_seed)
     checkpoint = {"model_state_dict": model.state_dict(), "classes": list(classes), "layout": layout.as_dict(),
                   "architecture": architecture, "best_epoch": best_epoch, "selection_objective": "mean_validation_macro_f1_p1_p4"}
     return {"checkpoint": checkpoint, "history": history, "validation_metrics": val_metrics,
@@ -142,7 +148,7 @@ def evaluate_test_prefix(model: nn.Module, frame: pd.DataFrame, full_layout: Fea
         raise ValueError("phase_id must be P1-P4")
     layout = FeatureLayout(full_layout.task, phase_id, full_layout.dynamic_bases,
                            full_layout.static_columns, full_layout.mask_dynamic_columns,
-                           full_layout.mask_static_columns)
+                           full_layout.mask_static_columns, full_layout.mask_phase_bases)
     dynamic, static, _, y = transform_frame(frame, layout, classes=classes, use_masks=True)
     if device is None: device = next(model.parameters()).device
     metrics, predictions = _evaluate_prefixes(model, dynamic, static, y, batch_size, workers, device,

@@ -32,7 +32,7 @@ BASE = PROTOCOL["output_base"]
 COMPONENT_SOURCE = path_from_config(PROTOCOL, "cq_label_components") + "/"
 CANONICAL_SOURCE = path_from_config(PROTOCOL, "cq_labels") + "/"
 OUTPUT_BASE = f"{BASE}/labels/cq_labels_v1_component_audit/"
-LABEL_VERSION = "cq_vector_proximity_v1"
+LABEL_VERSION = "cq_vector_proximity_v1_zero_activity_policy"
 
 spark = (
     SparkSession.builder.appName("audit_cq_acelo_video_problem_only_v3")

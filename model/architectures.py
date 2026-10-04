@@ -90,6 +90,15 @@ class SharedPhaseHybridRecurrentClassifier(nn.Module):
         At test Pk the caller passes only the P1..Pk prefix. Therefore no
         packing, zero-padding, or future value can influence the prediction.
         """
-        sequence, _ = self.recurrent(dynamic_x)
+        if self.bidirectional:
+            # A full backward pass at Pk would read P(k+1)..P4.  Evaluate
+            # each prefix independently, matching the immutable test prefix.
+            steps = []
+            for length in range(1, dynamic_x.size(1) + 1):
+                prefix, _ = self.recurrent(dynamic_x[:, :length])
+                steps.append(prefix[:, -1])
+            sequence = torch.stack(steps, dim=1)
+        else:
+            sequence, _ = self.recurrent(dynamic_x)
         static = static_x.unsqueeze(1).expand(-1, sequence.size(1), -1)
         return self.head(torch.cat((sequence, static), dim=2))

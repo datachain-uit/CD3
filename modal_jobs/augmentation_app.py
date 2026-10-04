@@ -164,7 +164,9 @@ def _latest_successful_canonical_train(root: Path, *, spec: dict[str, str]) -> t
                 manifest.get("release_id") == spec["release_id"] and
                 manifest.get("split_registry_id") == spec["split_registry_id"] and
                 manifest.get("split_version") == spec["split_version"] and
-                manifest.get("phase_version") == spec["phase_version"]):
+                manifest.get("phase_version") == spec["phase_version"] and
+                manifest.get("label_rule_version") == spec["label_rule_version"] and
+                manifest.get("feature_dictionary_version")):
             return train_path, manifest
     return None
 
@@ -207,8 +209,17 @@ def run_augmentation(task: str, window: str, phase: str, parent_pipeline: str = 
     spec = resolve_release(task, release_id)
     balancer = {"CDSMOTE": CDSmote(random_state=seed), "SASMOTE": SASmote(random_state=seed),
                 "RADIUS_SMOTE": RadiusSMOTE(random_state=seed)}[method]
-    algorithm_config = {"algorithm": getattr(balancer, "algorithm", method)}
-    if method == "SASMOTE":
+    algorithm_config = {
+        "algorithm": getattr(balancer, "algorithm", method),
+        "sampling_strategy_id": balancer.sampling_strategy_id,
+        "ir_target": balancer.ir_target,
+        "max_expansion_per_class": balancer.max_expansion_per_class,
+    }
+    if method == "CDSMOTE":
+        algorithm_config["parameters"] = {"n_clusters": balancer.n_clusters, "kmeans_n_init": 10}
+    elif method == "RADIUS_SMOTE":
+        algorithm_config["parameters"] = {"radius": balancer.radius, "radius_space": "scaled_numeric_model_input"}
+    elif method == "SASMOTE":
         algorithm_config["parameters"] = {
             "visible_k": balancer.visible_k,
             "max_inspectors": balancer.max_inspectors,
@@ -231,11 +242,16 @@ def run_augmentation(task: str, window: str, phase: str, parent_pipeline: str = 
                    "parent_pipeline": parent_pipeline, "method": method, "seed": seed,
                    "source_train": str(source), "source_layout": source_layout,
                    "parent_imputation_run_id": parent_manifest.get("run_id"),
+                   "parent_imputation_attempt_id": parent_manifest.get("attempt_id"),
+                   "parent_imputation_manifest_sha256": hashlib.sha256(
+                       json.dumps(parent_manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
+                   ).hexdigest(),
                    "release_id": spec["release_id"], "split_registry_id": spec["split_registry_id"],
                    "split_version": parent_manifest.get("split_version"),
                    "phase_version": parent_manifest.get("phase_version"),
                    "feature_dictionary_version": parent_manifest.get("feature_dictionary_version"),
                    "label_rule_version": parent_manifest.get("label_rule_version"),
+                   "label_threshold_set": parent_manifest.get("label_threshold_set"),
                    "algorithm_config": algorithm_config}
     run_id = hashlib.sha256(json.dumps(run_context, sort_keys=True).encode("utf-8")).hexdigest()
     attempt_id = f"{run_id[:16]}-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}"
@@ -266,19 +282,38 @@ def run_augmentation(task: str, window: str, phase: str, parent_pipeline: str = 
     print(json.dumps({"event": "input_read_complete", "rows": len(train),
                       "columns": len(train.columns)}, sort_keys=True), flush=True)
     label = _label(task)
-    numeric = augmentable_model_columns(train, label_column=label, phase_id=phase)
+    if "categorical_columns" not in parent_manifest:
+        raise ValueError(
+            "Parent imputation manifest lacks categorical_columns. Rerun the locked parent imputer; "
+            "augmentation must not guess which integer columns are nominal."
+        )
+    categorical_columns = tuple(parent_manifest["categorical_columns"])
+    numeric = augmentable_model_columns(train, label_column=label, phase_id=phase,
+                                        categorical_columns=categorical_columns)
     x = train[numeric].to_numpy(dtype=np.float32, copy=True)
     y = train[label].to_numpy()
     print(json.dumps({"event": "balance_started", "rows": len(train), "features": len(numeric)}, sort_keys=True), flush=True)
     batch = balancer.fit_resample(x, y)
     balance_finished = time.perf_counter()
     algorithm_audit = getattr(balancer, "audit", {})
+    algorithm_config["sampling_plan"] = getattr(balancer, "plan", {})
     print(json.dumps({"event": "balance_complete", "synthetic_rows": len(batch.labels),
                       "algorithm_audit": algorithm_audit}, sort_keys=True), flush=True)
     available = [c for c in train if c.startswith(("phase_available_", "video_observed_mask_", "problem_observed_mask_", "comment_observed_mask_"))]
     missing = [c for c in train if c.startswith("missing__")]
     context = {"task": task, "window_id": window, "phase_id": phase, "parent_pipeline": parent_pipeline,
-               "balance_pipeline": _pipeline(parent_pipeline, method), "seed": str(seed)}
+               "balance_pipeline": _pipeline(parent_pipeline, method), "seed": str(seed),
+               "seed_augmentation": seed, "seed_sampler": seed,
+               "release_id": spec["release_id"], "split_registry_id": spec["split_registry_id"],
+               "split_version": parent_manifest["split_version"], "phase_version": parent_manifest["phase_version"],
+               "feature_dictionary_version": parent_manifest["feature_dictionary_version"],
+               "label_rule_version": parent_manifest["label_rule_version"],
+               "label_threshold_set": parent_manifest.get("label_threshold_set"),
+               "parent_imputation_run_id": parent_manifest.get("run_id"),
+               "parent_imputation_attempt_id": parent_manifest.get("attempt_id"),
+               "parent_imputation_manifest_sha256": hashlib.sha256(
+                   json.dumps(parent_manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
+               ).hexdigest()}
     synthetic, ledger = materialize_synthetic_rows(train, batch, numeric_columns=numeric, label_column=label,
         available_mask_columns=available, missing_mask_columns=missing, context=context)
     quality_metrics = _augmentation_quality_metrics(
@@ -365,16 +400,18 @@ def run_augmentation(task: str, window: str, phase: str, parent_pipeline: str = 
 @app.function(image=image, volumes={MOUNT: volume}, cpu=8, memory=196608, timeout=60 * 60 * 4)
 def inspect_completed_augmentation(task: str, window: str,
                                    balance_pipelines: tuple[str, ...] = ("V2", "V6", "V10", "V14"),
-                                   seed: int = 42) -> list[dict]:
+                                   seed: int = 42, release_id: str = "") -> list[dict]:
     """Fully scan completed Parquet artifacts without creating model output.
 
     Iterating every row group validates page headers and decompression, which
     catches corruption that a footer-only Parquet metadata check would miss.
     """
     import pyarrow.parquet as pq
+    from release_core import resolve_release
 
     if task not in REGIME or window not in {"W1", "W2", "W3"}:
         raise ValueError("task=CQ|LO and window=W1..W3 required")
+    spec = resolve_release(task, release_id)
     volume.reload()
     results: list[dict] = []
     for pipeline in balance_pipelines:
@@ -387,7 +424,9 @@ def inspect_completed_augmentation(task: str, window: str,
                             key=lambda path: path.stat().st_mtime, reverse=True)
         candidates.append(base_root / "run_manifest.json")
         manifest_path = next((path for path in candidates if path.exists() and
-                              json.loads(path.read_text(encoding="utf-8")).get("run_status") == "SUCCESS"), None)
+                              (data := json.loads(path.read_text(encoding="utf-8"))).get("run_status") == "SUCCESS" and
+                              all(data.get(field) == spec[field] for field in
+                                  ("release_id", "split_registry_id", "split_version", "phase_version", "label_rule_version"))), None)
         if manifest_path is None:
             attempts = sorted(str(path.relative_to(base_root)) for path in base_root.glob("run_id=*/attempt_id=*"))
             record = {"window_id": window, "seed": seed, "pipeline_id": pipeline,
@@ -478,18 +517,23 @@ def inspect_parent_imputations(task: str = "ALL", release_id: str = "") -> list[
 
 @app.function(image=image, volumes={MOUNT: volume}, timeout=60 * 10)
 def inspect_augmentation_status(task: str, window: str,
-                                balance_pipelines: tuple[str, ...], seed: int = 42) -> list[dict]:
+                                balance_pipelines: tuple[str, ...], seed: int = 42,
+                                release_id: str = "") -> list[dict]:
     """Read-only manifest status; deliberately avoids expensive Parquet scans."""
+    from release_core import resolve_release
     if task not in REGIME or window not in {"W1", "W2", "W3"}:
         raise ValueError("task=CQ|LO and window=W1..W3 required")
+    spec = resolve_release(task, release_id)
     volume.reload()
     records: list[dict] = []
     for pipeline in balance_pipelines:
         base = (Path(MOUNT) / "meta_release=imputation-v1/L1_runs" / f"task={task}" /
                 f"feature_regime={REGIME[task]}" / f"window_id={window}" / "phase_id=P4" /
                 f"pipeline_id={pipeline}" / "model_name=BALANCED_TRAIN_ONLY" / f"seed={seed}")
-        manifests = sorted(base.glob("run_id=*/attempt_id=*/run_manifest.json"),
+        manifests = [path for path in sorted(base.glob("run_id=*/attempt_id=*/run_manifest.json"),
                            key=lambda path: path.stat().st_mtime, reverse=True)
+                     if all(json.loads(path.read_text(encoding="utf-8")).get(field) == spec[field] for field in
+                            ("release_id", "split_registry_id", "split_version", "phase_version", "label_rule_version"))]
         attempts = sorted(str(path.relative_to(base)) for path in base.glob("run_id=*/attempt_id=*"))
         if not manifests:
             record = {"window_id": window, "pipeline_id": pipeline, "seed": seed,
@@ -512,22 +556,22 @@ def cli(mode: str = "augment", task: str = "CQ", window: str = "W1", phase: str 
         balance_pipelines: str = "V2,V6,V10,V14", release_id: str = ""):
     if mode == "inspect":
         pipelines = tuple(item.strip() for item in balance_pipelines.split(",") if item.strip())
-        result = inspect_completed_augmentation.remote(task, window, pipelines, seed)
+        result = inspect_completed_augmentation.remote(task, window, pipelines, seed, release_id)
     elif mode == "inspect_all_windows":
         if task not in REGIME:
             raise ValueError("inspect_all_windows requires task=CQ or LO")
         pipelines = tuple(item.strip() for item in balance_pipelines.split(",") if item.strip())
         result = []
         for scoped_window in ("W1", "W2", "W3"):
-            result.extend(inspect_completed_augmentation.remote(task, scoped_window, pipelines, seed))
+            result.extend(inspect_completed_augmentation.remote(task, scoped_window, pipelines, seed, release_id))
     elif mode == "status":
         pipelines = tuple(item.strip() for item in balance_pipelines.split(",") if item.strip())
-        result = inspect_augmentation_status.remote(task, window, pipelines, seed)
+        result = inspect_augmentation_status.remote(task, window, pipelines, seed, release_id)
     elif mode == "status_all_windows":
         pipelines = tuple(item.strip() for item in balance_pipelines.split(",") if item.strip())
         result = []
         for scoped_window in ("W1", "W2", "W3"):
-            result.extend(inspect_augmentation_status.remote(task, scoped_window, pipelines, seed))
+            result.extend(inspect_augmentation_status.remote(task, scoped_window, pipelines, seed, release_id))
     elif mode == "inspect_parents":
         result = inspect_parent_imputations.remote(task, release_id)
     elif mode == "augment":

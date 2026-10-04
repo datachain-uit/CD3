@@ -5,7 +5,9 @@ import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.neighbors import NearestNeighbors
 
-from .contracts import SyntheticBatch, allocate, minority_targets, validate_train_matrix
+from .contracts import (DEFAULT_IR_TARGET, DEFAULT_MAX_EXPANSION_PER_CLASS,
+                        SAMPLING_STRATEGY_ID, SyntheticBatch, allocate,
+                        generation_plan, validate_train_matrix)
 
 
 class CDSmote:
@@ -17,22 +19,41 @@ class CDSmote:
 
     method = "CDSMOTE"
 
-    def __init__(self, n_clusters: int = 5, random_state: int = 20260922):
+    def __init__(self, n_clusters: int = 5, random_state: int = 20260922,
+                 ir_target: int = DEFAULT_IR_TARGET,
+                 max_expansion_per_class: int = DEFAULT_MAX_EXPANSION_PER_CLASS):
         self.n_clusters = n_clusters
         self.random_state = random_state
+        self.ir_target = ir_target
+        self.max_expansion_per_class = max_expansion_per_class
+        self.sampling_strategy_id = SAMPLING_STRATEGY_ID
+        self.plan: dict[str, object] = {}
 
     def fit_resample(self, x, y) -> SyntheticBatch:
         values, labels = validate_train_matrix(x, y)
         rng = np.random.default_rng(self.random_state)
-        majority, majority_count, counts = minority_targets(labels)
+        majority, counts, to_generate = generation_plan(
+            labels, ir_target=self.ir_target,
+            max_expansion_per_class=self.max_expansion_per_class,
+        )
+        self.plan = {
+            "sampling_strategy_id": self.sampling_strategy_id,
+            "ir_target": self.ir_target,
+            "max_expansion_per_class": self.max_expansion_per_class,
+            "class_counts_before": {str(key): int(value) for key, value in counts.items()},
+            "synthetic_target_per_class": {str(key): int(value) for key, value in to_generate.items()},
+        }
         batches: list[SyntheticBatch] = []
         for label, count in counts.items():
-            if label == majority or count >= majority_count:
+            n_generate = to_generate[label]
+            if label == majority or n_generate <= 0:
                 continue
             global_idx = np.flatnonzero(labels == label)
-            n_generate = majority_count - count
             if len(global_idx) < 2:
-                continue
+                raise ValueError(
+                    f"IR10_K10 requires {n_generate} synthetic rows for class {label!r}, "
+                    "but fewer than two real TRAIN rows are available."
+                )
             n_clusters = min(self.n_clusters, max(1, len(global_idx) // 2))
             cluster_id = KMeans(n_clusters=n_clusters, n_init=10, random_state=self.random_state).fit_predict(values[global_idx])
             members = [global_idx[cluster_id == cluster] for cluster in range(n_clusters)]

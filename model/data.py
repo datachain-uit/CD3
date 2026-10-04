@@ -17,6 +17,12 @@ PHASES = ("P1", "P2", "P3", "P4")
 # time even when the same feature value appears at different prefixes.
 PHASE_FRACTIONS = (0.25, 0.50, 0.75, 0.90)
 PHASE_RE = re.compile(r"^(.*)_P([1-4])$")
+# Availability is observed at a particular prefix, not a static attribute.
+# Keeping P2--P4 indicators in the static branch would leak future activity
+# into the P1/P2/P3 logits during shared-sequence training.
+PHASE_MASK_BASES = (
+    "phase_available", "video_observed_mask", "problem_observed_mask", "comment_observed_mask",
+)
 IDENTITY_OR_PROVENANCE = {
     "enrollment_id", "offering_id", "window", "split", "synthetic_id",
     "course_id", "user_id", "teacher_id", "school_id",
@@ -43,6 +49,7 @@ class FeatureLayout:
     static_columns: tuple[str, ...]
     mask_dynamic_columns: tuple[str, ...]
     mask_static_columns: tuple[str, ...]
+    mask_phase_bases: tuple[str, ...] = ()
 
     @property
     def phases(self) -> tuple[str, ...]:
@@ -55,6 +62,7 @@ class FeatureLayout:
             "static_columns": list(self.static_columns),
             "mask_dynamic_columns": list(self.mask_dynamic_columns),
             "mask_static_columns": list(self.mask_static_columns),
+            "mask_phase_bases": list(self.mask_phase_bases),
         }
 
 
@@ -96,15 +104,22 @@ def fit_layout(train: pd.DataFrame, *, task: str, phase_id: str, use_masks: bool
         raise ValueError("no numeric static features found after identity exclusion")
 
     # V0_mask receives missingness provenance and modality/phase availability.
-    mask_dynamic, mask_static = [], []
+    mask_dynamic, mask_static, mask_phase = [], [], []
     if use_masks:
         mask_dynamic = [f"missing__{base}_{phase}" for phase in available_phases for base in dynamic_bases
                         if f"missing__{base}_{phase}" in train]
         mask_static = [c for c in train.columns if c.startswith("missing__") and not PHASE_RE.match(c.removeprefix("missing__"))]
-        mask_static += [c for c in train.columns if c.startswith(("phase_available_", "video_observed_mask_", "problem_observed_mask_", "comment_observed_mask_"))]
         mask_static = sorted(set(c for c in mask_static if _is_numeric(train, c)))
+        for base in PHASE_MASK_BASES:
+            required_masks = [f"{base}_{phase}" for phase in available_phases]
+            missing_masks = [column for column in required_masks if not _is_numeric(train, column)]
+            if missing_masks:
+                raise ValueError(
+                    f"locked model input is missing numeric phase-mask channels for {base}: {missing_masks}"
+                )
+        mask_phase = list(PHASE_MASK_BASES)
     return FeatureLayout(task, phase_id, dynamic_bases, tuple(sorted(static)),
-                         tuple(mask_dynamic), tuple(mask_static))
+                         tuple(mask_dynamic), tuple(mask_static), tuple(mask_phase))
 
 
 def _numeric(frame: pd.DataFrame, columns: list[str]) -> np.ndarray:
@@ -143,6 +158,7 @@ def transform_frame(frame: pd.DataFrame, layout: FeatureLayout, *, classes: tupl
         for phase in phases:
             columns = [f"missing__{base}_{phase}" for base in layout.dynamic_bases]
             columns = [c for c in columns if c in frame]
+            columns += [f"{base}_{phase}" for base in layout.mask_phase_bases]
             per_phase_masks.append(_numeric(frame, columns) if columns else np.empty((len(frame), 0), dtype="float32"))
         dynamic = np.concatenate((dynamic, np.stack(per_phase_masks, axis=1)), axis=2)
     # Mandatory recurrent-input channels from the V1.6 contract.  ``phase_id``

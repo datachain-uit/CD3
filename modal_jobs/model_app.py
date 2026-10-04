@@ -40,6 +40,13 @@ def _canonical_json(payload: dict) -> str:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
 
+def _role_seed(master_seed: int, role: str, *, task: str, window: str,
+               pipeline_id: str, model_name: str) -> int:
+    """Derive stable independent RNG streams without changing split membership."""
+    payload = f"{master_seed}|{role}|{task}|{window}|{pipeline_id}|{model_name}".encode("utf-8")
+    return int(hashlib.sha256(payload).hexdigest()[:8], 16) % (2**31 - 1)
+
+
 def _label(task: str) -> str:
     return "CQ_label_final" if task == "CQ" else "LO_performance_label_3"
 
@@ -61,6 +68,8 @@ def _require_release(manifest: dict, *, source: Path, spec: dict[str, str]) -> N
         raise ValueError(f"Model input release identity/registry mismatch at {source}")
     if not mismatch["feature_dictionary_version"] or not mismatch["label_rule_version"]:
         raise ValueError(f"Model input lacks feature/label provenance: {source}")
+    if mismatch["label_rule_version"] != spec["label_rule_version"]:
+        raise ValueError(f"Model input label-rule mismatch at {source}: {mismatch['label_rule_version']!r}")
 
 
 def _latest_imputer_root(task: str, window: str, pipeline_id: str, *, spec: dict[str, str]) -> tuple[Path, dict]:
@@ -101,7 +110,7 @@ def _latest_balanced_train(task: str, window: str, pipeline_id: str, parent_mani
             continue
         if manifest.get("validation_test_touched") is not False:
             raise ValueError(f"Balanced run illegally touched validation/test: {path}")
-        for field in ("release_id", "split_registry_id", "split_version", "phase_version"):
+        for field in ("release_id", "split_registry_id", "split_version", "phase_version", "label_rule_version"):
             expected = spec[field]
             if manifest.get(field) != expected:
                 raise ValueError(
@@ -110,6 +119,13 @@ def _latest_balanced_train(task: str, window: str, pipeline_id: str, parent_mani
                 )
         if manifest.get("parent_imputation_run_id") != parent_manifest.get("run_id"):
             raise ValueError(f"Balanced TRAIN has a different parent imputation run: {path}")
+        if manifest.get("parent_imputation_attempt_id") != parent_manifest.get("attempt_id"):
+            raise ValueError(f"Balanced TRAIN has a different parent imputation attempt: {path}")
+        expected_parent_hash = hashlib.sha256(
+            json.dumps(parent_manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        if manifest.get("parent_imputation_manifest_sha256") != expected_parent_hash:
+            raise ValueError(f"Balanced TRAIN parent-manifest hash mismatch: {path}")
         return train, manifest
     raise FileNotFoundError(
         f"No successful seed={augmentation_seed} balanced TRAIN for {task}/{window}/{pipeline_id} under {root}"
@@ -144,7 +160,7 @@ def _prediction_frame(prediction: dict, source, *, task: str, window: str, phase
     frame = pd.DataFrame({"enrollment_id_hash": anonymous, "task": task,
                           "feature_regime": REGIME[task], "window_id": window, "seed_index": seed_index,
                           "model_family": "F1_RECURRENT", "model_name": model_name,
-                          "model_revision": "recurrent_shared_phase_v2_3_epoch50", "pipeline_id": pipeline_id,
+                          "model_revision": "recurrent_shared_phase_v2_4_prefixsafe_epoch50", "pipeline_id": pipeline_id,
                           "phase_id": phase, "cohort_type": "FIXED", "eval_split": split,
                           "run_id": run_id, "attempt_id": attempt_id,
                           "y_true": [f"c{x}" for x in prediction["y_true"]],
@@ -229,12 +245,16 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
         raise RuntimeError("TEMPO_PREDICTION_SALT must be supplied by the tempo-prediction-salt Modal secret")
     train_path, input_root, input_manifest, augmentation_manifest = _resolve_model_inputs(
         task, window, pipeline_id, spec=spec, augmentation_seed=augmentation_seed)
-    seed_bundle = {"master_seed": seed, "seed_model": seed, "seed_sampler": seed,
-                   "seed_dataloader": seed, "seed_preprocess": SEED_IMPUTATION}
-    config = {"config_version": "recurrent_shared_phase_v2_3_epoch50", "task": task, "feature_regime": REGIME[task],
+    seed_model = _role_seed(seed, "model", task=task, window=window, pipeline_id=pipeline_id, model_name=model_name)
+    seed_dataloader = _role_seed(seed, "dataloader", task=task, window=window, pipeline_id=pipeline_id, model_name=model_name)
+    seed_bundle = {"master_seed": seed, "seed_model": seed_model,
+                   "seed_sampler": augmentation_seed if augmentation_manifest is not None else None,
+                   "seed_augmentation": augmentation_seed if augmentation_manifest is not None else None,
+                   "seed_dataloader": seed_dataloader, "seed_preprocess": SEED_IMPUTATION}
+    config = {"config_version": "recurrent_shared_phase_v2_4_prefixsafe_epoch50", "task": task, "feature_regime": REGIME[task],
               "window_id": window, "pipeline_id": pipeline_id,
               "pipeline_name": "RAW_CONSTANT_FILL_WITH_MASKS" if pipeline_id == "V0" else "IMPUTE_AND_BALANCE",
-              "model_name": model_name, "model_revision": "recurrent_shared_phase_v2_3_epoch50", "seed": seed,
+              "model_name": model_name, "model_revision": "recurrent_shared_phase_v2_4_prefixsafe_epoch50", "seed": seed,
               "augmentation_seed": augmentation_seed,
               "prediction_id_salt_sha256": hashlib.sha256(prediction_salt.encode("utf-8")).hexdigest(),
               **seed_bundle,
@@ -285,7 +305,8 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
     # prefix inference; resource cost is a run-level quantity.
     energy_meter = GpuEnergyMeter(); energy_meter.__enter__()
     trained, runtime = train_shared_checkpoint(layout=layout, classes=classes, train_frame=train,
-        validation_frame=validation, architecture=ARCHITECTURES[model_name], seed=seed, hidden_size=128, num_layers=1,
+        validation_frame=validation, architecture=ARCHITECTURES[model_name], seed=seed_model,
+        dataloader_seed=seed_dataloader, hidden_size=128, num_layers=1,
         dropout=.3, batch_size=2048, max_epochs=50, patience=5, learning_rate=.001,
         weight_decay=.00001, workers=4)
     train_s = time.perf_counter() - started - read_s
@@ -453,8 +474,8 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
     _write_json(registry / f"run_id={run_id}.json", manifest)
     model_registry = Path(MOUNT) / f"meta_release={META_RELEASE}" / "L0_registry" / "model_registry" / f"model_name={model_name}"
     model_registry.mkdir(parents=True, exist_ok=True)
-    _write_json(model_registry / "model_revision=recurrent_shared_phase_v2_3_epoch50.json", {
-        "model_family": "F1_RECURRENT", "model_name": model_name, "model_revision": "recurrent_shared_phase_v2_3_epoch50",
+    _write_json(model_registry / "model_revision=recurrent_shared_phase_v2_4_prefixsafe_epoch50.json", {
+        "model_family": "F1_RECURRENT", "model_name": model_name, "model_revision": "recurrent_shared_phase_v2_4_prefixsafe_epoch50",
         "pipeline_id": pipeline_id, "input_mode": "v0_mask" if pipeline_id == "V0" else "imputed_or_balanced",
         "temporal_contract": config["training_sequence"],
         "selection_objective": config["validation_selection"], "config": config,

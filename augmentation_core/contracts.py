@@ -2,8 +2,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import ceil
 
 import numpy as np
+
+
+# Registered primary policy: the majority class is never undersampled.  A
+# minority class may approach an imbalance ratio of 10:1, but may never grow
+# beyond ten times its observed TRAIN support.
+SAMPLING_STRATEGY_ID = "IR10_K10"
+DEFAULT_IR_TARGET = 10
+DEFAULT_MAX_EXPANSION_PER_CLASS = 10
 
 
 @dataclass(frozen=True)
@@ -39,6 +48,30 @@ def minority_targets(y: np.ndarray) -> tuple[object, int, dict[object, int]]:
     count_by_class = dict(zip(classes.tolist(), counts.tolist()))
     majority = classes[int(np.argmax(counts))]
     return majority, int(counts.max()), count_by_class
+
+
+def sampling_targets(count_by_class: dict[object, int], *, ir_target: int = DEFAULT_IR_TARGET,
+                     max_expansion_per_class: int = DEFAULT_MAX_EXPANSION_PER_CLASS) -> dict[object, int]:
+    """Return registered IR-target-with-cap post-balance counts per class."""
+    if not count_by_class:
+        raise ValueError("count_by_class must not be empty")
+    if ir_target < 1 or max_expansion_per_class < 1:
+        raise ValueError("ir_target and max_expansion_per_class must be >= 1")
+    n_max = max(int(count) for count in count_by_class.values())
+    return {
+        label: int(min(max(int(count), ceil(n_max / ir_target)),
+                         max_expansion_per_class * int(count)))
+        for label, count in count_by_class.items()
+    }
+
+
+def generation_plan(y: np.ndarray, *, ir_target: int = DEFAULT_IR_TARGET,
+                    max_expansion_per_class: int = DEFAULT_MAX_EXPANSION_PER_CLASS) -> tuple[object, dict[object, int], dict[object, int]]:
+    """Return majority label, observed counts, and exact synthetic counts."""
+    majority, _, counts = minority_targets(y)
+    targets = sampling_targets(counts, ir_target=ir_target,
+                               max_expansion_per_class=max_expansion_per_class)
+    return majority, counts, {label: max(targets[label] - counts[label], 0) for label in counts}
 
 
 def allocate(total: int, weights: np.ndarray) -> np.ndarray:

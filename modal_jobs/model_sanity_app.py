@@ -87,7 +87,7 @@ def materialize_model_sanity(task: str = "CQ", window: str = "W1", pipeline_id: 
     """Materialize S_san+ components from stored artifacts; checkpoint untouched."""
     import numpy as np
     import pandas as pd
-    from metrics_core.evaluation import (classification_metrics, fit_missingness_probe,
+    from metrics_core.evaluation import (COMPOSITE_EPS, classification_metrics, fit_missingness_probe,
                                          score_missingness_probe_auc, s_leak_from_probe)
     from release_core import resolve_release
 
@@ -151,7 +151,7 @@ def materialize_model_sanity(task: str = "CQ", window: str = "W1", pipeline_id: 
             values = classification_metrics(y_true, probabilities, train_class_counts=np.bincount(train_y, minlength=3), s_eff=train_s_eff, s_leak=s_leak_from_probe(auc))
             s_cal = float(max(0.0, 1.0 - values["ece"]))
             v2_parts = np.clip([values["s_nan"], values["s_maj_jsd"], s_cal, values["s_drift"],
-                                values["s_eff"], values["s_leak"]], 1e-3, 1.0)
+                                values["s_eff"], values["s_leak"]], COMPOSITE_EPS, 1.0)
             s_san_plus_v2 = float(np.prod(v2_parts) ** (1 / len(v2_parts)))
             record = {"task": task, "feature_regime": REGIME[task], "window_id": window, "phase_id": phase,
                       "eval_split": split, "stage": "S3_MODEL", "pipeline_id": pipeline_id, "model_name": model_name,

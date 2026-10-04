@@ -14,6 +14,13 @@ Required remote layout:
 /data/input/LO_v3_1/test_prefix_views_v3_1_scored_signal_excluded/P1/ ... /P4/
 ```
 
+Each `release_manifest.json` must declare `task`, `release_id`,
+`split_registry_id`, `split_version`, `phase_version`,
+`feature_dictionary_version`, and the exact `label_rule_version`. The active
+values are `CQ_V2_2` / `cq_vector_proximity_v1_zero_activity_policy` and
+`LO_V3_1` / `lo_final_score_catalog_normalized_v3_1`; old L1 artifacts are
+intentionally not eligible as parents for these releases.
+
 The App writes one frozen meta release to:
 
 ```text

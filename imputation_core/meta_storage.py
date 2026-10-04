@@ -25,7 +25,7 @@ DQ_DEF_VERSION = "1.0.0"
 METRIC_DEF_VERSION = "1.0.0"
 META_SCHEMA_VERSION = "1.0.0"
 FEATURE_REGIME = {"CQ": "CQ_RAW_EARLY", "LO": "LO_FULL_EARLY"}
-COHORT = {"CQ": "FIXED", "LO": "RISK_SET"}
+COHORT = {"CQ": "FIXED", "LO": "FIXED"}
 PIPELINE_ID = {"v0": "V0", "median": "V1", "mean": "V5", "extra_trees": "V9", "mice": "V13"}
 SCALING_CONTRACT = {
     "version": "numeric_robust_scale_v2",
@@ -417,7 +417,9 @@ def fidelity_probe(pipeline: Any, validation: pd.DataFrame, baseline: pd.DataFra
     return pd.DataFrame(records)
 
 
-def l3_rows(profile: pd.DataFrame, resource: pd.DataFrame, *, task: str, window: str, run_id: str, pipeline_id: str, seed: int) -> pd.DataFrame:
+def l3_rows(profile: pd.DataFrame, resource: pd.DataFrame, *, task: str, window: str,
+            run_id: str, pipeline_id: str, seed: int, label_rule_version: str,
+            label_threshold_set: str = "PRIMARY") -> pd.DataFrame:
     """Provisional L3 rows.  Prediction metrics remain explicitly unavailable."""
     overall = profile.loc[profile["feature_family"].eq("all") & profile["stage"].eq("S1_IMPUTED")]
     resource_row = resource.iloc[0].to_dict()
@@ -425,7 +427,13 @@ def l3_rows(profile: pd.DataFrame, resource: pd.DataFrame, *, task: str, window:
     for _, source in overall.iterrows():
         if source["split"] == "TRAIN":
             continue
-        key = {"task": task, "label_rule_version": "cq_vector_proximity_v1" if task == "CQ" else "lo_performance_proxy_v1", "label_threshold_set": "PRIMARY", "feature_regime": FEATURE_REGIME[task], "window_id": window, "seed": seed, "phase_id": source["phase_id"], "cohort": COHORT[task], "eval_split": source["split"], "subgroup_axis": "ALL", "subgroup_value": "ALL", "model_name": "IMPUTATION_ONLY", "pipeline_id": pipeline_id}
+        key = {"task": task, "label_rule_version": label_rule_version,
+               "label_threshold_set": label_threshold_set,
+               "feature_regime": FEATURE_REGIME[task], "window_id": window,
+               "seed": seed, "phase_id": source["phase_id"], "cohort": COHORT[task],
+               "eval_split": source["split"], "subgroup_axis": "ALL",
+               "subgroup_value": "ALL", "model_name": "IMPUTATION_ONLY",
+               "pipeline_id": pipeline_id}
         rows.append({**key, "meta_obs_id": canonical_hash(key), "run_id": run_id, "row_status": "PARTIAL", "performance_null_reason": "NO_PREDICTION", "metric_def_version": METRIC_DEF_VERSION, "dq_def_version": DQ_DEF_VERSION, "n_cells_observed_missing_after": source["n_cells_observed_missing"], "n_cells_imputed_after": source["n_cells_imputed"], "imputed_rate_after": source["imputed_rate"], "residual_nan_rate_after": source["residual_nan_rate"], "unavailable_rate_after": source["unavailable_rate"], "structural_absence_rate_after": source["structural_absence_rate"], "qa_no_unavailable_imputation_ok": source["qa_no_unavailable_imputation_ok"], "time_run_total_s_after": resource_row["time_run_total_s"], "cpu_process_s_after": resource_row["cpu_process_s"], "peak_ram_mb_after": resource_row["peak_ram_mb"], "gpu_used_after": resource_row["gpu_used"], "energy_gpu_run_kwh_after": resource_row["energy_gpu_run_kwh"], "cost_usd_run_after": resource_row["cost_usd_run"], "created_at_utc": utc_now()})
     return pd.DataFrame(rows)
 
@@ -474,7 +482,8 @@ def release_inventory(input_root: Path, *, task: str) -> dict[str, Any]:
         sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
         if sidecar.get("task") != task:
             raise ValueError(f"Input release sidecar task mismatch: expected {task}, got {sidecar.get('task')}")
-    required = ("split_version", "phase_version", "feature_dictionary_version", "label_rule_version")
+    required = ("release_id", "split_registry_id", "split_version", "phase_version",
+                "feature_dictionary_version", "label_rule_version", "label_threshold_set")
     if not sidecar:
         raise FileNotFoundError(f"Missing required release_manifest.json under {input_root}")
     missing = [key for key in required if not sidecar.get(key)]

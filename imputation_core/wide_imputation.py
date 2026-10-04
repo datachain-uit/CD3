@@ -74,7 +74,11 @@ def fit_sample_rows_for_variant(variant: Variant, requested_rows: int) -> int:
     if variant in {"median", "mean", "extra_trees"}:
         return 0  # 0 denotes exact full-train statistic fit.
     if variant == "mice":
-        return requested_rows if requested_rows > 0 else 1_000_000
+        # MICE is a fixed 1M-row estimator-fit experiment.  Accepting a CLI
+        # override would make the immutable registry claim false.
+        if requested_rows not in {0, 1_000_000}:
+            raise ValueError("MICE fit_sample_rows is locked to 1000000 for the active release")
+        return 1_000_000
     return requested_rows
 
 

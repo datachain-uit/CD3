@@ -81,6 +81,6 @@ python -X utf8 -m modal run .\modal_jobs\model_app.py --task CQ --window W1 --se
 Artifacts and controlled names are specified in
 [`NAMING_CONTRACT.md`](NAMING_CONTRACT.md). The current runner accepts the
 registered `V0`–`V16` pipeline grid with `model_name=RNN` and stamps every new
-run as `model_revision=recurrent_shared_phase_v2_3_epoch50`.  This revision
+run as `model_revision=recurrent_shared_phase_v2_4_prefixsafe_epoch50`.  This revision
 uses `max_epochs=50` with validation-only early stopping (`patience=5`), so it
 does not force every cell to train for 50 epochs.

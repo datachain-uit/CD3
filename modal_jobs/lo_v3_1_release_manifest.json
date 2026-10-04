@@ -1,5 +1,7 @@
 {
   "task": "LO",
+  "release_id": "LO_V3_1",
+  "split_registry_id": "split_registry_v3_1_scored_signal_excluded_overlap_audit_v1",
   "split_version": "v3_1",
   "phase_version": "wide_prefix_v3_1",
   "feature_dictionary_version": "schema_from_phase_views_v3_1",

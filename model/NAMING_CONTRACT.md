@@ -16,7 +16,7 @@ pipeline_id:       V0 .. V16
 pipeline_name:     RAW_CONSTANT_FILL_WITH_MASKS | IMPUTE_ONLY | IMPUTE_AND_BALANCE
 model_family:      F1_RECURRENT
 model_name:        RNN
-model_revision:    recurrent_shared_phase_v2_3_epoch50
+model_revision:    recurrent_shared_phase_v2_4_prefixsafe_epoch50
 input_mode:        v0_mask
 adaptation_mode:   from_scratch
 cohort_type:       FIXED
@@ -35,7 +35,8 @@ master_seed
 seed_index
 seed_model       = stable_hash(master_seed, "model", task, window_id, model_name)
 seed_dataloader  = stable_hash(master_seed, "loader", task, window_id, model_name)
-seed_sampler     = stable_hash(master_seed, "sampler", task, window_id, pipeline_id)
+seed_sampler     = augmentation_seed when a balanced TRAIN artifact is used; otherwise null (not used)
+seed_augmentation = augmentation_seed when a balanced TRAIN artifact is used; otherwise null
 ```
 
 The paired `seed_index` is identical across competing pipelines for the same
@@ -71,7 +72,7 @@ meta-observation key with `pipeline_id` omitted.
 ```text
 meta_release=imputation-v1/
 |- L0_registry/
-|  |- model_registry/model_name=RNN/model_revision=recurrent_shared_phase_v2_3_epoch50.json
+|  |- model_registry/model_name=RNN/model_revision=recurrent_shared_phase_v2_4_prefixsafe_epoch50.json
 |  |- run_registry/run_id=<run_id>.json
 |  `- environments/attempt_id=<attempt_id>.json
 |- L1_runs/

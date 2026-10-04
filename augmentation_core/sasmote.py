@@ -16,7 +16,9 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import NearestNeighbors
 
 from .cdsmote import _merge
-from .contracts import SyntheticBatch, minority_targets, validate_train_matrix
+from .contracts import (DEFAULT_IR_TARGET, DEFAULT_MAX_EXPANSION_PER_CLASS,
+                        SAMPLING_STRATEGY_ID, SyntheticBatch, generation_plan,
+                        validate_train_matrix)
 
 
 class SASmote:
@@ -41,6 +43,8 @@ class SASmote:
         candidate_batch_size: int = 262_144,
         max_candidate_rounds: int = 32,
         random_state: int = 20260922,
+        ir_target: int = DEFAULT_IR_TARGET,
+        max_expansion_per_class: int = DEFAULT_MAX_EXPANSION_PER_CLASS,
     ):
         if visible_k < 1 or max_inspectors < 1 or inspector_trees < 1 or inspector_n_jobs < 1:
             raise ValueError("visible_k, max_inspectors, inspector_trees, and inspector_n_jobs must be positive")
@@ -54,6 +58,10 @@ class SASmote:
         self.candidate_batch_size = candidate_batch_size
         self.max_candidate_rounds = max_candidate_rounds
         self.random_state = random_state
+        self.ir_target = ir_target
+        self.max_expansion_per_class = max_expansion_per_class
+        self.sampling_strategy_id = SAMPLING_STRATEGY_ID
+        self.plan: dict[str, object] = {}
         self.audit: dict[str, object] = {}
         self._acceptance: dict[str, dict[str, float | int]] = {}
 
@@ -67,7 +75,10 @@ class SASmote:
         """
         if len(values) < 2:
             return [np.empty(0, dtype=np.int64) for _ in range(len(values))]
-        n_neighbors = min(k + 1, len(values))
+        # sklearn excludes the query point when ``X=None``.  Therefore the
+        # requested count must be at most n_samples-1 and is already the
+        # desired number of other neighbours.
+        n_neighbors = min(k, len(values) - 1)
         nearest = NearestNeighbors(n_neighbors=n_neighbors, algorithm="brute", n_jobs=-1)
         neighbours = nearest.fit(values).kneighbors(return_distance=False)
         result: list[np.ndarray] = []
@@ -172,21 +183,34 @@ class SASmote:
     def fit_resample(self, x, y) -> SyntheticBatch:
         values, labels = validate_train_matrix(x, y)
         rng = np.random.default_rng(self.random_state)
-        majority, majority_count, counts = minority_targets(labels)
+        majority, counts, to_generate = generation_plan(
+            labels, ir_target=self.ir_target,
+            max_expansion_per_class=self.max_expansion_per_class,
+        )
+        self.plan = {
+            "sampling_strategy_id": self.sampling_strategy_id,
+            "ir_target": self.ir_target,
+            "max_expansion_per_class": self.max_expansion_per_class,
+            "class_counts_before": {str(key): int(value) for key, value in counts.items()},
+            "synthetic_target_per_class": {str(key): int(value) for key, value in to_generate.items()},
+        }
         batches: list[SyntheticBatch] = []
         audit_labels: dict[str, object] = {}
         for label, count in counts.items():
-            if label == majority or count >= majority_count:
+            n_generate = to_generate[label]
+            if label == majority or n_generate <= 0:
                 continue
             minority = np.flatnonzero(labels == label)
             non_target = np.flatnonzero(labels != label)
             if len(minority) < 2:
-                continue
+                raise ValueError(
+                    f"IR10_K10 requires {n_generate} synthetic rows for class {label!r}, "
+                    "but fewer than two real TRAIN rows are available."
+                )
             print(f"[SASMOTE] label={label} stage=visible_neighbour_search rows={len(minority)}", flush=True)
             visible = self._visible_neighbour_positions(values[minority], self.visible_k)
             print(f"[SASMOTE] label={label} stage=inspector_fit", flush=True)
             inspectors, inspector_audit = self._inspectors(values, minority, non_target, rng)
-            n_generate = majority_count - count
             print(f"[SASMOTE] label={label} stage=candidate_generation target={n_generate}", flush=True)
             batches.append(self._accepted_candidates(values, minority, visible, inspectors, label, n_generate, rng))
             visible_counts = np.asarray([len(item) for item in visible], dtype=float)
@@ -199,6 +223,7 @@ class SASmote:
             }
         self.audit = {
             "algorithm": self.algorithm,
+            "sampling_strategy": self.plan,
             "paper": "Kosolwattana_et_al_2023_doi:10.1186/s13040-023-00330-4",
             "multiclass_strategy": "one_vs_rest_per_minority_label",
             "visible_k_requested": self.visible_k,

@@ -3,7 +3,7 @@
   "experiment": {
     "model_family": "F1_RECURRENT",
     "model_name": "RNN",
-    "model_revision": "recurrent_shared_phase_v2_3_epoch50",
+    "model_revision": "recurrent_shared_phase_v2_4_prefixsafe_epoch50",
     "pipeline_id": "V0",
     "pipeline_name": "RAW_CONSTANT_FILL_WITH_MASKS",
     "augmentation": "NONE",
