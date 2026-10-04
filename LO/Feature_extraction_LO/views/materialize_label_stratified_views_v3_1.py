@@ -94,7 +94,9 @@ def require_one_row_per_enrollment(frame, source_name):
     keys are a source-data defect and must fail before they affect splitting,
     imputation, augmentation or modelling.
     """
+    rows_before = frame.count()
     deduplicated = frame.dropDuplicates()
+    rows_after_exact_deduplication = deduplicated.count()
     repeated = (deduplicated.groupBy("enrollment_id").count()
         .filter(F.col("count") > 1))
     if repeated.limit(1).count():
@@ -103,7 +105,11 @@ def require_one_row_per_enrollment(frame, source_name):
             f"{source_name} has non-identical repeated enrollment_id values; "
             f"examples={examples}. Repair the upstream source instead of selecting arbitrarily."
         )
-    print(f"[materialize_lo] grain_ok source={source_name}; exact_duplicates_collapsed")
+    print(
+        f"[materialize_lo] grain_ok source={source_name}; "
+        f"rows_before={rows_before}; rows_after_exact_deduplication={rows_after_exact_deduplication}; "
+        f"exact_duplicates_collapsed={rows_before - rows_after_exact_deduplication}"
+    )
     return deduplicated
 
 
