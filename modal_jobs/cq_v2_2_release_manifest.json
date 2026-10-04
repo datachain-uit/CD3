@@ -1,0 +1,11 @@
+{
+  "task": "CQ",
+  "release_id": "CQ_V2_2",
+  "split_registry_id": "split_registry_v2_2_overlap_audit_v1_r2",
+  "split_version": "v2_2",
+  "phase_version": "wide_prefix_v2_2",
+  "feature_dictionary_version": "schema_from_phase_views_v2_2",
+  "label_rule_version": "cq_vector_proximity_v1_zero_activity_policy",
+  "label_threshold_set": "CQ_VECTOR_PROXIMITY_PRIMARY_V1",
+  "scenario": "hybrid"
+}

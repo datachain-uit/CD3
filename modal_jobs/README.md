@@ -16,7 +16,7 @@ Required remote layout:
 
 Each `release_manifest.json` must declare `task`, `release_id`,
 `split_registry_id`, `split_version`, `phase_version`,
-`feature_dictionary_version`, and the exact `label_rule_version`. The active
+`feature_dictionary_version`, `label_rule_version`, and `label_threshold_set`. The active
 values are `CQ_V2_2` / `cq_vector_proximity_v1_zero_activity_policy` and
 `LO_V3_1` / `lo_final_score_catalog_normalized_v3_1`; old L1 artifacts are
 intentionally not eligible as parents for these releases.
