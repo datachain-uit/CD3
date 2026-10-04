@@ -25,6 +25,10 @@ from .variants import BUILDERS
 Variant = Literal["v0", "median", "mean", "extra_trees", "mice"]
 PHASES = ("P1", "P2", "P3", "P4")
 ID_COLUMNS = {"enrollment_id", "offering_id", "user_id", "course_id", "teacher_id", "school_id"}
+AUDIT_CONTEXT_COLUMNS = {
+    "duration_days", "long_offering_flag", "label_threshold_set",
+    "temporal_strict_P1", "temporal_strict_P2", "temporal_strict_P3", "temporal_strict_P4",
+}
 BASE_EXCLUDED = {"task", "window", "split", "split_id", "scenario", "temporal_block", "label_availability_time", "label_availability_source", "label_rule_version", "decision", "proxy_reason", "cq_exclusion_reason", "proxy_exclusion_reason", "performance_score", "CQ_label_vector", "COELO_final", "AFELO_final", "ACELO_final", "CQ_distance_euclidean_final", "CQ_proximity_final", "TRIAD_distance_final", "observed_dimension_mask", "year_of_birth", "age_at_enroll", "most_common_day"}
 # These LO fields are direct ingredients of the activity-derived target, or a
 # deterministic denominator/ratio for one.  They must never be imputers' or
@@ -128,7 +132,7 @@ class WideImputer:
                 frame[f"most_common_hour_cos{suffix}"] = np.cos(2 * np.pi * hour / 24)
                 frame = frame.drop(columns=name)
         label = _label_column(self.task)
-        excluded = set(BASE_EXCLUDED) | LO_LABEL_PROXY_COLUMNS | {label}
+        excluded = set(BASE_EXCLUDED) | LO_LABEL_PROXY_COLUMNS | AUDIT_CONTEXT_COLUMNS | {label}
         if self.task == "CQ":
             excluded |= {c for c in frame if CQ_LABEL_PROXY_RE.search(c)}
         excluded |= {c for c in frame if c.startswith(("CQ_label_", "LO_performance_label_", "label_available_by_", "primary_risk_set_", "outcome_", "cutoff_time_"))}
@@ -344,9 +348,15 @@ class WideImputer:
         output = pd.concat([output, static_output, static_missing, prepared[self.mask_columns].fillna(0).astype("int8"), self._encode_categories(prepared)], axis=1)
         label = _label_column(self.task)
         provenance = pd.DataFrame(index=prepared.index)
-        for key in ("enrollment_id", "offering_id", "window", "split"):
+        for key in ("enrollment_id", "window", "split"):
             if key in original:
                 provenance[key] = original[key].values
+        # These columns are retained solely for post-model audit/subgroup
+        # joins.  Their namespace prevents them from entering model tensors.
+        for key in ("offering_id", "timeline_source", "course_id", "duration_days", "long_offering_flag", "label_threshold_set",
+                    "temporal_strict_P1", "temporal_strict_P2", "temporal_strict_P3", "temporal_strict_P4"):
+            if key in original:
+                provenance[f"context__{key}"] = original[key].values
         output = pd.concat([pd.DataFrame({label: original[label].values}, index=prepared.index), output, provenance], axis=1)
         audit = {"rows": float(n), "observed_phases": list(observed), "eligible_missing_cells": float((dynamic.isna() & ~structural).sum().sum() + static.isna().sum().sum()), "structural_cells": float(structural.sum().sum()), "unfittable_dynamic_columns": sorted(set(self.dynamic_bases) - set(self.dynamic_active_columns)), "unfittable_static_columns": sorted(set(self.static_columns) - set(self.static_active_columns)), "remaining_numeric_nulls": float(output.select_dtypes(include=[np.number]).isna().sum().sum()), "future_imputed_cells": 0.0}
         return output, audit

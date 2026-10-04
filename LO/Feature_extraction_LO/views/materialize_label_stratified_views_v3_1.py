@@ -28,6 +28,11 @@ except ModuleNotFoundError:
 
 P = load_protocol_config()
 BASE = P["output_base"]
+if not str(BASE).startswith("/"):
+    raise ValueError(
+        "Set TEMPO_OUTPUT_BASE to the absolute Databricks storage root, for example "
+        "'/Volumes/workspace/default/preprocessed'."
+    )
 # The frozen V1 source is the scenarios release.  An explicit environment
 # override remains available for a later immutable release.
 FEATURE_BASE = os.environ.get("VIEW_FEATURE_BASE", f"{BASE.rstrip('/')}/features/scenarios").rstrip("/")
@@ -50,9 +55,14 @@ VIEW_RELEASE = "v3_1_scored_signal_excluded"
 OUT = f"{TASK_BASE}/LO/hybrid/phase_views_{VIEW_RELEASE}/"
 MANIFEST_OUT = f"{TASK_BASE}/LO/hybrid/split_manifest_{VIEW_RELEASE}/"
 TEST_PREFIX_OUT = f"{TASK_BASE}/LO/hybrid/test_prefix_views_{VIEW_RELEASE}/"
+STRICT_CONTEXT_SOURCE = os.environ.get(
+    "VIEW_TEMPORAL_STRICT_CONTEXT_SOURCE",
+    f"{EXTERNAL_MANIFEST_SOURCE.rsplit('/', 1)[0]}/temporal_strict_context",
+).rstrip("/")
 print(
     "[materialize_lo] "
     f"release={VIEW_RELEASE}; manifest_input={EXTERNAL_MANIFEST_SOURCE or 'built_in_v1'}; "
+    f"strict_context_input={STRICT_CONTEXT_SOURCE}; "
     f"manifest_output={MANIFEST_OUT}; phase_views_output={OUT}; "
     f"test_prefix_output={TEST_PREFIX_OUT}"
 )
@@ -261,6 +271,22 @@ view = (base.join(manifest.select(*manifest_join_columns), unit_columns, "inner"
     .withColumn("primary_risk_set_P3", (F.col("cutoff_time_P3") < F.col("label_availability_time")).cast("int"))
     .withColumn("primary_risk_set_P4", (F.col("cutoff_time_P4") < F.col("label_availability_time")).cast("int"))
     .drop("_offering_end_date"))
+
+strict = spark.read.parquet(STRICT_CONTEXT_SOURCE)
+strict_columns = {"enrollment_id", "window_id", "split", *[f"temporal_strict_P{i}" for i in range(1, 5)]}
+missing_strict = strict_columns.difference(strict.columns)
+if missing_strict:
+    raise ValueError(f"Temporal-strict context is missing columns: {sorted(missing_strict)}")
+strict = strict.select(
+    "enrollment_id", F.col("window_id").alias("window"), "split",
+    *[f"temporal_strict_P{i}" for i in range(1, 5)],
+)
+if strict.groupBy("enrollment_id", "window", "split").count().filter(F.col("count") > 1).limit(1).count():
+    raise ValueError("Temporal-strict context has duplicate enrollment/window/split keys.")
+unmatched = view.join(strict.select("enrollment_id", "window", "split"), ["enrollment_id", "window", "split"], "left_anti")
+if unmatched.limit(1).count():
+    raise ValueError("Some materialized LO rows lack temporal-strict context.")
+view = view.join(strict, ["enrollment_id", "window", "split"], "inner")
 
 split_counts = view.groupBy("window", "split", "LO_performance_label_3").agg(
     F.countDistinct("enrollment_id").alias("enrollment_count"))

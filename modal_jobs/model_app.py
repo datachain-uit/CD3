@@ -24,10 +24,6 @@ ARCHITECTURES = {"RNN": "rnn", "LSTM": "lstm", "GRU": "gru", "BILSTM": "bilstm"}
 # LO V3.1 is the current catalog-normalised, source-faithful label release.
 # The arguments remain overridable for a later immutable LO release; no model
 # run can silently fall back to a prior split.
-RELEASE_DEFAULTS = {
-    "CQ": ("v2_2", "wide_prefix_v2_2"),
-    "LO": ("v3_1", "wide_prefix_v3_1"),
-}
 
 app = modal.App(APP_NAME)
 volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True)
@@ -36,7 +32,8 @@ prediction_secret = modal.Secret.from_name(
 )
 image = (modal.Image.debian_slim(python_version="3.12")
          .pip_install("numpy>=1.26", "pandas>=2.2", "pyarrow>=16", "scikit-learn>=1.5", "torch>=2.4", "nvidia-ml-py>=12")
-         .add_local_python_source("model"))
+         .add_local_python_source("model")
+         .add_local_python_source("release_core"))
 
 
 def _canonical_json(payload: dict) -> str:
@@ -47,8 +44,7 @@ def _label(task: str) -> str:
     return "CQ_label_final" if task == "CQ" else "LO_performance_label_3"
 
 
-def _require_release(manifest: dict, *, source: Path, expected_split_version: str,
-                     expected_phase_version: str) -> None:
+def _require_release(manifest: dict, *, source: Path, spec: dict[str, str]) -> None:
     """Reject old split/phase releases instead of silently training on them."""
     mismatch = {
         "split_version": manifest.get("split_version"),
@@ -56,17 +52,18 @@ def _require_release(manifest: dict, *, source: Path, expected_split_version: st
         "feature_dictionary_version": manifest.get("feature_dictionary_version"),
         "label_rule_version": manifest.get("label_rule_version"),
     }
-    if mismatch["split_version"] != expected_split_version or mismatch["phase_version"] != expected_phase_version:
+    if mismatch["split_version"] != spec["split_version"] or mismatch["phase_version"] != spec["phase_version"]:
         raise ValueError(
-            f"Model input is not the locked release ({expected_split_version}/{expected_phase_version}): {source}; "
+            f"Model input is not release_id={spec['release_id']} ({spec['split_version']}/{spec['phase_version']}): {source}; "
             f"split={mismatch['split_version']!r}, phase={mismatch['phase_version']!r}."
         )
+    if manifest.get("release_id") != spec["release_id"] or manifest.get("split_registry_id") != spec["split_registry_id"]:
+        raise ValueError(f"Model input release identity/registry mismatch at {source}")
     if not mismatch["feature_dictionary_version"] or not mismatch["label_rule_version"]:
         raise ValueError(f"Model input lacks feature/label provenance: {source}")
 
 
-def _latest_imputer_root(task: str, window: str, pipeline_id: str, *, expected_split_version: str,
-                         expected_phase_version: str) -> tuple[Path, dict]:
+def _latest_imputer_root(task: str, window: str, pipeline_id: str, *, spec: dict[str, str]) -> tuple[Path, dict]:
     root = (Path(MOUNT) / f"meta_release={META_RELEASE}" / "L1_runs" / f"task={task}" /
             f"feature_regime={REGIME[task]}" / f"window_id={window}" / f"pipeline_id={pipeline_id}" /
             "model_name=IMPUTATION_ONLY" / f"seed={SEED_IMPUTATION}")
@@ -75,14 +72,20 @@ def _latest_imputer_root(task: str, window: str, pipeline_id: str, *, expected_s
     for path in candidates:
         manifest = json.loads(path.read_text(encoding="utf-8"))
         if manifest.get("run_status") == "SUCCESS" and (path.parent / "model_inputs/train.parquet").exists():
-            _require_release(manifest, source=path, expected_split_version=expected_split_version,
-                             expected_phase_version=expected_phase_version)
+            try:
+                _require_release(manifest, source=path, spec=spec)
+            except ValueError:
+                # An old run may have been retried later than the valid run.
+                # It is an ineligible candidate, not a reason to stop the scan.
+                continue
             return path.parent, manifest
-    raise FileNotFoundError(f"No successful immutable {pipeline_id} input found under {root}")
+    raise FileNotFoundError(
+        f"No successful immutable {pipeline_id} input matching release_id={spec['release_id']} under {root}"
+    )
 
 
 def _latest_balanced_train(task: str, window: str, pipeline_id: str, parent_manifest: dict,
-                           *, augmentation_seed: int) -> tuple[Path, dict]:
+                           *, spec: dict[str, str], augmentation_seed: int) -> tuple[Path, dict]:
     root = (Path(MOUNT) / f"meta_release={META_RELEASE}" / "L1_runs" / f"task={task}" /
             f"feature_regime={REGIME[task]}" / f"window_id={window}" / "phase_id=P4" /
             f"pipeline_id={pipeline_id}" / "model_name=BALANCED_TRAIN_ONLY" / f"seed={augmentation_seed}")
@@ -98,26 +101,30 @@ def _latest_balanced_train(task: str, window: str, pipeline_id: str, parent_mani
             continue
         if manifest.get("validation_test_touched") is not False:
             raise ValueError(f"Balanced run illegally touched validation/test: {path}")
-        # The augmentation manifest predates the V2.2 fields in some runs;
-        # provenance is therefore inherited from the locked parent and kept
-        # explicitly in the model manifest.
+        for field in ("release_id", "split_registry_id", "split_version", "phase_version"):
+            expected = spec[field]
+            if manifest.get(field) != expected:
+                raise ValueError(
+                    f"Balanced TRAIN release mismatch at {path}: {field}="
+                    f"{manifest.get(field)!r}, expected {expected!r}"
+                )
+        if manifest.get("parent_imputation_run_id") != parent_manifest.get("run_id"):
+            raise ValueError(f"Balanced TRAIN has a different parent imputation run: {path}")
         return train, manifest
     raise FileNotFoundError(
         f"No successful seed={augmentation_seed} balanced TRAIN for {task}/{window}/{pipeline_id} under {root}"
     )
 
 
-def _resolve_model_inputs(task: str, window: str, pipeline_id: str, *, expected_split_version: str,
-                          expected_phase_version: str, augmentation_seed: int) -> tuple[Path, Path, dict, dict | None]:
+def _resolve_model_inputs(task: str, window: str, pipeline_id: str, *, spec: dict[str, str],
+                          augmentation_seed: int) -> tuple[Path, Path, dict, dict | None]:
     """Return train, immutable parent root, parent manifest, augmentation manifest."""
     parent = PARENT_PIPELINE.get(pipeline_id, pipeline_id)
-    parent_root, parent_manifest = _latest_imputer_root(task, window, parent,
-                                                         expected_split_version=expected_split_version,
-                                                         expected_phase_version=expected_phase_version)
+    parent_root, parent_manifest = _latest_imputer_root(task, window, parent, spec=spec)
     if pipeline_id == parent:
         return parent_root / "model_inputs/train.parquet", parent_root, parent_manifest, None
     train, augmentation_manifest = _latest_balanced_train(
-        task, window, pipeline_id, parent_manifest, augmentation_seed=augmentation_seed
+        task, window, pipeline_id, parent_manifest, spec=spec, augmentation_seed=augmentation_seed
     )
     return train, parent_root, parent_manifest, augmentation_manifest
 
@@ -147,18 +154,47 @@ def _prediction_frame(prediction: dict, source, *, task: str, window: str, phase
     # Keep the non-personal cohort keys needed for offering/timeline audits.
     # Raw enrollment IDs never leave the source frame.
     for column in ("offering_id", "timeline_source", "course_id"):
+        context_column = f"context__{column}"
+        if context_column in source:
+            frame[column] = source[context_column].astype("string").to_numpy()
+            continue
         if column in source:
             frame[column] = source[column].astype("string").to_numpy()
+    for column in ("context__duration_days", "context__long_offering_flag",
+                   "context__label_threshold_set", "context__temporal_strict_P1",
+                   "context__temporal_strict_P2", "context__temporal_strict_P3",
+                   "context__temporal_strict_P4"):
+        if column in source:
+            frame[column.removeprefix("context__")] = source[column].to_numpy()
     for index in range(prediction["probabilities"].shape[1]):
         frame[f"prob_c{index}"] = prediction["probabilities"][:, index]
     return frame
+
+
+PREDICTION_CONTEXT = {
+    "context__offering_id", "context__timeline_source", "context__course_id", "context__duration_days",
+    "context__long_offering_flag", "context__label_threshold_set",
+    "context__temporal_strict_P1", "context__temporal_strict_P2",
+    "context__temporal_strict_P3", "context__temporal_strict_P4",
+}
+
+
+def _require_prediction_context(frame, *, source: str) -> None:
+    """Reject model inputs that cannot support the registered audit slices."""
+    missing = sorted(PREDICTION_CONTEXT.difference(frame.columns))
+    if missing:
+        raise ValueError(
+            f"Model input lacks required non-predictive audit context at {source}: {missing}. "
+            "Re-materialize views and rerun the parent imputation."
+        )
 
 
 @app.function(image=image, volumes={MOUNT: volume}, secrets=[prediction_secret], gpu="L4", cpu=8, memory=65536,
               timeout=60 * 60 * 18)
 def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0",
                     model_name: str = "RNN", seed: int = 42, split_version: str = "",
-                    phase_version: str = "", augmentation_seed: int = 42) -> dict:
+                    phase_version: str = "", augmentation_seed: int = 42,
+                    release_id: str = "") -> dict:
     """Train one V1.6 recurrent checkpoint and test it at P1, P2, P3 and P4.
 
     No training, scaler fitting, selection, or preprocessing is done on any
@@ -173,16 +209,17 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
     from model.energy import GpuEnergyMeter
     from model.metrics import per_class_metric_records, stratified_bootstrap_per_class_ci
     from model.shared_phase import evaluate_test_prefix, train_shared_checkpoint
+    from release_core import resolve_release
 
     if task not in REGIME or window not in {"W1", "W2", "W3"} or pipeline_id not in {f"V{i}" for i in range(17)}:
         raise ValueError("task=CQ|LO, window=W1..W3, pipeline_id=V0..V16 required")
     if model_name not in ARCHITECTURES:
         raise ValueError(f"model_name must be one of {sorted(ARCHITECTURES)}")
-    expected_split_version, expected_phase_version = RELEASE_DEFAULTS[task]
-    if split_version:
-        expected_split_version = split_version
-    if phase_version:
-        expected_phase_version = phase_version
+    spec = resolve_release(task, release_id)
+    if split_version and split_version != spec["split_version"]:
+        raise ValueError(f"split_version is controlled by {spec['release_id']}; expected {spec['split_version']!r}")
+    if phase_version and phase_version != spec["phase_version"]:
+        raise ValueError(f"phase_version is controlled by {spec['release_id']}; expected {spec['phase_version']!r}")
     volume.reload()
     started = time.perf_counter(); cpu_started = time.process_time()
     if augmentation_seed < 0:
@@ -191,8 +228,7 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
     if not prediction_salt:
         raise RuntimeError("TEMPO_PREDICTION_SALT must be supplied by the tempo-prediction-salt Modal secret")
     train_path, input_root, input_manifest, augmentation_manifest = _resolve_model_inputs(
-        task, window, pipeline_id, expected_split_version=expected_split_version,
-        expected_phase_version=expected_phase_version, augmentation_seed=augmentation_seed)
+        task, window, pipeline_id, spec=spec, augmentation_seed=augmentation_seed)
     seed_bundle = {"master_seed": seed, "seed_model": seed, "seed_sampler": seed,
                    "seed_dataloader": seed, "seed_preprocess": SEED_IMPUTATION}
     config = {"config_version": "recurrent_shared_phase_v2_3_epoch50", "task": task, "feature_regime": REGIME[task],
@@ -214,8 +250,9 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
               "test_refit_forbidden": True, "hidden_size": 128, "num_layers": 1, "dropout": .3,
               "batch_size": 2048, "max_epochs": 50, "patience": 5, "learning_rate": .001,
               "weight_decay": .00001, "data_release_id": input_manifest.get("data_release_id"),
+              "release_id": spec["release_id"], "split_registry_id": spec["split_registry_id"],
               "split_version": input_manifest.get("split_version"), "phase_version": input_manifest.get("phase_version"),
-              "expected_split_version": expected_split_version, "expected_phase_version": expected_phase_version,
+              "expected_split_version": spec["split_version"], "expected_phase_version": spec["phase_version"],
               "feature_dictionary_version": input_manifest.get("feature_dictionary_version"),
               "label_rule_version": input_manifest.get("label_rule_version"),
               "label_threshold_set": input_manifest.get("label_threshold_set", "PRIMARY"),
@@ -237,6 +274,8 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
     train = pd.read_parquet(train_path)
     validation = pd.read_parquet(input_root / "model_inputs/validation.parquet")
     tests = {phase: pd.read_parquet(input_root / f"model_inputs/test_{phase}.parquet") for phase in ("P1", "P2", "P3", "P4")}
+    for source_name, frame in (("train", train), ("validation", validation), *tests.items()):
+        _require_prediction_context(frame, source=source_name)
     read_s = time.perf_counter() - started
     layout = fit_layout(train, task=task, phase_id="P4", use_masks=True)
     label = _label(task); classes = CLASSES[task]
@@ -434,7 +473,7 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
 @app.local_entrypoint()
 def cli(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0",
         model_name: str = "RNN", seed: int = 42, split_version: str = "", phase_version: str = "",
-        augmentation_seed: int = 42) -> None:
+        augmentation_seed: int = 42, release_id: str = "") -> None:
     print(json.dumps(train_recurrent.remote(
-        task, window, pipeline_id, model_name, seed, split_version, phase_version, augmentation_seed
+        task, window, pipeline_id, model_name, seed, split_version, phase_version, augmentation_seed, release_id
     ), indent=2, default=str))

@@ -27,7 +27,7 @@ def augmentable_model_columns(source: pd.DataFrame, *, label_column: str, phase_
     allowed_phases = {f"P{index}" for index in range(1, int(phase_id[1:]) + 1)}
     result: list[str] = []
     for column in source.columns:
-        if column in IDENTITY_CODES | PROVENANCE | {label_column}:
+        if column in IDENTITY_CODES | PROVENANCE | {label_column} or column.startswith("context__"):
             continue
         if column.startswith(("missing__", "phase_available_", "video_observed_mask_",
                               "problem_observed_mask_", "comment_observed_mask_")):

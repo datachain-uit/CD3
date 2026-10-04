@@ -12,12 +12,6 @@ APP_NAME = "tempo-imputation-v1"
 VOLUME_NAME = "tempo-data-v1"
 MOUNT = "/data"
 META_RELEASE = "imputation-v1"
-# Never overwrite an older input release in place.  LO V3.1 has a dedicated
-# namespace so a model run cannot consume a pre-catalog-normalisation upload.
-INPUT_RELEASE_DIR = {"CQ": "CQ_v2_2", "LO": "LO_v3_1"}
-# A new imputation run must be bound to the current immutable task release.
-# This stops LO from accidentally inheriting pre-catalog-normalisation views.
-LOCKED_RELEASE = {"CQ": ("v2_2", "wide_prefix_v2_2"), "LO": ("v3_1", "wide_prefix_v3_1")}
 # S0 and S1 are official release-quality measurements. Both scan every row.
 # Sampling is deliberately not an S0 CLI option: a sampled profile must never
 # be mistaken for the release-quality baseline used to compare imputers.
@@ -28,7 +22,8 @@ app = modal.App(APP_NAME)
 volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True)
 image = (modal.Image.debian_slim(python_version="3.12")
          .pip_install("numpy>=1.26", "pandas>=2.2", "pyarrow>=16", "scikit-learn>=1.5", "joblib>=1.4")
-         .add_local_python_source("imputation_core"))
+         .add_local_python_source("imputation_core")
+         .add_local_python_source("release_core"))
 
 
 def _partition(task: str, regime: str, window: str, phase: str) -> Path:
@@ -68,7 +63,22 @@ def _profile_rows(frame, limit: int, seed: int):
     return frame if limit <= 0 else frame.sample(min(len(frame), limit), random_state=seed)
 
 
-def _release_view_roots(input_root: Path, release: dict) -> tuple[Path, Path]:
+def _require_enrollment_grain(frame, *, source: str) -> None:
+    """Fail before profiling/imputing if the analytical unit is duplicated."""
+    if "enrollment_id" not in frame:
+        raise ValueError(f"{source} is missing enrollment_id")
+    if frame["enrollment_id"].isna().any():
+        raise ValueError(f"{source} has null enrollment_id")
+    duplicate_count = int(frame["enrollment_id"].duplicated(keep=False).sum())
+    if duplicate_count:
+        raise ValueError(
+            f"{source} violates one-row-per-enrollment grain: rows={len(frame)}, "
+            f"distinct_enrollment_id={frame['enrollment_id'].nunique()}, duplicate_rows={duplicate_count}. "
+            "Re-materialize and upload the release; do not impute this input."
+        )
+
+
+def _release_view_roots(input_root: Path, spec: dict[str, str]) -> tuple[Path, Path]:
     """Resolve the exact uploaded view directory for a locked input release.
 
     LO's registered phase version is ``wide_prefix_v3_1`` while the
@@ -76,27 +86,19 @@ def _release_view_roots(input_root: Path, release: dict) -> tuple[Path, Path]:
     ``v3_1_scored_signal_excluded``. Keep both names explicit so the loader
     neither falls back to V1 nor requires a misleading rename during upload.
     """
-    suffix = str(release["phase_version"]).removeprefix("wide_prefix_")
-    suffixes = [suffix]
-    if suffix == "v3_1":
-        suffixes.append("v3_1_scored_signal_excluded")
-    # Do not fall back to legacy V1 directory aliases.  A file layout is part
-    # of release provenance: accepting a V1-named directory under a V2.2/V3.1
-    # input namespace silently mixes releases and invalidates the run.
-    phase_candidates = tuple(input_root / f"phase_views_{candidate}" for candidate in suffixes)
-    test_candidates = tuple(input_root / f"test_prefix_views_{candidate}" for candidate in suffixes)
-    phase_root = next((path for path in phase_candidates if path.exists()), None)
-    test_root = next((path for path in test_candidates if path.exists()), None)
-    if phase_root is None or test_root is None:
+    phase_root = input_root / spec["phase_views_dir"]
+    test_root = input_root / spec["test_prefix_views_dir"]
+    if not phase_root.exists() or not test_root.exists():
         raise FileNotFoundError(
-            f"Missing views for {release['phase_version']}; checked "
-            f"{[str(path) for path in phase_candidates + test_candidates]}"
+            f"Missing views for release_id={spec['release_id']}; expected "
+            f"{phase_root} and {test_root}"
         )
     return phase_root, test_root
 
 
 @app.function(image=image, volumes={MOUNT: volume}, cpu=8, memory=196608, timeout=60 * 60 * 24)
-def materialize_s0(task: str, profile_sample_rows: int = S0_PROFILE_ROWS, seed: int = 20260922) -> dict:
+def materialize_s0(task: str, profile_sample_rows: int = S0_PROFILE_ROWS, seed: int = 20260922,
+                   release_id: str = "") -> dict:
     """G1: write the pipeline-independent S0_RAW state and locked raw bins once."""
     import pandas as pd
     from imputation_core.meta_storage import (
@@ -105,20 +107,17 @@ def materialize_s0(task: str, profile_sample_rows: int = S0_PROFILE_ROWS, seed: 
         environment_record, implementation_version, release_inventory,
     )
     from imputation_core.wide_imputation import PHASES, WideImputer, _read
+    from release_core import resolve_release, validate_release_manifest
 
     if task not in {"CQ", "LO"}:
         raise ValueError("task must be CQ or LO")
     if profile_sample_rows > 0:
         raise ValueError("S0_RAW is an official all-row census; profile_sample_rows must be 0")
-    input_root = Path(MOUNT) / "input" / INPUT_RELEASE_DIR[task]
+    spec = resolve_release(task, release_id)
+    input_root = Path(MOUNT) / "input" / spec["input_dir"]
     release = release_inventory(input_root, task=task)
-    expected_split, expected_phase = LOCKED_RELEASE[task]
-    if release.get("split_version") != expected_split or release.get("phase_version") != expected_phase:
-        raise ValueError(
-            f"{task} input is not the locked release {expected_split}/{expected_phase}: "
-            f"split={release.get('split_version')!r}, phase={release.get('phase_version')!r}. "
-            "Materialize/upload the locked phase and test-prefix views before S0."
-        )
+    validate_release_manifest(release.get("input_release_manifest", {}), spec, source=str(input_root / "release_manifest.json"))
+    release.update({"release_id": spec["release_id"], "split_registry_id": spec["split_registry_id"]})
     root = Path(MOUNT) / f"meta_release={META_RELEASE}"
     l0, l2 = root / "L0_registry", root / "L2_facts"
     atomic_json(l0 / f"data_release_{task}.json", release)
@@ -132,10 +131,12 @@ def materialize_s0(task: str, profile_sample_rows: int = S0_PROFILE_ROWS, seed: 
     all_classes: list[pd.DataFrame] = []
     all_quality: list[pd.DataFrame] = []
     state_ids = []
-    views, test_views = _release_view_roots(input_root, release)
+    views, test_views = _release_view_roots(input_root, spec)
     for window in ("W1", "W2", "W3"):
         train = _read(views, [("window", "=", window), ("split", "=", "train")])
         validation = _read(views, [("window", "=", window), ("split", "=", "validation")])
+        _require_enrollment_grain(train, source=f"{task}/{window}/train")
+        _require_enrollment_grain(validation, source=f"{task}/{window}/validation")
         # Discover role/schema without fitting any transform or using a label.
         probe = WideImputer(task, "v0", 1, seed)
         prepared_train, _ = probe._prepare(train, fitting=True)
@@ -148,7 +149,7 @@ def materialize_s0(task: str, profile_sample_rows: int = S0_PROFILE_ROWS, seed: 
             # historical 100k-row S0 artifacts.
             "measurement_version": "s0_all_rows_v2",
             "code_version": implementation_version(),
-            **{k: release[k] for k in ("data_release_id", "split_version", "phase_version", "feature_dictionary_version", "label_rule_version")},
+            **{k: release[k] for k in ("data_release_id", "release_id", "split_registry_id", "split_version", "phase_version", "feature_dictionary_version", "label_rule_version")},
         }
         state_id = canonical_hash(state_key)
         state_ids.append(state_id)
@@ -172,6 +173,7 @@ def materialize_s0(task: str, profile_sample_rows: int = S0_PROFILE_ROWS, seed: 
                 all_classes.append(class_distribution(sample, task=task, window=window, split=split_name, phase=phase, state_id=state_id, stage="S0_RAW"))
         for phase in PHASES:
             test = _read(test_views / phase, [("window", "=", window), ("split", "=", "test")])
+            _require_enrollment_grain(test, source=f"{task}/{window}/test_{phase}")
             prepared, _ = probe._prepare(test, fitting=False)
             sample = prepared if profile_sample_rows <= 0 else prepared.sample(min(len(prepared), profile_sample_rows), random_state=seed)
             quality_sample = sample.copy()
@@ -271,7 +273,8 @@ def export_s0_facts() -> dict:
 # large working matrices. Allocate 192 GB to each isolated Modal invocation.
 @app.function(image=image, volumes={MOUNT: volume}, cpu=8, memory=196608, timeout=60 * 60 * 24)
 def run_imputation(task: str, window: str, test_phase: str, variant: str,
-                   fit_sample_rows: int = 1_000_000, seed: int = 20260922) -> dict:
+                   fit_sample_rows: int = 1_000_000, seed: int = 20260922,
+                   release_id: str = "") -> dict:
     """G2a: fit one imputer and write L1, S1/L2, resource and diagnostic L3."""
     import joblib
     import pandas as pd
@@ -281,6 +284,7 @@ def run_imputation(task: str, window: str, test_phase: str, variant: str,
         drift_measures_from_sketch, environment_record, fidelity_probe, file_sha256, implementation_version, l3_rows, release_inventory,
     )
     from imputation_core.wide_imputation import PHASES, WideImputer, _label_column, _read, fit_sample_rows_for_variant
+    from release_core import resolve_release, validate_release_manifest
 
     if task not in {"CQ", "LO"} or window not in {"W1", "W2", "W3"}:
         raise ValueError("task must be CQ/LO and window must be W1/W2/W3")
@@ -289,23 +293,24 @@ def run_imputation(task: str, window: str, test_phase: str, variant: str,
     telemetry = Telemetry()
     print(json.dumps({"event": "run_started", "task": task, "window_id": window,
                       "variant": variant, "test_phase": test_phase}, sort_keys=True), flush=True)
-    input_root = Path(MOUNT) / "input" / INPUT_RELEASE_DIR[task]
+    spec = resolve_release(task, release_id)
+    input_root = Path(MOUNT) / "input" / spec["input_dir"]
     root = Path(MOUNT) / f"meta_release={META_RELEASE}"
     release = release_inventory(input_root, task=task)
-    expected_split, expected_phase = LOCKED_RELEASE[task]
-    if release.get("split_version") != expected_split or release.get("phase_version") != expected_phase:
-        raise ValueError(
-            f"{task} input is not the locked release {expected_split}/{expected_phase}: "
-            f"split={release.get('split_version')!r}, phase={release.get('phase_version')!r}."
-        )
+    validate_release_manifest(release.get("input_release_manifest", {}), spec, source=str(input_root / "release_manifest.json"))
+    release.update({"release_id": spec["release_id"], "split_registry_id": spec["split_registry_id"]})
     s0_manifest = root / "L0_registry" / "state_manifests" / f"s0_{task}.json"
     if not s0_manifest.exists():
         raise RuntimeError(f"Run materialize_s0 for {task} before imputation.")
-    views, test_views = _release_view_roots(input_root, release)
+    views, test_views = _release_view_roots(input_root, spec)
     train = _read(views, [("window", "=", window), ("split", "=", "train")])
     validation = _read(views, [("window", "=", window), ("split", "=", "validation")])
     phases = PHASES if test_phase == "ALL" else (test_phase,)
     tests = {phase: _read(test_views / phase, [("window", "=", window), ("split", "=", "test")]) for phase in phases}
+    _require_enrollment_grain(train, source=f"{task}/{window}/train")
+    _require_enrollment_grain(validation, source=f"{task}/{window}/validation")
+    for phase, frame in tests.items():
+        _require_enrollment_grain(frame, source=f"{task}/{window}/test_{phase}")
     telemetry.mark("read")
     print(json.dumps({"event": "input_read_complete", "train_rows": len(train),
                       "validation_rows": len(validation),
@@ -322,7 +327,7 @@ def run_imputation(task: str, window: str, test_phase: str, variant: str,
     run_key = {"task": task, "feature_regime": FEATURE_REGIME[task], "window_id": window, "pipeline_id": pipeline_id,
                "model_name": "IMPUTATION_ONLY", "pipeline_version": "1.0.0",
                "variant": variant, "imputer_params": IMPUTER_PARAMS[variant], "fit_sample_rows": ("ALL_TRAIN" if effective_fit_sample_rows == 0 else effective_fit_sample_rows), "scaling_contract": SCALING_CONTRACT, "seed": seed, "fit_scope": "TRAIN_POOLED_P1_P4", "impute_scope": "OBSERVED_MISSING_ONLY",
-               **{k: release[k] for k in ("data_release_id", "split_version", "phase_version", "feature_dictionary_version", "label_rule_version")}}
+               **{k: release[k] for k in ("data_release_id", "release_id", "split_registry_id", "split_version", "phase_version", "feature_dictionary_version", "label_rule_version")}}
     run_id = canonical_hash(run_key)
     run_root = (root / "L1_runs" / f"task={task}" / f"feature_regime={FEATURE_REGIME[task]}" /
                 f"window_id={window}" / f"pipeline_id={pipeline_id}" /
@@ -435,13 +440,13 @@ def run_imputation(task: str, window: str, test_phase: str, variant: str,
 
 
 @app.local_entrypoint()
-def cli(mode: str = "impute", task: str = "CQ", window: str = "W1", test_phase: str = "ALL", variant: str = "median", fit_sample_rows: int = 1_000_000, seed: int = 20260922):
+def cli(mode: str = "impute", task: str = "CQ", window: str = "W1", test_phase: str = "ALL", variant: str = "median", fit_sample_rows: int = 1_000_000, seed: int = 20260922, release_id: str = ""):
     if mode == "s0":
-        result = materialize_s0.remote(task, S0_PROFILE_ROWS, seed)
+        result = materialize_s0.remote(task, S0_PROFILE_ROWS, seed, release_id)
     elif mode == "export_s0":
         result = export_s0_facts.remote()
     elif mode == "impute":
-        result = run_imputation.remote(task, window, test_phase, variant, fit_sample_rows, seed)
+        result = run_imputation.remote(task, window, test_phase, variant, fit_sample_rows, seed, release_id)
     else:
         raise ValueError("mode must be s0, export_s0, or impute")
     print(json.dumps(result, indent=2))

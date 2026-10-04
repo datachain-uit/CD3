@@ -1,4 +1,4 @@
-# Modal execution: imputation V1
+# Modal execution: locked CQ V2.2 and LO V3.1 releases
 
 The Modal Volume `tempo-data-v1` is mounted at `/data`. Upload the downloaded
 release once; every remote run then reads and writes inside that Volume.
@@ -6,10 +6,12 @@ release once; every remote run then reads and writes inside that Volume.
 Required remote layout:
 
 ```text
-/data/input/CQ/phase_views_v1/
-/data/input/CQ/test_prefix_views_v1/P1/ ... /P4/
-/data/input/LO/phase_views_v1/
-/data/input/LO/test_prefix_views_v1/P1/ ... /P4/
+/data/input/CQ_v2_2/release_manifest.json
+/data/input/CQ_v2_2/phase_views_v2_2/
+/data/input/CQ_v2_2/test_prefix_views_v2_2/P1/ ... /P4/
+/data/input/LO_v3_1/release_manifest.json
+/data/input/LO_v3_1/phase_views_v3_1_scored_signal_excluded/
+/data/input/LO_v3_1/test_prefix_views_v3_1_scored_signal_excluded/P1/ ... /P4/
 ```
 
 The App writes one frozen meta release to:
@@ -74,6 +76,11 @@ Ridge conditional models for up to five iterations. Run V0 first as the baseline
 then run each learned variant on the same frozen window; never reuse an
 imputer fitted in another window.
 
+Each active release must include `release_manifest.json`; the applications
+reject missing provenance, a V1 directory, a split/phase mismatch, duplicate
+`enrollment_id`, or a model input without the non-predictive audit context
+(offering, timeline, course, duration/long-offering and P1--P4 STRICT flags).
+
 ## LO V3.1: model-ready execution path
 
 LO uses the same immutable Modal applications as CQ; it is not a separate
@@ -82,12 +89,10 @@ model implementation. The LO lock is deliberately stricter:
 ```text
 /data/input/LO_v3_1/
   release_manifest.json                     # split=v3_1, phase=wide_prefix_v3_1
-  phase_views_v3_1/                         # TRAIN + VALIDATION P1--P4
-  test_prefix_views_v3_1/P1/ ... /P4/       # immutable TEST prefixes
+  phase_views_v3_1_scored_signal_excluded/    # TRAIN + VALIDATION P1--P4
+  test_prefix_views_v3_1_scored_signal_excluded/P1/ ... /P4/ # immutable TEST prefixes
 ```
 
-`phase_views_v3_1_scored_signal_excluded` and the matching test-prefix name
-are accepted aliases only when they are the physical V3.1 source directory.
 The release manifest must declare the catalog-normalised source-faithful LO
 label release; the worker rejects a V1/V2 split or label artifact rather than
 silently using it.

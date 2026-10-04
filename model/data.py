@@ -19,6 +19,7 @@ PHASE_FRACTIONS = (0.25, 0.50, 0.75, 0.90)
 PHASE_RE = re.compile(r"^(.*)_P([1-4])$")
 IDENTITY_OR_PROVENANCE = {
     "enrollment_id", "offering_id", "window", "split", "synthetic_id",
+    "course_id", "user_id", "teacher_id", "school_id",
     "user_id_code", "course_id_code", "teacher_id_code", "school_id_code",
 }
 
@@ -85,7 +86,7 @@ def fit_layout(train: pd.DataFrame, *, task: str, phase_id: str, use_masks: bool
     excluded = IDENTITY_OR_PROVENANCE | {label} | dynamic_names
     static = []
     for column in train.columns:
-        if column in excluded or column.startswith(("missing__", "phase_available_")):
+        if (column in excluded or column.startswith(("missing__", "phase_available_", "context__"))):
             continue
         if PHASE_RE.match(column) or column.endswith("_observed_mask"):
             continue

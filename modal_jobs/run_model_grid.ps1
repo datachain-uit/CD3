@@ -14,16 +14,13 @@ param(
     [string[]]$Models,
     [int[]]$Seeds,
     [int]$AugmentationSeed = 42,
-    [string]$SplitVersion = "",
-    [string]$PhaseVersion = "",
+    [ValidateSet("CQ_V2_2", "LO_V3_1")][string]$ReleaseId = "",
     [switch]$SkipSanity,
     [string]$LogRoot = ".\logs\model_grid"
 )
 
 $ErrorActionPreference = "Stop"
-$ReleaseDefaults = @{ CQ = @("v2_2", "wide_prefix_v2_2"); LO = @("v3_1", "wide_prefix_v3_1") }
-if (-not $SplitVersion) { $SplitVersion = $ReleaseDefaults[$Task][0] }
-if (-not $PhaseVersion) { $PhaseVersion = $ReleaseDefaults[$Task][1] }
+if (-not $ReleaseId) { $ReleaseId = if ($Task -eq "CQ") { "CQ_V2_2" } else { "LO_V3_1" } }
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 $ModelApp = Join-Path $PSScriptRoot "model_app.py"
 $SanityApp = Join-Path $PSScriptRoot "model_sanity_app.py"
@@ -56,7 +53,7 @@ $plan = foreach ($Window in $Windows) {
     foreach ($Pipeline in $Pipelines) {
         foreach ($Model in $Models) {
             foreach ($Seed in $Seeds) {
-                [ordered]@{ task=$Task; window=$Window; pipeline_id=$Pipeline; model_name=$Model; seed=$Seed; augmentation_seed=$AugmentationSeed; split_version=$SplitVersion; phase_version=$PhaseVersion }
+                [ordered]@{ task=$Task; release_id=$ReleaseId; window=$Window; pipeline_id=$Pipeline; model_name=$Model; seed=$Seed; augmentation_seed=$AugmentationSeed }
             }
         }
     }
@@ -71,8 +68,8 @@ foreach ($item in $plan) {
     $modelArgs = @("-X", "utf8", "-m", "modal", "run", $ModelApp,
                    "--task", $item.task, "--window", $item.window,
                    "--pipeline-id", $item.pipeline_id, "--model-name", $item.model_name,
-                   "--seed", "$($item.seed)", "--split-version", $item.split_version,
-                   "--phase-version", $item.phase_version, "--augmentation-seed", "$($item.augmentation_seed)")
+                   "--seed", "$($item.seed)", "--augmentation-seed", "$($item.augmentation_seed)",
+                   "--release-id", $item.release_id)
     if ($PSCmdlet.ShouldProcess($tag, "train model")) {
         # Python/Modal emits deprecation warnings on stderr.  PowerShell 7
         # otherwise promotes that stderr text to NativeCommandError when
@@ -93,7 +90,7 @@ foreach ($item in $plan) {
             }
         }
     } else { $modelExit = 0 }
-    $status = [ordered]@{ task=$item.task; window=$item.window; pipeline_id=$item.pipeline_id; model_name=$item.model_name; seed=$item.seed; augmentation_seed=$item.augmentation_seed; split_version=$item.split_version; phase_version=$item.phase_version; model_exit_code=$modelExit; sanity_exit_code=$null }
+    $status = [ordered]@{ task=$item.task; release_id=$item.release_id; window=$item.window; pipeline_id=$item.pipeline_id; model_name=$item.model_name; seed=$item.seed; augmentation_seed=$item.augmentation_seed; model_exit_code=$modelExit; sanity_exit_code=$null }
     if ($modelExit -ne 0) {
         $results.Add([pscustomobject]$status)
         continue
@@ -104,8 +101,7 @@ foreach ($item in $plan) {
         $sanityArgs = @("-X", "utf8", "-m", "modal", "run", $SanityApp,
                         "--task", $item.task, "--window", $item.window,
                         "--pipeline-id", $item.pipeline_id, "--model-name", $item.model_name,
-                        "--seed", "$($item.seed)", "--split-version", $item.split_version,
-                        "--phase-version", $item.phase_version)
+                        "--seed", "$($item.seed)", "--release-id", $item.release_id)
         if ($PSCmdlet.ShouldProcess($tag, "materialize sanity")) {
             $savedErrorAction = $ErrorActionPreference
             $savedNativePreference = $PSNativeCommandUseErrorActionPreference

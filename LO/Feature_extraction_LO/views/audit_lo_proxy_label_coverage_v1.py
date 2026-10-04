@@ -37,10 +37,9 @@ LABEL_SOURCE = os.environ.get("LO_PROXY_LABEL_SOURCE", path_from_config(P, "lo_l
 WINDOWS_SOURCE = os.environ.get(
     "LO_PROXY_WINDOWS_SOURCE", f"{BASE}/features/scenarios/hybrid/enrollment_windows"
 ).rstrip("/")
-MANIFEST_SOURCE = os.environ.get(
-    "LO_PROXY_MANIFEST_SOURCE",
-    f"{TASK_BASE}/LO/hybrid/split_registry_v2_2_overlap_audit_v1_r2/manifest",
-).rstrip("/")
+MANIFEST_SOURCE = os.environ.get("LO_PROXY_MANIFEST_SOURCE", "").rstrip("/")
+if not MANIFEST_SOURCE:
+    raise ValueError("Set LO_PROXY_MANIFEST_SOURCE to the frozen release manifest path.")
 OUT = os.environ.get(
     "LO_PROXY_AUDIT_OUTPUT", f"{TASK_BASE}/LO/hybrid/label_coverage_audit_proxy_v1"
 ).rstrip("/")

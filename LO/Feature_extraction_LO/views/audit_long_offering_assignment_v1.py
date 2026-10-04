@@ -30,10 +30,9 @@ except ModuleNotFoundError:
 TASK = "LO"
 P = load_protocol_config()
 TASK_BASE = path_from_config(P, "task_feature_base").rstrip("/")
-REGISTRY_SOURCE = os.environ.get(
-    "SPLIT_LONG_AUDIT_REGISTRY_SOURCE",
-    f"{TASK_BASE}/{TASK}/hybrid/split_registry_v2_2_overlap_audit_v1_r2",
-).rstrip("/")
+REGISTRY_SOURCE = os.environ.get("SPLIT_LONG_AUDIT_REGISTRY_SOURCE", "").rstrip("/")
+if not REGISTRY_SOURCE:
+    raise ValueError("Set SPLIT_LONG_AUDIT_REGISTRY_SOURCE to the frozen release registry path.")
 OUT = os.environ.get(
     "SPLIT_LONG_AUDIT_OUTPUT",
     f"{TASK_BASE}/{TASK}/hybrid/long_offering_assignment_audit_v1",

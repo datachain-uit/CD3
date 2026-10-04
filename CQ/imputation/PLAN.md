@@ -1,7 +1,7 @@
-# CQ imputation V1 — execution plan
+# CQ imputation V2.2 — execution plan
 
 This project is independent of `Feature_extraction`. Input is the downloaded,
-immutable `CQ/phase_views_v1` release; output is local Python artifacts.
+immutable `CQ/phase_views_v2_2` release; output is local Python artifacts.
 
 ## 1. Freeze and validate input
 

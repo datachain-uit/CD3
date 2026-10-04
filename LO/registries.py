@@ -32,7 +32,10 @@ import json
 import os
 from typing import Dict, List, Optional
 
-from .seeds import sha256_of, SEED_PREPROCESS
+try:
+    from .seeds import sha256_of, SEED_PREPROCESS
+except ImportError:  # Supports ``python LO/registries.py`` as documented.
+    from seeds import sha256_of, SEED_PREPROCESS
 
 REGISTRY_REVISION = 'registries_rev_2026-10-01_r2'
 

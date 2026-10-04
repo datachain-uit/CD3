@@ -1,0 +1,32 @@
+# Python/editor state
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+.env
+.env.*
+.vscode/
+.idea/
+
+# Local downloads, generated experiment outputs, and temporary files
+downloads/
+artifacts/
+.audit_parquet_reader/
+tmp/
+temp/
+logs/
+CQ/resuilt/
+LO/resuilt/
+course.csv
+course.json
+course_limit.csv
+course_ScoreStruct.csv
+--task
+*.parquet
+*.zip
+*.log
+
+# Runtime-specific configuration: commit only the documented example.
+config/runtime_paths.env

@@ -1,8 +1,8 @@
-# CQ imputation V1
+# CQ imputation V2.2
 
 Independent CQ imputation project, parallel to `Feature_extraction`.
 
-It consumes the frozen CQ `phase_views_v1`; it never rewrites labels or
+It consumes the frozen CQ `phase_views_v2_2`; it never rewrites labels or
 features. Read [PLAN.md](PLAN.md) before implementing a variant.
 
 Core contract: for window `Wk`, fit encoder/scaler/imputer only on the union

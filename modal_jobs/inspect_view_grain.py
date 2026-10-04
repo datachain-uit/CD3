@@ -12,21 +12,14 @@ import modal
 
 APP_NAME, VOLUME_NAME, MOUNT = "tempo-view-grain-audit", "tempo-data-v1", "/data"
 META_RELEASE, SEED_IMPUTATION = "imputation-v1", 20260922
-INPUT_DIR = {"CQ": "CQ_v2_2", "LO": "LO_v3_1"}
 REGIME = {"CQ": "CQ_RAW_EARLY", "LO": "LO_FULL_EARLY"}
 LABEL = {"CQ": "CQ_label_final", "LO": "LO_performance_label_3"}
-PHASE_DIRS = {
-    "CQ": ("phase_views_v2_2", "phase_views_v1"),
-    "LO": ("phase_views_v3_1_scored_signal_excluded", "phase_views_v3_1", "phase_views_v1"),
-}
-TEST_DIRS = {
-    "CQ": ("test_prefix_views_v2_2", "test_prefix_views_v1"),
-    "LO": ("test_prefix_views_v3_1_scored_signal_excluded", "test_prefix_views_v3_1", "test_prefix_views_v1"),
-}
 
 app = modal.App(APP_NAME)
 volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=False)
-image = modal.Image.debian_slim(python_version="3.12").pip_install("pandas>=2.2", "pyarrow>=16")
+image = (modal.Image.debian_slim(python_version="3.12")
+         .pip_install("pandas>=2.2", "pyarrow>=16")
+         .add_local_python_source("release_core"))
 
 
 def _first_existing(root: Path, names: tuple[str, ...]) -> Path | None:
@@ -44,6 +37,17 @@ def _parquet_files(path: Path) -> list[str]:
     if path.is_file():
         return [path.name]
     return sorted(str(item.relative_to(path)) for item in path.rglob("*.parquet"))
+
+
+def _locked_input_root(task: str, release_id: str) -> tuple[Path, dict]:
+    from release_core import resolve_release, validate_release_manifest
+    spec = resolve_release(task, release_id)
+    root = Path(MOUNT) / "input" / spec["input_dir"]
+    manifest_path = root / "release_manifest.json"
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"Missing release_manifest.json under {root}")
+    validate_release_manifest(json.loads(manifest_path.read_text(encoding="utf-8")), spec, source=str(manifest_path))
+    return root, spec
 
 
 def _grain(path: Path, label: str, filters: list[tuple[str, str]] | None = None) -> dict:
@@ -106,7 +110,7 @@ def _grain(path: Path, label: str, filters: list[tuple[str, str]] | None = None)
     return result
 
 
-def _latest_v0_inputs(task: str, window: str) -> Path | None:
+def _latest_v0_inputs(task: str, window: str, *, spec: dict[str, str]) -> Path | None:
     root = (Path(MOUNT) / f"meta_release={META_RELEASE}" / "L1_runs" / f"task={task}" /
             f"feature_regime={REGIME[task]}" / f"window_id={window}" / "pipeline_id=V0" /
             "model_name=IMPUTATION_ONLY" / f"seed={SEED_IMPUTATION}")
@@ -115,14 +119,16 @@ def _latest_v0_inputs(task: str, window: str) -> Path | None:
     for manifest_path in candidates:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         inputs = manifest_path.parent / "model_inputs"
-        if manifest.get("run_status") == "SUCCESS" and (inputs / "train.parquet").exists():
+        if (manifest.get("run_status") == "SUCCESS" and (inputs / "train.parquet").exists() and
+                all(manifest.get(field) == spec[field] for field in
+                    ("release_id", "split_registry_id", "split_version", "phase_version"))):
             return inputs
     return None
 
 
 @app.function(image=image, volumes={MOUNT: volume}, cpu=4, memory=32768, timeout=60 * 60)
-def audit(task: str = "CQ", window: str = "", scope: str = "all") -> dict:
-    if task not in INPUT_DIR:
+def audit(task: str = "CQ", window: str = "", scope: str = "all", release_id: str = "") -> dict:
+    if task not in REGIME:
         raise ValueError("task must be CQ or LO")
     allowed_scopes = {"all", "release_train", "release_validation", "release_test", "v0_train", "v0_validation", "v0_test"}
     if scope not in allowed_scopes:
@@ -132,11 +138,12 @@ def audit(task: str = "CQ", window: str = "", scope: str = "all") -> dict:
         raise ValueError("window must be empty, W1, W2, or W3")
     print(json.dumps({"event": "grain_audit_started", "task": task, "window": window or "ALL", "scope": scope}), flush=True)
     volume.reload()
-    input_root = Path(MOUNT) / "input" / INPUT_DIR[task]
-    phase_root = _first_existing(input_root, PHASE_DIRS[task])
-    test_root = _first_existing(input_root, TEST_DIRS[task])
+    input_root, spec = _locked_input_root(task, release_id)
+    phase_root = input_root / spec["phase_views_dir"]
+    test_root = input_root / spec["test_prefix_views_dir"]
     report: dict = {
         "task": task,
+        "release_id": spec["release_id"], "split_registry_id": spec["split_registry_id"],
         "input_root": str(input_root),
         "phase_views_dir": str(phase_root) if phase_root else None,
         "test_prefix_dir": str(test_root) if test_root else None,
@@ -165,7 +172,7 @@ def audit(task: str = "CQ", window: str = "", scope: str = "all") -> dict:
                     )
         if scope not in {"all", "v0_train", "v0_validation", "v0_test"}:
             continue
-        inputs = _latest_v0_inputs(task, scoped_window)
+        inputs = _latest_v0_inputs(task, scoped_window, spec=spec)
         if inputs is None:
             report["v0_model_inputs"][scoped_window] = {"error": "no SUCCESS V0 model_inputs"}
             continue
@@ -190,6 +197,7 @@ def audit(task: str = "CQ", window: str = "", scope: str = "all") -> dict:
 
 
 @app.local_entrypoint()
-def cli(task: str = "CQ", window: str = "", scope: str = "all") -> None:
-    print(json.dumps({"event": "grain_audit_submitted", "task": task, "window": window or "ALL", "scope": scope}), flush=True)
-    print(json.dumps(audit.remote(task, window, scope), indent=2, ensure_ascii=False, default=str))
+def cli(task: str = "CQ", window: str = "", scope: str = "all", release_id: str = "") -> None:
+    print(json.dumps({"event": "grain_audit_submitted", "task": task, "window": window or "ALL", "scope": scope,
+                      "release_id": release_id or "DEFAULT_FOR_TASK"}), flush=True)
+    print(json.dumps(audit.remote(task, window, scope, release_id), indent=2, ensure_ascii=False, default=str))

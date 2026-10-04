@@ -1,7 +1,7 @@
-# LO imputation V1 — execution plan
+# LO imputation V3.1 — execution plan
 
 This project is independent of `Feature_extraction_LO`. Input is the
-downloaded, immutable `LO/phase_views_v1` release; output is local Python
+downloaded, immutable `LO/phase_views_v3_1_scored_signal_excluded` release; output is local Python
 artifacts.
 
 ## 1. Freeze and validate input

@@ -66,18 +66,18 @@ frozen and all Databricks commands have been migrated together.
 
 Current release contracts:
 
-| Task | Split / phase release | Input feature regime |
+| Task | `release_id` | Split / phase release | Input feature regime |
 |---|---|---|
-| CQ | `v2_2` / `wide_prefix_v2_2` | `CQ_RAW_EARLY` |
-| LO | `v3_1` / `wide_prefix_v3_1` | `LO_FULL_EARLY` |
+| CQ | `CQ_V2_2` | `v2_2` / `wide_prefix_v2_2` | `CQ_RAW_EARLY` |
+| LO | `LO_V3_1` | `v3_1` / `wide_prefix_v3_1` | `LO_FULL_EARLY` |
 
 ## 4. Stage S0 profile and S1 imputation (Modal)
 
 Materialize the input profile once per task after its views are frozen:
 
 ```powershell
-python -X utf8 -m modal run .\modal_jobs\imputation_app.py --mode s0 --task CQ --seed 20260922
-python -X utf8 -m modal run .\modal_jobs\imputation_app.py --mode s0 --task LO --seed 20260922
+python -X utf8 -m modal run .\modal_jobs\imputation_app.py --mode s0 --task CQ --release-id CQ_V2_2 --seed 20260922
+python -X utf8 -m modal run .\modal_jobs\imputation_app.py --mode s0 --task LO --release-id LO_V3_1 --seed 20260922
 ```
 
 Then run each input pipeline for each required window. `--test-phase ALL`
@@ -86,7 +86,7 @@ MICE is normally sampled because it is iterative and expensive.
 
 ```powershell
 # V0: deterministic constant fill plus missingness masks
-python -X utf8 -m modal run .\modal_jobs\imputation_app.py --task CQ --window W1 --test-phase ALL --variant v0 --fit-sample-rows 0 --seed 20260922
+python -X utf8 -m modal run .\modal_jobs\imputation_app.py --task CQ --release-id CQ_V2_2 --window W1 --test-phase ALL --variant v0 --fit-sample-rows 0 --seed 20260922
 
 # V1, V5, V9: full-TRAIN estimators
 python -X utf8 -m modal run .\modal_jobs\imputation_app.py --task CQ --window W1 --test-phase ALL --variant median      --fit-sample-rows 0 --seed 20260922
@@ -116,7 +116,7 @@ run. Validation and all TEST prefixes remain real, unmodified data.
 ```powershell
 # Example: CQ/W1, median parent V1, CDSMOTE -> V2
 python -X utf8 -m modal run .\modal_jobs\augmentation_app.py `
-  --task CQ --window W1 --phase P4 --parent-pipeline V1 --method CDSMOTE --seed 42
+  --task CQ --release-id CQ_V2_2 --window W1 --phase P4 --parent-pipeline V1 --method CDSMOTE --seed 42
 
 # Status check without writing any data
 python -X utf8 -m modal run .\modal_jobs\augmentation_app.py `
@@ -139,14 +139,15 @@ Run a single reproducible cell directly:
 ```powershell
 python -X utf8 -m modal run .\modal_jobs\model_app.py `
   --task CQ --window W1 --pipeline-id V0 --model-name RNN --seed 42 `
-  --split-version v2_2 --phase-version wide_prefix_v2_2
+  --release-id CQ_V2_2
 
 python -X utf8 -m modal run .\modal_jobs\model_sanity_app.py `
   --task CQ --window W1 --pipeline-id V0 --model-name RNN --seed 42 `
-  --split-version v2_2 --phase-version wide_prefix_v2_2
+  --release-id CQ_V2_2
 ```
 
-For LO, use `--split-version v3_1 --phase-version wide_prefix_v3_1`.
+For LO, use `--release-id LO_V3_1`. The release specification, rather than a
+caller-supplied directory or split string, determines the exact input paths.
 
 The recommended launcher runs model then sanity for every planned cell and
 records local logs. Start small; `grid` can be expensive.
@@ -158,7 +159,7 @@ records local logs. Start small; `grid` can be expensive.
 # Explicit one-window grid, one model, one seed
 .\modal_jobs\run_model_grid.ps1 `
   -Task CQ -Mode grid -Windows W1 -Pipelines V0,V1,V5,V9,V13 `
-  -Models RNN -Seeds 42
+  -Models RNN -Seeds 42 -ReleaseId CQ_V2_2
 ```
 
 Default recurrent configuration uses L4 GPU, bf16 AMP, maximum 50 epochs,

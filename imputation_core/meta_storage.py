@@ -465,22 +465,22 @@ def release_inventory(input_root: Path, *, task: str) -> dict[str, Any]:
             status = path.stat()
             entries.append({"path": str(path.relative_to(input_root)), "bytes": status.st_size})
     payload = {"task": task, "root": str(input_root), "files": entries}
-    # A sidecar preserves the immutable upstream release identity when the
-    # Modal input layout uses compatibility aliases such as phase_views_v1.
-    # Legacy uploads remain readable with the historical defaults.
+    # Every active release must declare its own immutable provenance.  Do not
+    # synthesize V1 defaults: that makes an accidental legacy upload appear
+    # scientifically valid to a later run.
     sidecar_path = input_root / "release_manifest.json"
     sidecar: dict[str, Any] = {}
     if sidecar_path.is_file():
         sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
         if sidecar.get("task") != task:
             raise ValueError(f"Input release sidecar task mismatch: expected {task}, got {sidecar.get('task')}")
-    defaults = {
-        "split_version": "label_stratified_v1",
-        "phase_version": "wide_prefix_v1",
-        "feature_dictionary_version": "schema_from_phase_views_v1",
-        "label_rule_version": "cq_vector_proximity_v1" if task == "CQ" else "lo_performance_proxy_v1",
-    }
-    release = {key: sidecar.get(key, value) for key, value in defaults.items()}
+    required = ("split_version", "phase_version", "feature_dictionary_version", "label_rule_version")
+    if not sidecar:
+        raise FileNotFoundError(f"Missing required release_manifest.json under {input_root}")
+    missing = [key for key in required if not sidecar.get(key)]
+    if missing:
+        raise ValueError(f"Input release manifest is missing required fields: {missing}")
+    release = {key: sidecar[key] for key in required}
     release["data_release_id"] = f"sha256:{canonical_hash({'inventory': payload, 'sidecar': sidecar})}"
     release["inventory"] = payload
     if sidecar:

@@ -12,23 +12,23 @@ APP_NAME, VOLUME_NAME, MOUNT = "tempo-model-sanity-v1", "tempo-data-v1", "/data"
 META_RELEASE = "imputation-v1"
 REGIME = {"CQ": "CQ_RAW_EARLY", "LO": "LO_FULL_EARLY"}
 CLASSES = {"CQ": ("warning", "average", "good"), "LO": ("I/D", "G", "E")}
-RELEASE_DEFAULTS = {"CQ": ("v2_2", "wide_prefix_v2_2"), "LO": ("v3_1", "wide_prefix_v3_1")}
 
 app = modal.App(APP_NAME)
 volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=False)
 image = (modal.Image.debian_slim(python_version="3.12")
          .pip_install("numpy>=1.26", "pandas>=2.2", "pyarrow>=16", "scikit-learn>=1.5")
-         .add_local_python_source("metrics_core"))
+         .add_local_python_source("metrics_core")
+         .add_local_python_source("release_core"))
 
 
-def _latest_attempt(root: Path, *, expected_split_version: str, expected_phase_version: str) -> tuple[Path, dict]:
+def _latest_attempt(root: Path, *, spec: dict[str, str]) -> tuple[Path, dict]:
     pattern = "attempt_id=*/run_manifest.json" if root.name.startswith("run_id=") else "run_id=*/attempt_id=*/run_manifest.json"
     paths = sorted(root.glob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)
     for path in paths:
         value = json.loads(path.read_text(encoding="utf-8"))
         if value.get("run_status") == "SUCCESS":
-            if (value.get("split_version") != expected_split_version or
-                    value.get("phase_version") != expected_phase_version):
+            if any(value.get(field) != spec[field] for field in
+                   ("release_id", "split_registry_id", "split_version", "phase_version")):
                 continue
             return path.parent, value
     raise FileNotFoundError(f"No successful run under {root}")
@@ -83,25 +83,27 @@ def _train_tensor_s_eff(train, dynamic_bases: list[str]) -> tuple[float, float, 
 def materialize_model_sanity(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0",
                               model_name: str = "RNN", seed: int = 42, run_id: str = "",
                               probe_rows_per_phase: int = 0, split_version: str = "",
-                              phase_version: str = "") -> dict:
+                              phase_version: str = "", release_id: str = "") -> dict:
     """Materialize S_san+ components from stored artifacts; checkpoint untouched."""
     import numpy as np
     import pandas as pd
     from metrics_core.evaluation import (classification_metrics, fit_missingness_probe,
                                          score_missingness_probe_auc, s_leak_from_probe)
+    from release_core import resolve_release
 
     if task not in REGIME or window not in {"W1", "W2", "W3"}: raise ValueError("task=CQ|LO, window=W1..W3")
-    expected_split_version, expected_phase_version = RELEASE_DEFAULTS[task]
-    if split_version: expected_split_version = split_version
-    if phase_version: expected_phase_version = phase_version
+    spec = resolve_release(task, release_id)
+    if split_version and split_version != spec["split_version"]:
+        raise ValueError(f"split_version is controlled by {spec['release_id']}")
+    if phase_version and phase_version != spec["phase_version"]:
+        raise ValueError(f"phase_version is controlled by {spec['release_id']}")
     volume.reload()
     model_base = (Path(MOUNT) / f"meta_release={META_RELEASE}" / "L1_runs" / f"task={task}" /
                   f"feature_regime={REGIME[task]}" / f"window_id={window}" / f"pipeline_id={pipeline_id}" /
                   f"model_name={model_name}" / f"seed={seed}")
     if run_id:
         model_base = model_base / f"run_id={run_id}"
-    model_root, manifest = _latest_attempt(model_base, expected_split_version=expected_split_version,
-                                           expected_phase_version=expected_phase_version)
+    model_root, manifest = _latest_attempt(model_base, spec=spec)
     input_root = Path(manifest["input_root"])
     layout = json.loads((model_root / "feature_layout.json").read_text(encoding="utf-8"))
     bases = layout["dynamic_bases"]
@@ -177,6 +179,6 @@ def materialize_model_sanity(task: str = "CQ", window: str = "W1", pipeline_id: 
 @app.local_entrypoint()
 def cli(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0", model_name: str = "RNN",
         seed: int = 42, run_id: str = "", probe_rows_per_phase: int = 0,
-        split_version: str = "", phase_version: str = "") -> None:
+        split_version: str = "", phase_version: str = "", release_id: str = "") -> None:
     print(json.dumps(materialize_model_sanity.remote(task, window, pipeline_id, model_name, seed, run_id,
-                                                     probe_rows_per_phase, split_version, phase_version), indent=2))
+                                                     probe_rows_per_phase, split_version, phase_version, release_id), indent=2))

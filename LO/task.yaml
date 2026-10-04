@@ -1,19 +1,19 @@
 task: LO
 task_id: learning_outcome_operational
-protocol_version: v3_catalog_normalized
+protocol_version: v3_1_scored_signal_excluded
 label:
   column: LO_performance_label_3
-  rule_version: lo_final_score_catalog_normalized_v3
+  rule_version: lo_final_score_catalog_normalized_v3_1
   classes: [I/D, G, E]
   builder: labels.build_lo_labels
-  artifact: labels/lo_labels_v3_catalog_normalized
+  artifact: labels/lo_labels_v3_1_scored_signal_excluded
   sensitivity:
     rule_version: lo_tempo_legacy_clip_v3
     artifact: labels/lo_labels_v3_tempo_legacy_clip
 views:
-  builder: views.materialize_label_stratified_views_v2_2
-  phase: tasks/LO/hybrid/phase_views_v3_catalog_normalized
-  manifest: tasks/LO/hybrid/split_manifest_v3_catalog_normalized
-  audit: tasks/LO/hybrid/phase_views_v3_catalog_normalized_audit
-split: offering_temporal_label_balanced_v3_catalog_normalized
+  builder: views.materialize_label_stratified_views_v3_1
+  phase: tasks/LO/hybrid/phase_views_v3_1_scored_signal_excluded
+  manifest: tasks/LO/hybrid/split_manifest_v3_1_scored_signal_excluded
+  audit: tasks/LO/hybrid/phase_views_v3_1_scored_signal_excluded_audit
+split: offering_temporal_label_balanced_v3_1_scored_signal_excluded
 phases: [P1, P2, P3, P4]

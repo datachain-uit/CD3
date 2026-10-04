@@ -33,6 +33,7 @@ SPLITS = {
     "W3": {"train": ("A", "B", "C", "D", "E"), "validation": ("F",), "test": ("G",)},
 }
 PHASES = ("P1", "P2", "P3", "P4")
+VIEW_RELEASES = {"CQ": "phase_views_v2_2", "LO": "phase_views_v3_1_scored_signal_excluded"}
 PROVENANCE_COLUMNS = {
     "enrollment_id", "user_id", "course_id", "offering_id", "task", "window", "split", "split_id", "phase",
     "temporal_block", "timeline_source", "prefix_parent_id", "prediction_phase",
@@ -49,6 +50,7 @@ def parser(default_task: str) -> argparse.ArgumentParser:
     result.add_argument("--scenario", choices=("hybrid",), default="hybrid")
     result.add_argument("--window", choices=tuple(SPLITS), required=True)
     result.add_argument("--test-phase", choices=PHASES, required=True)
+    result.add_argument("--view-source", default="", help="Absolute immutable phase-view directory; defaults to the locked task release.")
     result.add_argument("--seed", type=int, default=20260915)
     return result
 
@@ -83,7 +85,9 @@ def main(default_task: str) -> None:
     task_spec = TASK_SPECS[args.task]
     label_column = task_spec["label"]
     base = path_from_config(protocol, "task_feature_base")
-    input_path = f"{base}/{args.task}/{args.scenario}/phase_views_v1/"
+    input_path = args.view_source.rstrip("/") or f"{base}/{args.task}/{args.scenario}/{VIEW_RELEASES[args.task]}"
+    if input_path.endswith("phase_views_v1"):
+        raise ValueError("phase_views_v1 is retired for active experiments; provide a locked versioned view source.")
     output_base = f"{base}/{args.task}/{args.scenario}/imputation_v1/{args.window}/{args.test_phase}/raw"
 
     spark = SparkSession.builder.appName(f"prepare_{args.task.lower()}_imputation").config(
@@ -105,6 +109,9 @@ def main(default_task: str) -> None:
         & (F.col("window") == F.lit(args.window))
         & (F.col("phase") == F.lit(args.test_phase))
     )
+    duplicate = source.groupBy("enrollment_id").count().filter(F.col("count") > 1)
+    if duplicate.limit(1).count():
+        raise ValueError("Input view violates one-row-per-enrollment grain; run the release grain audit before staging.")
 
     features = model_columns(source, label_column, args.test_phase)
     if not features:

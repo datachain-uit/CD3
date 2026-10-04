@@ -13,11 +13,11 @@ app = modal.App(APP_NAME)
 volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True)
 image = (modal.Image.debian_slim(python_version="3.12")
          .pip_install("numpy>=1.26", "pandas>=2.2", "pyarrow>=16", "scikit-learn>=1.5")
-         .add_local_python_source("augmentation_core"))
+         .add_local_python_source("augmentation_core")
+         .add_local_python_source("release_core"))
 
 PARENT = {"V1": "median", "V5": "mean", "V9": "extra_trees", "V13": "mice"}
 REGIME = {"CQ": "CQ_RAW_EARLY", "LO": "LO_FULL_EARLY"}
-RELEASE_DEFAULTS = {"CQ": ("v2_2", "wide_prefix_v2_2"), "LO": ("v3_1", "wide_prefix_v3_1")}
 
 
 def _augmentation_quality_metrics(train, synthetic, batch, numeric_columns, label_column,
@@ -147,7 +147,7 @@ def _pipeline(parent: str, method: str) -> str:
     return table[parent][method]
 
 
-def _latest_successful_canonical_train(root: Path, *, task: str) -> tuple[Path, dict] | None:
+def _latest_successful_canonical_train(root: Path, *, spec: dict[str, str]) -> tuple[Path, dict] | None:
     """Resolve the immutable `run_id/attempt_id` layout used by newer runs."""
     candidates = sorted(
         root.glob("run_id=*/attempt_id=*/model_inputs/train.parquet"),
@@ -160,21 +160,23 @@ def _latest_successful_canonical_train(root: Path, *, task: str) -> tuple[Path, 
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
-        expected_split, expected_phase = RELEASE_DEFAULTS[task]
         if (manifest.get("run_status") == "SUCCESS" and
-                manifest.get("split_version") == expected_split and
-                manifest.get("phase_version") == expected_phase):
+                manifest.get("release_id") == spec["release_id"] and
+                manifest.get("split_registry_id") == spec["split_registry_id"] and
+                manifest.get("split_version") == spec["split_version"] and
+                manifest.get("phase_version") == spec["phase_version"]):
             return train_path, manifest
     return None
 
 
-def _resolve_parent_train(task: str, window: str, parent_pipeline: str) -> tuple[Path | None, str, dict | None]:
+def _resolve_parent_train(task: str, window: str, parent_pipeline: str, *,
+                          spec: dict[str, str]) -> tuple[Path | None, str, dict | None]:
     """Resolve one parent-imputation train file across canonical/migration layouts."""
     canonical_root = (Path(MOUNT) / "meta_release=imputation-v1/L1_runs" / f"task={task}" /
                       f"feature_regime={REGIME[task]}" / f"window_id={window}" /
                       f"pipeline_id={parent_pipeline}" / "model_name=IMPUTATION_ONLY" /
                       "seed=20260922")
-    nested = _latest_successful_canonical_train(canonical_root, task=task)
+    nested = _latest_successful_canonical_train(canonical_root, spec=spec)
     if nested is not None:
         return nested[0], "CANONICAL_IMMUTABLE_RELEASE_LOCKED", nested[1]
     # Migration/flat artifacts are intentionally excluded from a new model
@@ -184,7 +186,7 @@ def _resolve_parent_train(task: str, window: str, parent_pipeline: str) -> tuple
 
 @app.function(image=image, volumes={MOUNT: volume}, cpu=8, memory=196608, timeout=60 * 60 * 24)
 def run_augmentation(task: str, window: str, phase: str, parent_pipeline: str = "V1",
-                     method: str = "CDSMOTE", seed: int = 42) -> dict:
+                     method: str = "CDSMOTE", seed: int = 42, release_id: str = "") -> dict:
     """Balance the full P1-P4 TRAIN sequence used by the TEMPO baselines.
 
     TEMPO fits one RNN/LSTM/GRU/BiLSTM on complete training sequences and
@@ -196,11 +198,13 @@ def run_augmentation(task: str, window: str, phase: str, parent_pipeline: str = 
     import numpy as np
     import pandas as pd
     from augmentation_core import CDSmote, RadiusSMOTE, SASmote, augmentable_model_columns, materialize_synthetic_rows
+    from release_core import resolve_release
 
     if task not in REGIME or window not in {"W1", "W2", "W3"} or phase != "P4":
         raise ValueError("TEMPO full-sequence augmentation requires task=CQ|LO, window=W1..W3, phase=P4")
     if parent_pipeline not in PARENT or method not in {"CDSMOTE", "SASMOTE", "RADIUS_SMOTE"}:
         raise ValueError("parent_pipeline=V1|V5|V9|V13; method=CDSMOTE|SASMOTE|RADIUS_SMOTE")
+    spec = resolve_release(task, release_id)
     balancer = {"CDSMOTE": CDSmote(random_state=seed), "SASMOTE": SASmote(random_state=seed),
                 "RADIUS_SMOTE": RadiusSMOTE(random_state=seed)}[method]
     algorithm_config = {"algorithm": getattr(balancer, "algorithm", method)}
@@ -216,7 +220,7 @@ def run_augmentation(task: str, window: str, phase: str, parent_pipeline: str = 
     # Inputs may have been uploaded by another container after this worker was
     # created.  Modal volumes require an explicit reload to see those commits.
     volume.reload()
-    source, source_layout, parent_manifest = _resolve_parent_train(task, window, parent_pipeline)
+    source, source_layout, parent_manifest = _resolve_parent_train(task, window, parent_pipeline, spec=spec)
     if source is None:
         raise FileNotFoundError(f"Missing TRAIN input for {task}/{window}/{parent_pipeline}")
     print(json.dumps({"event": "run_started", "task": task, "window_id": window,
@@ -227,6 +231,7 @@ def run_augmentation(task: str, window: str, phase: str, parent_pipeline: str = 
                    "parent_pipeline": parent_pipeline, "method": method, "seed": seed,
                    "source_train": str(source), "source_layout": source_layout,
                    "parent_imputation_run_id": parent_manifest.get("run_id"),
+                   "release_id": spec["release_id"], "split_registry_id": spec["split_registry_id"],
                    "split_version": parent_manifest.get("split_version"),
                    "phase_version": parent_manifest.get("phase_version"),
                    "feature_dictionary_version": parent_manifest.get("feature_dictionary_version"),
@@ -244,6 +249,20 @@ def run_augmentation(task: str, window: str, phase: str, parent_pipeline: str = 
             "before augmentation."
         ) from error
     read_finished = time.perf_counter()
+    required_context = {
+        "context__offering_id", "context__timeline_source", "context__course_id",
+        "context__duration_days", "context__long_offering_flag", "context__label_threshold_set",
+        "context__temporal_strict_P1", "context__temporal_strict_P2",
+        "context__temporal_strict_P3", "context__temporal_strict_P4",
+    }
+    missing_context = sorted(required_context.difference(train.columns))
+    if missing_context:
+        raise ValueError(
+            f"Parent imputation TRAIN lacks required audit context: {missing_context}. "
+            "Re-materialize the locked views and rerun this parent imputer."
+        )
+    if "enrollment_id" not in train or train["enrollment_id"].isna().any() or train["enrollment_id"].duplicated().any():
+        raise ValueError("Parent imputation TRAIN violates one-row-per-real-enrollment grain.")
     print(json.dumps({"event": "input_read_complete", "rows": len(train),
                       "columns": len(train.columns)}, sort_keys=True), flush=True)
     label = _label(task)
@@ -420,9 +439,10 @@ def inspect_completed_augmentation(task: str, window: str,
 
 
 @app.function(image=image, volumes={MOUNT: volume}, cpu=8, memory=196608, timeout=60 * 60 * 12)
-def inspect_parent_imputations(task: str = "ALL") -> list[dict]:
+def inspect_parent_imputations(task: str = "ALL", release_id: str = "") -> list[dict]:
     """Full page-level integrity scan of every available parent TRAIN artifact."""
     import pyarrow.parquet as pq
+    from release_core import resolve_release
 
     tasks = tuple(REGIME) if task == "ALL" else (task,)
     if any(item not in REGIME for item in tasks):
@@ -430,9 +450,10 @@ def inspect_parent_imputations(task: str = "ALL") -> list[dict]:
     volume.reload()
     results: list[dict] = []
     for item in tasks:
+        spec = resolve_release(item, release_id if task != "ALL" else "")
         for window in ("W1", "W2", "W3"):
             for pipeline in PARENT:
-                path, layout, parent_manifest = _resolve_parent_train(item, window, pipeline)
+                path, layout, parent_manifest = _resolve_parent_train(item, window, pipeline, spec=spec)
                 record: dict = {"task": item, "window_id": window, "pipeline_id": pipeline,
                                 "parent_variant": PARENT[pipeline], "source_layout": layout}
                 if path is None:
@@ -488,7 +509,7 @@ def inspect_augmentation_status(task: str, window: str,
 @app.local_entrypoint()
 def cli(mode: str = "augment", task: str = "CQ", window: str = "W1", phase: str = "P4",
         parent_pipeline: str = "V1", method: str = "CDSMOTE", seed: int = 42,
-        balance_pipelines: str = "V2,V6,V10,V14"):
+        balance_pipelines: str = "V2,V6,V10,V14", release_id: str = ""):
     if mode == "inspect":
         pipelines = tuple(item.strip() for item in balance_pipelines.split(",") if item.strip())
         result = inspect_completed_augmentation.remote(task, window, pipelines, seed)
@@ -508,9 +529,9 @@ def cli(mode: str = "augment", task: str = "CQ", window: str = "W1", phase: str 
         for scoped_window in ("W1", "W2", "W3"):
             result.extend(inspect_augmentation_status.remote(task, scoped_window, pipelines, seed))
     elif mode == "inspect_parents":
-        result = inspect_parent_imputations.remote(task)
+        result = inspect_parent_imputations.remote(task, release_id)
     elif mode == "augment":
-        result = run_augmentation.remote(task, window, phase, parent_pipeline, method, seed)
+        result = run_augmentation.remote(task, window, phase, parent_pipeline, method, seed, release_id)
     else:
         raise ValueError("mode must be augment, inspect, inspect_all_windows, status, status_all_windows, or inspect_parents")
     print(json.dumps(result, indent=2, default=str))
