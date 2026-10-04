@@ -105,10 +105,17 @@ def materialize_model_sanity(task: str = "CQ", window: str = "W1", pipeline_id: 
     input_root = Path(manifest["input_root"])
     layout = json.loads((model_root / "feature_layout.json").read_text(encoding="utf-8"))
     bases = layout["dynamic_bases"]
-    train = pd.read_parquet(manifest.get("train_input_path", input_root / "model_inputs/train.parquet"))
+    # S_eff and S_leak describe the natural TRAIN cohort, never synthetic
+    # rows added solely for optimisation.  ``train_input_path`` may refer to a
+    # balanced TRAIN artifact for V2--V16, so deliberately use its immutable
+    # parent imputation input here.
+    natural_train_path = input_root / "model_inputs/train.parquet"
+    if not natural_train_path.exists():
+        raise FileNotFoundError(f"Missing immutable parent TRAIN for sanity: {natural_train_path}")
+    train = pd.read_parquet(natural_train_path)
     train_y = _class_ids(train[_label(task)], task)
-    # S_eff is deliberately computed once from the tensor TRAIN actually used
-    # by S3, not recomputed from an evaluation prefix.
+    # S_eff is deliberately computed once from the immutable natural TRAIN
+    # cohort, not recomputed from an evaluation prefix or synthetic rows.
     train_s_eff, train_observed_rate, train_availability_rate = _train_tensor_s_eff(train, bases)
     # The protocol specifies one standardized multinomial probe fit on the
     # pooled TRAIN P1--P4 mask tensor.  Fit it once and reuse it for every
@@ -149,6 +156,7 @@ def materialize_model_sanity(task: str = "CQ", window: str = "W1", pipeline_id: 
                       "run_id": manifest["run_id"], "attempt_id": manifest["attempt_id"], "seed": seed,
                       "s_san_formula_version": "acctempo_m3_v1_jsd_base2_six_components",
                       "s_eff_definition_version": "model_input_mask_mean_v1", "s_leak_probe_rows_per_phase": probe_rows_per_phase,
+                      "s_eff_train_source": "parent_imputation_train_unaugmented",
                       "s_leak_probe_fit_rows": probe_fit_rows, "s_leak_probe_fit_once": True,
                       "s_leak_probe_auc": auc,
                       "s_eff_observed_rate": train_observed_rate, "s_eff_availability_rate": train_availability_rate,

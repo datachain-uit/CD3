@@ -21,7 +21,7 @@ RELEASE_DEFAULTS = {"CQ": ("v2_2", "wide_prefix_v2_2"), "LO": ("v3_1", "wide_pre
 
 
 def _augmentation_quality_metrics(train, synthetic, batch, numeric_columns, label_column,
-                                  available_mask_columns, missing_mask_columns, *, seed: int) -> dict:
+                                  available_mask_columns, missing_mask_columns, *, seed: int, phase_id: str) -> dict:
     """Compute bounded, reproducible post-balance DQ facts.
 
     Fidelity is evaluated within class on a deterministic maximum of 100k real
@@ -43,6 +43,8 @@ def _augmentation_quality_metrics(train, synthetic, batch, numeric_columns, labe
             "synth_non_integer_count_rate": 0.0,
             "synth_invalid_mask_rate": 0.0,
             "synth_cross_phase_rate": 0.0,
+            "synth_cross_phase_columns": 0,
+            "synth_cross_phase_check": "no_synthetic_rows",
         }
 
     rng = np.random.default_rng(seed)
@@ -106,6 +108,15 @@ def _augmentation_quality_metrics(train, synthetic, batch, numeric_columns, labe
         actual = synthetic[column].to_numpy().astype(bool)
         invalid_mask += int((actual != expected).sum()); total_masks += len(actual)
 
+    # A real phase suffix above the requested Pk would mean synthetic data
+    # crossed a future-information boundary.  This is computed from the
+    # actual interpolated column set rather than reported as a constant.
+    allowed_phase = int(phase_id[1:])
+    cross_phase_columns = [column for column in numeric_columns
+                           if (match := re.search(r"_P([1-4])$", column)) and int(match.group(1)) > allowed_phase]
+    cross_phase_cells = len(synthetic) * len(cross_phase_columns)
+    possible_cells = max(len(synthetic) * len(numeric_columns), 1)
+
     return {
         "quality_metric_version": "augmentation_dq_v1",
         "fidelity_sample_cap_per_class": cap,
@@ -118,7 +129,9 @@ def _augmentation_quality_metrics(train, synthetic, batch, numeric_columns, labe
         "synth_out_of_domain_rate": float(domain_bad / domain_total) if domain_total else 0.0,
         "synth_non_integer_count_rate": non_integer_rate,
         "synth_invalid_mask_rate": float(invalid_mask / total_masks) if total_masks else 0.0,
-        "synth_cross_phase_rate": 0.0,
+        "synth_cross_phase_rate": float(cross_phase_cells / possible_cells),
+        "synth_cross_phase_columns": int(len(cross_phase_columns)),
+        "synth_cross_phase_check": "interpolated_feature_suffixes",
     }
 
 
@@ -250,7 +263,7 @@ def run_augmentation(task: str, window: str, phase: str, parent_pipeline: str = 
     synthetic, ledger = materialize_synthetic_rows(train, batch, numeric_columns=numeric, label_column=label,
         available_mask_columns=available, missing_mask_columns=missing, context=context)
     quality_metrics = _augmentation_quality_metrics(
-        train, synthetic, batch, numeric, label, available, missing, seed=seed,
+        train, synthetic, batch, numeric, label, available, missing, seed=seed, phase_id=phase,
     )
     # P4 denotes the complete P1-P4 sequence.  Future masking is performed
     # only on the original test-prefix views at model evaluation time.

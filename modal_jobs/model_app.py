@@ -31,6 +31,9 @@ RELEASE_DEFAULTS = {
 
 app = modal.App(APP_NAME)
 volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True)
+prediction_secret = modal.Secret.from_name(
+    "tempo-prediction-salt", required_keys=["TEMPO_PREDICTION_SALT"]
+)
 image = (modal.Image.debian_slim(python_version="3.12")
          .pip_install("numpy>=1.26", "pandas>=2.2", "pyarrow>=16", "scikit-learn>=1.5", "torch>=2.4", "nvidia-ml-py>=12")
          .add_local_python_source("model"))
@@ -78,10 +81,11 @@ def _latest_imputer_root(task: str, window: str, pipeline_id: str, *, expected_s
     raise FileNotFoundError(f"No successful immutable {pipeline_id} input found under {root}")
 
 
-def _latest_balanced_train(task: str, window: str, pipeline_id: str, parent_manifest: dict) -> tuple[Path, dict]:
+def _latest_balanced_train(task: str, window: str, pipeline_id: str, parent_manifest: dict,
+                           *, augmentation_seed: int) -> tuple[Path, dict]:
     root = (Path(MOUNT) / f"meta_release={META_RELEASE}" / "L1_runs" / f"task={task}" /
             f"feature_regime={REGIME[task]}" / f"window_id={window}" / "phase_id=P4" /
-            f"pipeline_id={pipeline_id}" / "model_name=BALANCED_TRAIN_ONLY" / "seed=42")
+            f"pipeline_id={pipeline_id}" / "model_name=BALANCED_TRAIN_ONLY" / f"seed={augmentation_seed}")
     paths = sorted(root.glob("run_id=*/attempt_id=*/run_manifest.json"), key=lambda p: p.stat().st_mtime, reverse=True)
     for path in paths:
         manifest = json.loads(path.read_text(encoding="utf-8"))
@@ -90,17 +94,21 @@ def _latest_balanced_train(task: str, window: str, pipeline_id: str, parent_mani
             continue
         if manifest.get("parent_pipeline") != PARENT_PIPELINE[pipeline_id]:
             continue
+        if int(manifest.get("seed", -1)) != augmentation_seed:
+            continue
         if manifest.get("validation_test_touched") is not False:
             raise ValueError(f"Balanced run illegally touched validation/test: {path}")
         # The augmentation manifest predates the V2.2 fields in some runs;
         # provenance is therefore inherited from the locked parent and kept
         # explicitly in the model manifest.
         return train, manifest
-    raise FileNotFoundError(f"No successful seed=42 balanced TRAIN for {task}/{window}/{pipeline_id} under {root}")
+    raise FileNotFoundError(
+        f"No successful seed={augmentation_seed} balanced TRAIN for {task}/{window}/{pipeline_id} under {root}"
+    )
 
 
 def _resolve_model_inputs(task: str, window: str, pipeline_id: str, *, expected_split_version: str,
-                          expected_phase_version: str) -> tuple[Path, Path, dict, dict | None]:
+                          expected_phase_version: str, augmentation_seed: int) -> tuple[Path, Path, dict, dict | None]:
     """Return train, immutable parent root, parent manifest, augmentation manifest."""
     parent = PARENT_PIPELINE.get(pipeline_id, pipeline_id)
     parent_root, parent_manifest = _latest_imputer_root(task, window, parent,
@@ -108,7 +116,9 @@ def _resolve_model_inputs(task: str, window: str, pipeline_id: str, *, expected_
                                                          expected_phase_version=expected_phase_version)
     if pipeline_id == parent:
         return parent_root / "model_inputs/train.parquet", parent_root, parent_manifest, None
-    train, augmentation_manifest = _latest_balanced_train(task, window, pipeline_id, parent_manifest)
+    train, augmentation_manifest = _latest_balanced_train(
+        task, window, pipeline_id, parent_manifest, augmentation_seed=augmentation_seed
+    )
     return train, parent_root, parent_manifest, augmentation_manifest
 
 
@@ -134,16 +144,21 @@ def _prediction_frame(prediction: dict, source, *, task: str, window: str, phase
                           "y_pred": [f"c{x}" for x in prediction["y_pred"]],
                           "observed_length": int(phase[1:]), "sample_type": "real",
                           "inference_latency_ms": None})
+    # Keep the non-personal cohort keys needed for offering/timeline audits.
+    # Raw enrollment IDs never leave the source frame.
+    for column in ("offering_id", "timeline_source", "course_id"):
+        if column in source:
+            frame[column] = source[column].astype("string").to_numpy()
     for index in range(prediction["probabilities"].shape[1]):
         frame[f"prob_c{index}"] = prediction["probabilities"][:, index]
     return frame
 
 
-@app.function(image=image, volumes={MOUNT: volume}, gpu="L4", cpu=8, memory=65536,
+@app.function(image=image, volumes={MOUNT: volume}, secrets=[prediction_secret], gpu="L4", cpu=8, memory=65536,
               timeout=60 * 60 * 18)
 def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0",
                     model_name: str = "RNN", seed: int = 42, split_version: str = "",
-                    phase_version: str = "") -> dict:
+                    phase_version: str = "", augmentation_seed: int = 42) -> dict:
     """Train one V1.6 recurrent checkpoint and test it at P1, P2, P3 and P4.
 
     No training, scaler fitting, selection, or preprocessing is done on any
@@ -170,15 +185,22 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
         expected_phase_version = phase_version
     volume.reload()
     started = time.perf_counter(); cpu_started = time.process_time()
+    if augmentation_seed < 0:
+        raise ValueError("augmentation_seed must be non-negative")
+    prediction_salt = os.environ.get("TEMPO_PREDICTION_SALT")
+    if not prediction_salt:
+        raise RuntimeError("TEMPO_PREDICTION_SALT must be supplied by the tempo-prediction-salt Modal secret")
     train_path, input_root, input_manifest, augmentation_manifest = _resolve_model_inputs(
         task, window, pipeline_id, expected_split_version=expected_split_version,
-        expected_phase_version=expected_phase_version)
+        expected_phase_version=expected_phase_version, augmentation_seed=augmentation_seed)
     seed_bundle = {"master_seed": seed, "seed_model": seed, "seed_sampler": seed,
                    "seed_dataloader": seed, "seed_preprocess": SEED_IMPUTATION}
     config = {"config_version": "recurrent_shared_phase_v2_3_epoch50", "task": task, "feature_regime": REGIME[task],
               "window_id": window, "pipeline_id": pipeline_id,
               "pipeline_name": "RAW_CONSTANT_FILL_WITH_MASKS" if pipeline_id == "V0" else "IMPUTE_AND_BALANCE",
               "model_name": model_name, "model_revision": "recurrent_shared_phase_v2_3_epoch50", "seed": seed,
+              "augmentation_seed": augmentation_seed,
+              "prediction_id_salt_sha256": hashlib.sha256(prediction_salt.encode("utf-8")).hexdigest(),
               **seed_bundle,
               "gpu_type": "L4", "precision_policy": "bf16_amp", "logits_loss_dtype": "float32",
               "training_sequence": "P1_P2_P3_P4", "checkpoint_count": 1,
@@ -237,7 +259,7 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
     calibration_records = []
     per_class_records = []
     bootstrap_records = []
-    salt = os.environ.get("TEMPO_PREDICTION_SALT", run_id)
+    salt = prediction_salt
     # Validation predictions are preserved for selection audit; test remains
     # purely post-selection and is written once for every prefix.
     for phase, prediction in trained["validation_predictions"].items():
@@ -411,5 +433,8 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
 
 @app.local_entrypoint()
 def cli(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0",
-        model_name: str = "RNN", seed: int = 42, split_version: str = "", phase_version: str = "") -> None:
-    print(json.dumps(train_recurrent.remote(task, window, pipeline_id, model_name, seed, split_version, phase_version), indent=2, default=str))
+        model_name: str = "RNN", seed: int = 42, split_version: str = "", phase_version: str = "",
+        augmentation_seed: int = 42) -> None:
+    print(json.dumps(train_recurrent.remote(
+        task, window, pipeline_id, model_name, seed, split_version, phase_version, augmentation_seed
+    ), indent=2, default=str))

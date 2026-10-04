@@ -80,12 +80,11 @@ def _release_view_roots(input_root: Path, release: dict) -> tuple[Path, Path]:
     suffixes = [suffix]
     if suffix == "v3_1":
         suffixes.append("v3_1_scored_signal_excluded")
-    phase_candidates = tuple(input_root / f"phase_views_{candidate}" for candidate in suffixes) + (
-        input_root / "phase_views_v1",
-    )
-    test_candidates = tuple(input_root / f"test_prefix_views_{candidate}" for candidate in suffixes) + (
-        input_root / "test_prefix_views_v1",
-    )
+    # Do not fall back to legacy V1 directory aliases.  A file layout is part
+    # of release provenance: accepting a V1-named directory under a V2.2/V3.1
+    # input namespace silently mixes releases and invalidates the run.
+    phase_candidates = tuple(input_root / f"phase_views_{candidate}" for candidate in suffixes)
+    test_candidates = tuple(input_root / f"test_prefix_views_{candidate}" for candidate in suffixes)
     phase_root = next((path for path in phase_candidates if path.exists()), None)
     test_root = next((path for path in test_candidates if path.exists()), None)
     if phase_root is None or test_root is None:

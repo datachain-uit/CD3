@@ -311,6 +311,6 @@ for name, frame, keys, path in (
 ):
     rows = log_dataframe(logger, name, frame, keys)
     log_write(logger, name, path, rows)
-log_event(logger, "cq_phase_views_v1_materialized")
+log_event(logger, f"cq_phase_views_{VIEW_RELEASE}_materialized")
 log_run_finished(logger, started)
 flush_json_log(logger, spark)

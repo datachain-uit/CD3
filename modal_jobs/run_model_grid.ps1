@@ -13,6 +13,7 @@ param(
     [string[]]$Pipelines,
     [string[]]$Models,
     [int[]]$Seeds,
+    [int]$AugmentationSeed = 42,
     [string]$SplitVersion = "",
     [string]$PhaseVersion = "",
     [switch]$SkipSanity,
@@ -55,7 +56,7 @@ $plan = foreach ($Window in $Windows) {
     foreach ($Pipeline in $Pipelines) {
         foreach ($Model in $Models) {
             foreach ($Seed in $Seeds) {
-                [ordered]@{ task=$Task; window=$Window; pipeline_id=$Pipeline; model_name=$Model; seed=$Seed; split_version=$SplitVersion; phase_version=$PhaseVersion }
+                [ordered]@{ task=$Task; window=$Window; pipeline_id=$Pipeline; model_name=$Model; seed=$Seed; augmentation_seed=$AugmentationSeed; split_version=$SplitVersion; phase_version=$PhaseVersion }
             }
         }
     }
@@ -71,7 +72,7 @@ foreach ($item in $plan) {
                    "--task", $item.task, "--window", $item.window,
                    "--pipeline-id", $item.pipeline_id, "--model-name", $item.model_name,
                    "--seed", "$($item.seed)", "--split-version", $item.split_version,
-                   "--phase-version", $item.phase_version)
+                   "--phase-version", $item.phase_version, "--augmentation-seed", "$($item.augmentation_seed)")
     if ($PSCmdlet.ShouldProcess($tag, "train model")) {
         # Python/Modal emits deprecation warnings on stderr.  PowerShell 7
         # otherwise promotes that stderr text to NativeCommandError when
@@ -92,7 +93,7 @@ foreach ($item in $plan) {
             }
         }
     } else { $modelExit = 0 }
-    $status = [ordered]@{ task=$item.task; window=$item.window; pipeline_id=$item.pipeline_id; model_name=$item.model_name; seed=$item.seed; split_version=$item.split_version; phase_version=$item.phase_version; model_exit_code=$modelExit; sanity_exit_code=$null }
+    $status = [ordered]@{ task=$item.task; window=$item.window; pipeline_id=$item.pipeline_id; model_name=$item.model_name; seed=$item.seed; augmentation_seed=$item.augmentation_seed; split_version=$item.split_version; phase_version=$item.phase_version; model_exit_code=$modelExit; sanity_exit_code=$null }
     if ($modelExit -ne 0) {
         $results.Add([pscustomobject]$status)
         continue

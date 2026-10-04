@@ -1,4 +1,4 @@
-"""CPU-only exporter for the locked CQ V2.2 RNN seed-42 L2 facts.
+"""CPU-only exporter for immutable CQ recurrent-model L2 facts.
 
 It reads only immutable L1/L2 artifacts, selects the successful V2.2 run for
 each pipeline/window and produces compact report tables.  No model is trained
@@ -15,19 +15,19 @@ import modal
 
 APP_NAME, VOLUME_NAME, MOUNT = "tempo-cq-report-export-v1", "tempo-data-v1", "/data"
 META_RELEASE, TASK, REGIME = "imputation-v1", "CQ", "CQ_RAW_EARLY"
-SPLIT_VERSION, PHASE_VERSION, MODEL_NAME, SEED = "v2_2", "wide_prefix_v2_2", "RNN", 42
+SPLIT_VERSION, PHASE_VERSION = "v2_2", "wide_prefix_v2_2"
 
 app = modal.App(APP_NAME)
 volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=False)
 image = modal.Image.debian_slim(python_version="3.12").pip_install("pandas>=2.2", "pyarrow>=16")
 
 
-def _latest_successful_runs(base: Path) -> list[tuple[Path, dict]]:
+def _latest_successful_runs(base: Path, *, model_name: str, seed: int) -> list[tuple[Path, dict]]:
     # Volume mtimes are not a reliable retry ordering after copies/commits.
     # The immutable attempt suffix is monotonic and is the canonical selector.
     selected: dict[tuple[str, str], tuple[int, float, Path, dict]] = {}
-    pattern = ("task=CQ/feature_regime=CQ_RAW_EARLY/window_id=*/pipeline_id=*/"
-               "model_name=RNN/seed=42/run_id=*/attempt_id=*/run_manifest.json")
+    pattern = (f"task=CQ/feature_regime=CQ_RAW_EARLY/window_id=*/pipeline_id=*/"
+               f"model_name={model_name}/seed={seed}/run_id=*/attempt_id=*/run_manifest.json")
     for manifest_path in base.glob(pattern):
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         if manifest.get("run_status") != "SUCCESS":
@@ -56,11 +56,11 @@ def _read_all(folder: Path):
 # Report facts are compact parquet tables; 2 physical cores / 4 GiB avoids
 # reserving the 16 GiB used by training-adjacent jobs.
 @app.function(image=image, volumes={MOUNT: volume}, cpu=2, memory=4096, timeout=60 * 60)
-def export_cq_rnn_seed42_facts() -> dict:
+def export_cq_rnn_facts(model_name: str = "RNN", seed: int = 42) -> dict:
     import pandas as pd
 
     base = Path(MOUNT) / f"meta_release={META_RELEASE}"
-    runs = _latest_successful_runs(base / "L1_runs")
+    runs = _latest_successful_runs(base / "L1_runs", model_name=model_name, seed=seed)
     if len(runs) != 51:
         raise RuntimeError(f"Expected 51 successful CQ RNN V2.2 cells, found {len(runs)}")
 
@@ -76,7 +76,7 @@ def export_cq_rnn_seed42_facts() -> dict:
         metrics = _read_all(facts / "metrics_overall" / "task=CQ" / f"feature_regime={REGIME}" /
                             f"window_id={window}")
         if not metrics.empty:
-            metrics = metrics[(metrics.get("pipeline_id") == pipeline) & (metrics.get("model_name") == MODEL_NAME) &
+            metrics = metrics[(metrics.get("pipeline_id") == pipeline) & (metrics.get("model_name") == model_name) &
                               (metrics.get("run_id") == run_id) & (metrics.get("attempt_id") == attempt_id)]
             if "eval_split" in metrics:
                 metrics = metrics[metrics["eval_split"] == "TEST"]
@@ -84,7 +84,7 @@ def export_cq_rnn_seed42_facts() -> dict:
         sanity = _read_all(facts / "sanity_components" / "task=CQ" / f"feature_regime={REGIME}" /
                            f"window_id={window}")
         if not sanity.empty:
-            sanity = sanity[(sanity.get("pipeline_id") == pipeline) & (sanity.get("model_name") == MODEL_NAME) &
+            sanity = sanity[(sanity.get("pipeline_id") == pipeline) & (sanity.get("model_name") == model_name) &
                             (sanity.get("run_id") == run_id) & (sanity.get("attempt_id") == attempt_id)]
             if "eval_split" in sanity:
                 sanity = sanity[sanity["eval_split"] == "TEST"]
@@ -92,7 +92,7 @@ def export_cq_rnn_seed42_facts() -> dict:
         resource = _read_all(facts / "resource_usage" / "task=CQ" / f"feature_regime={REGIME}" /
                              f"window_id={window}")
         if not resource.empty:
-            resource = resource[(resource.get("pipeline_id") == pipeline) & (resource.get("model_name") == MODEL_NAME) &
+            resource = resource[(resource.get("pipeline_id") == pipeline) & (resource.get("model_name") == model_name) &
                                 (resource.get("run_id") == run_id) & (resource.get("attempt_id") == attempt_id)]
             resource_frames.append(resource)
 
@@ -116,7 +116,7 @@ def export_cq_rnn_seed42_facts() -> dict:
                      if field in sanity.columns]
     sanity_summary = sanity.groupby(["pipeline_id", "window_id"], as_index=False)[sanity_fields].mean()
 
-    export = base / "L2_facts" / "report_exports" / "task=CQ" / "report_id=RNN_seed42_v2_2"
+    export = base / "L2_facts" / "report_exports" / "task=CQ" / f"report_id={model_name}_seed{seed}_v2_2"
     export.mkdir(parents=True, exist_ok=True)
     metrics.to_parquet(export / "metrics_test_long.parquet", index=False)
     sanity.to_parquet(export / "sanity_test_long.parquet", index=False)
@@ -124,7 +124,7 @@ def export_cq_rnn_seed42_facts() -> dict:
     runs_df.to_parquet(export / "run_inventory.parquet", index=False)
     test_summary.to_parquet(export / "test_summary_p1_p4_mean.parquet", index=False)
     sanity_summary.to_parquet(export / "sanity_summary_p1_p4_mean.parquet", index=False)
-    metadata = {"task": TASK, "model_name": MODEL_NAME, "seed": SEED, "split_version": SPLIT_VERSION,
+    metadata = {"task": TASK, "model_name": model_name, "seed": seed, "split_version": SPLIT_VERSION,
                 "phase_version": PHASE_VERSION, "generated_at_utc": datetime.now(timezone.utc).isoformat(),
                 "expected_rows": required, "actual_rows": actual,
                 "paths": {name: str(export / name) for name in (
@@ -136,5 +136,5 @@ def export_cq_rnn_seed42_facts() -> dict:
 
 
 @app.local_entrypoint()
-def cli() -> None:
-    print(json.dumps(export_cq_rnn_seed42_facts.remote(), indent=2))
+def cli(model_name: str = "RNN", seed: int = 42) -> None:
+    print(json.dumps(export_cq_rnn_facts.remote(model_name, seed), indent=2))

@@ -49,10 +49,10 @@ def _find_parent(task: str, window: str, pipeline: str, split: str, phase: str) 
     return None, None, "no successful immutable parent run with train.parquet"
 
 
-def _find_balanced(task: str, window: str, pipeline: str) -> tuple[Path | None, dict | None, str | None]:
+def _find_balanced(task: str, window: str, pipeline: str, *, augmentation_seed: int) -> tuple[Path | None, dict | None, str | None]:
     root = (Path(MOUNT) / f"meta_release={META_RELEASE}" / "L1_runs" / f"task={task}" /
             f"feature_regime={REGIME[task]}" / f"window_id={window}" / "phase_id=P4" /
-            f"pipeline_id={pipeline}" / "model_name=BALANCED_TRAIN_ONLY" / "seed=42")
+            f"pipeline_id={pipeline}" / "model_name=BALANCED_TRAIN_ONLY" / f"seed={augmentation_seed}")
     candidates = sorted(root.glob("run_id=*/attempt_id=*/run_manifest.json"),
                         key=lambda item: item.stat().st_mtime, reverse=True)
     for manifest_path in candidates:
@@ -62,6 +62,8 @@ def _find_balanced(task: str, window: str, pipeline: str) -> tuple[Path | None, 
             continue
         if manifest.get("parent_pipeline") != PARENTS[pipeline]:
             return None, manifest, "parent_pipeline does not match the registered V mapping"
+        if int(manifest.get("seed", -1)) != augmentation_seed:
+            return None, manifest, "augmentation seed does not match requested seed"
         if manifest.get("validation_test_touched") is not False:
             return None, manifest, "augmentation illegally touched validation or test"
         return train, manifest, None
@@ -69,7 +71,7 @@ def _find_balanced(task: str, window: str, pipeline: str) -> tuple[Path | None, 
 
 
 @app.function(image=image, volumes={MOUNT: volume}, cpu=1, memory=512, timeout=300)
-def preflight(task: str = "LO") -> dict:
+def preflight(task: str = "LO", augmentation_seed: int = 42) -> dict:
     if task not in RELEASE:
         raise ValueError("task must be CQ or LO")
     split, phase = RELEASE[task]
@@ -102,14 +104,16 @@ def preflight(task: str = "LO") -> dict:
                 if pipeline == parent:
                     result["ready"] = True
                 else:
-                    train, augmented, balance_error = _find_balanced(task, window, pipeline)
+                    train, augmented, balance_error = _find_balanced(
+                        task, window, pipeline, augmentation_seed=augmentation_seed
+                    )
                     result["ready"] = balance_error is None
                     result["reason"] = balance_error
                     if augmented:
                         result["augmentation_run_id"] = augmented.get("run_id")
                         result["augmentation_attempt_id"] = augmented.get("attempt_id")
             cells.append(result)
-    return {"task": task, "split_version": split, "phase_version": phase,
+    return {"task": task, "augmentation_seed": augmentation_seed, "split_version": split, "phase_version": phase,
             "source_ready": not source_errors, "source_errors": source_errors,
             "release_manifest": release_manifest,
             "cells": cells, "ready_cells": sum(item["ready"] for item in cells),
@@ -159,9 +163,10 @@ def model_status(task: str = "LO", model_name: str = "RNN", seed: int = 42) -> d
 
 
 @app.local_entrypoint()
-def cli(task: str = "LO", mode: str = "inputs", model_name: str = "RNN", seed: int = 42) -> None:
+def cli(task: str = "LO", mode: str = "inputs", model_name: str = "RNN", seed: int = 42,
+        augmentation_seed: int = 42) -> None:
     if mode == "inputs":
-        value = preflight.remote(task)
+        value = preflight.remote(task, augmentation_seed)
     elif mode == "models":
         value = model_status.remote(task, model_name, seed)
     else:

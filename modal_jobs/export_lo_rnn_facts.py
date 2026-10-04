@@ -1,4 +1,4 @@
-"""CPU-only exporter for the locked LO V3.1 RNN seed-42 L2 facts.
+"""CPU-only exporter for immutable LO recurrent-model L2 facts.
 
 The job is read-only with respect to model inputs and checkpoints.  It selects
 one successful immutable run for every pipeline/window, verifies that the
@@ -16,18 +16,18 @@ import modal
 
 APP_NAME, VOLUME_NAME, MOUNT = "tempo-lo-report-export-v1", "tempo-data-v1", "/data"
 META_RELEASE, TASK, REGIME = "imputation-v1", "LO", "LO_FULL_EARLY"
-SPLIT_VERSION, PHASE_VERSION, MODEL_NAME, SEED = "v3_1", "wide_prefix_v3_1", "RNN", 42
+SPLIT_VERSION, PHASE_VERSION = "v3_1", "wide_prefix_v3_1"
 
 app = modal.App(APP_NAME)
 volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=False)
 image = modal.Image.debian_slim(python_version="3.12").pip_install("pandas>=2.2", "pyarrow>=16")
 
 
-def _latest_successful_runs(base: Path) -> list[tuple[Path, dict]]:
+def _latest_successful_runs(base: Path, *, model_name: str, seed: int) -> list[tuple[Path, dict]]:
     # Use monotonic attempt_id suffix, not volume mtime, to select a retry.
     selected: dict[tuple[str, str], tuple[int, float, Path, dict]] = {}
-    pattern = ("task=LO/feature_regime=LO_FULL_EARLY/window_id=*/pipeline_id=*/"
-               "model_name=RNN/seed=42/run_id=*/attempt_id=*/run_manifest.json")
+    pattern = (f"task=LO/feature_regime=LO_FULL_EARLY/window_id=*/pipeline_id=*/"
+               f"model_name={model_name}/seed={seed}/run_id=*/attempt_id=*/run_manifest.json")
     for manifest_path in base.glob(pattern):
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         if manifest.get("run_status") != "SUCCESS":
@@ -54,11 +54,11 @@ def _read_all(folder: Path):
 
 
 @app.function(image=image, volumes={MOUNT: volume}, cpu=2, memory=4096, timeout=60 * 60)
-def export_lo_rnn_seed42_facts() -> dict:
+def export_lo_rnn_facts(model_name: str = "RNN", seed: int = 42) -> dict:
     import pandas as pd
 
     base = Path(MOUNT) / f"meta_release={META_RELEASE}"
-    runs = _latest_successful_runs(base / "L1_runs")
+    runs = _latest_successful_runs(base / "L1_runs", model_name=model_name, seed=seed)
     if len(runs) != 51:
         raise RuntimeError(f"Expected 51 successful LO RNN V3.1 cells, found {len(runs)}")
 
@@ -73,21 +73,21 @@ def export_lo_rnn_seed42_facts() -> dict:
                          "phase_version": manifest.get("phase_version")})
         metrics = _read_all(facts / "metrics_overall" / "task=LO" / f"feature_regime={REGIME}" / f"window_id={window}")
         if not metrics.empty:
-            metrics = metrics[(metrics.get("pipeline_id") == pipeline) & (metrics.get("model_name") == MODEL_NAME) &
+            metrics = metrics[(metrics.get("pipeline_id") == pipeline) & (metrics.get("model_name") == model_name) &
                               (metrics.get("run_id") == run_id) & (metrics.get("attempt_id") == attempt_id)]
             if "eval_split" in metrics:
                 metrics = metrics[metrics["eval_split"] == "TEST"]
             metrics_frames.append(metrics)
         sanity = _read_all(facts / "sanity_components" / "task=LO" / f"feature_regime={REGIME}" / f"window_id={window}")
         if not sanity.empty:
-            sanity = sanity[(sanity.get("pipeline_id") == pipeline) & (sanity.get("model_name") == MODEL_NAME) &
+            sanity = sanity[(sanity.get("pipeline_id") == pipeline) & (sanity.get("model_name") == model_name) &
                             (sanity.get("run_id") == run_id) & (sanity.get("attempt_id") == attempt_id)]
             if "eval_split" in sanity:
                 sanity = sanity[sanity["eval_split"] == "TEST"]
             sanity_frames.append(sanity)
         resource = _read_all(facts / "resource_usage" / "task=LO" / f"feature_regime={REGIME}" / f"window_id={window}")
         if not resource.empty:
-            resource = resource[(resource.get("pipeline_id") == pipeline) & (resource.get("model_name") == MODEL_NAME) &
+            resource = resource[(resource.get("pipeline_id") == pipeline) & (resource.get("model_name") == model_name) &
                                 (resource.get("run_id") == run_id) & (resource.get("attempt_id") == attempt_id)]
             resource_frames.append(resource)
 
@@ -109,7 +109,7 @@ def export_lo_rnn_seed42_facts() -> dict:
                      if field in sanity.columns]
     sanity_summary = sanity.groupby(["pipeline_id", "window_id"], as_index=False)[sanity_fields].mean()
 
-    export = facts / "report_exports" / "task=LO" / "report_id=RNN_seed42_v3_1"
+    export = facts / "report_exports" / "task=LO" / f"report_id={model_name}_seed{seed}_v3_1"
     export.mkdir(parents=True, exist_ok=True)
     metrics.to_parquet(export / "metrics_test_long.parquet", index=False)
     sanity.to_parquet(export / "sanity_test_long.parquet", index=False)
@@ -119,7 +119,7 @@ def export_lo_rnn_seed42_facts() -> dict:
     sanity_summary.to_parquet(export / "sanity_summary_p1_p4_mean.parquet", index=False)
     names = ("metrics_test_long.parquet", "sanity_test_long.parquet", "resource_long.parquet",
              "run_inventory.parquet", "test_summary_p1_p4_mean.parquet", "sanity_summary_p1_p4_mean.parquet")
-    metadata = {"task": TASK, "model_name": MODEL_NAME, "seed": SEED, "split_version": SPLIT_VERSION,
+    metadata = {"task": TASK, "model_name": model_name, "seed": seed, "split_version": SPLIT_VERSION,
                 "phase_version": PHASE_VERSION, "generated_at_utc": datetime.now(timezone.utc).isoformat(),
                 "expected_rows": required, "actual_rows": actual,
                 "paths": {name: str(export / name) for name in names}}
@@ -129,5 +129,5 @@ def export_lo_rnn_seed42_facts() -> dict:
 
 
 @app.local_entrypoint()
-def cli() -> None:
-    print(json.dumps(export_lo_rnn_seed42_facts.remote(), indent=2))
+def cli(model_name: str = "RNN", seed: int = 42) -> None:
+    print(json.dumps(export_lo_rnn_facts.remote(model_name, seed), indent=2))
