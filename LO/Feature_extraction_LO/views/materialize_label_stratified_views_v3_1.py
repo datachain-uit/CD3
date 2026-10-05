@@ -144,12 +144,21 @@ labels = (spark.read.parquet(LABEL_SOURCE)
             "performance_score", "label_availability_time", "label_availability_source",
             "label_rule_version", "label_threshold_set", "decision", "proxy_reason"))
 labels, labels_grain = require_one_row_per_enrollment(labels, "labels")
-features, features_grain = require_one_row_per_enrollment(spark.read.parquet(os.environ.get(
-    "VIEW_FEATURE_SOURCE", f"{FEATURE_BASE}/hybrid/cumulative_phase_features_v1/"
-).rstrip("/") + "/"), "features")
+FEATURE_SOURCE = os.environ.get(
+    "VIEW_FEATURE_SOURCE", f"{FEATURE_BASE}/hybrid/cumulative_phase_features_v2/"
+).rstrip("/") + "/"
+features, features_grain = require_one_row_per_enrollment(spark.read.parquet(FEATURE_SOURCE), "features")
 windows, windows_grain = require_one_row_per_enrollment((spark.read.parquet(f"{FEATURE_BASE}/hybrid/enrollment_windows/")
     .select("enrollment_id", F.col("offering_id").cast("string").alias("_source_offering_id"),
             F.col("window_end_date").alias("_offering_end_date"))), "enrollment_windows")
+# cumulative_phase_features_v2 is published as a clean release (one row per
+# enrollment). Any exact duplicate there is an upstream-release defect; do
+# not silently repair a purportedly clean feature release at the view boundary.
+if "cumulative_phase_features_v2" in FEATURE_SOURCE and features_grain["exact_duplicates_collapsed"]:
+    raise ValueError(
+        "cumulative_phase_features_v2 must not contain exact duplicate rows "
+        f"(collapsed={features_grain['exact_duplicates_collapsed']}); rebuild the feature release first."
+    )
 base = features.join(labels, "enrollment_id", "inner").join(windows, "enrollment_id", "left")
 if "offering_id" in features.columns:
     base = base.withColumn("offering_id", F.coalesce(
@@ -323,9 +332,7 @@ lineage_contract = {
     "lineage_schema_version": "materialization_lineage_v1",
     "task": "LO",
     "view_release": VIEW_RELEASE,
-    "feature_source": os.environ.get(
-        "VIEW_FEATURE_SOURCE", f"{FEATURE_BASE}/hybrid/cumulative_phase_features_v1/"
-    ).rstrip("/") + "/",
+    "feature_source": FEATURE_SOURCE,
     "label_source": LABEL_SOURCE,
     "windows_source": f"{FEATURE_BASE}/hybrid/enrollment_windows/",
     "split_manifest_source": EXTERNAL_MANIFEST_SOURCE,

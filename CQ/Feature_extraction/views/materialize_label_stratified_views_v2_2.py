@@ -51,7 +51,7 @@ except KeyError:
     _default_label_source = f"{BASE.rstrip('/')}/labels/cq_labels_v1"
 LABEL_SOURCE = os.environ.get("VIEW_LABEL_SOURCE", _default_label_source).rstrip("/") + "/"
 FEATURE_SOURCE = os.environ.get(
-    "VIEW_FEATURE_SOURCE", f"{FEATURE_BASE}/hybrid/cumulative_phase_features_v1/"
+    "VIEW_FEATURE_SOURCE", f"{FEATURE_BASE}/hybrid/cumulative_phase_features_v2/"
 ).rstrip("/") + "/"
 WINDOWS_SOURCE = os.environ.get(
     "VIEW_WINDOWS_SOURCE", f"{FEATURE_BASE}/hybrid/enrollment_windows/"
@@ -172,6 +172,14 @@ features, features_grain = require_one_row_per_enrollment(spark.read.parquet(FEA
 windows, windows_grain = require_one_row_per_enrollment((spark.read.parquet(WINDOWS_SOURCE)
     .select("enrollment_id", F.col("offering_id").cast("string").alias("_source_offering_id"),
             F.col("window_end_date").alias("_offering_end_date"))), "enrollment_windows")
+# cumulative_phase_features_v2 is published as a clean release (one row per
+# enrollment). Any exact duplicate there is an upstream-release defect; do
+# not silently repair a purportedly clean feature release at the view boundary.
+if "cumulative_phase_features_v2" in FEATURE_SOURCE and features_grain["exact_duplicates_collapsed"]:
+    raise ValueError(
+        "cumulative_phase_features_v2 must not contain exact duplicate rows "
+        f"(collapsed={features_grain['exact_duplicates_collapsed']}); rebuild the feature release first."
+    )
 base = features.join(labels, "enrollment_id", "inner").join(windows, "enrollment_id", "left")
 if "offering_id" in features.columns:
     base = base.withColumn("offering_id", F.coalesce(

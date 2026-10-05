@@ -13,7 +13,8 @@ param(
     [string[]]$Pipelines,
     [string[]]$Models,
     [int[]]$Seeds,
-    [int]$AugmentationSeed = 42,
+    [ValidateSet("match_model_seed", "fixed")][string]$AugmentationSeedPolicy = "match_model_seed",
+    [int]$AugmentationSeed = -1,
     [ValidateSet("CQ_V2_2", "LO_V3_1")][string]$ReleaseId = "",
     [switch]$SkipSanity,
     [string]$LogRoot = ".\logs\model_grid"
@@ -21,6 +22,12 @@ param(
 
 $ErrorActionPreference = "Stop"
 if (-not $ReleaseId) { $ReleaseId = if ($Task -eq "CQ") { "CQ_V2_2" } else { "LO_V3_1" } }
+if ($AugmentationSeedPolicy -eq "fixed" -and $AugmentationSeed -lt 0) {
+    throw "-AugmentationSeed is required when -AugmentationSeedPolicy fixed."
+}
+if ($AugmentationSeedPolicy -eq "match_model_seed" -and $AugmentationSeed -ge 0) {
+    throw "Do not pass -AugmentationSeed with -AugmentationSeedPolicy match_model_seed."
+}
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 $ModelApp = Join-Path $PSScriptRoot "model_app.py"
 $SanityApp = Join-Path $PSScriptRoot "model_sanity_app.py"
@@ -53,7 +60,8 @@ $plan = foreach ($Window in $Windows) {
     foreach ($Pipeline in $Pipelines) {
         foreach ($Model in $Models) {
             foreach ($Seed in $Seeds) {
-                [ordered]@{ task=$Task; release_id=$ReleaseId; window=$Window; pipeline_id=$Pipeline; model_name=$Model; seed=$Seed; augmentation_seed=$AugmentationSeed }
+                $resolvedAugmentationSeed = if ($AugmentationSeedPolicy -eq "match_model_seed") { $Seed } else { $AugmentationSeed }
+                [ordered]@{ task=$Task; release_id=$ReleaseId; window=$Window; pipeline_id=$Pipeline; model_name=$Model; seed=$Seed; augmentation_seed=$resolvedAugmentationSeed; augmentation_seed_policy=$AugmentationSeedPolicy }
             }
         }
     }
@@ -90,7 +98,7 @@ foreach ($item in $plan) {
             }
         }
     } else { $modelExit = 0 }
-    $status = [ordered]@{ task=$item.task; release_id=$item.release_id; window=$item.window; pipeline_id=$item.pipeline_id; model_name=$item.model_name; seed=$item.seed; augmentation_seed=$item.augmentation_seed; model_exit_code=$modelExit; sanity_exit_code=$null }
+    $status = [ordered]@{ task=$item.task; release_id=$item.release_id; window=$item.window; pipeline_id=$item.pipeline_id; model_name=$item.model_name; seed=$item.seed; augmentation_seed=$item.augmentation_seed; augmentation_seed_policy=$item.augmentation_seed_policy; model_exit_code=$modelExit; sanity_exit_code=$null }
     if ($modelExit -ne 0) {
         $results.Add([pscustomobject]$status)
         continue

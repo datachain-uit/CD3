@@ -232,9 +232,15 @@ S_SAN_FORMULA = {
 }
 ACCTEMPO_DEF = {'acctempo_def_version': 'acctempo_m3_v1.1', 'alpha': 0.6, 'beta': 0.4, 'acctempo_eps_floor': 1e-3,
                 'primary_s_san_version': 'v1', 'also_compute': ['v2'],
-                'report_rule': 'v1 and v2 always side by side ([V3 §6]); LO W2/W3 discussion uses v2 as the informative lens',
+                'report_rule': 'v1 is the preregistered primary comparison; v2 is reported only as a calibration sensitivity analysis',
                 'bootstrap_rule': 'S_perf, s_nan, s_maj_jsd, s_ent/s_cal, s_drift recomputed per resample; s_eff, s_leak fixed (run-level)',
-                'decision_pending': 'primary v1 vs v2 to be fixed after the 24-cell component table of the V0 runs, before mm_config lock'}
+                'decision_status': 'LOCKED 2026-10-05; primary v1, v2 auxiliary sensitivity'}
+EXPERIMENT_SEEDS = {
+    'master_seeds': [42, 43, 44],
+    'augmentation_policy': 'MATCH_MASTER_SEED',
+    'rule': 'materialize one S2 balanced TRAIN artifact per master seed; each S3 model cell consumes the S2 artifact with the same seed',
+    'status': 'LOCKED 2026-10-05',
+}
 REC_RULE = {'rec_rule_version': 'rec_v1.1', 'rec_objective': 'TEST_ACCTEMPO_M3_DELTA', 'rec_eps': 0.005,
             'secondary_objective': 'TEST_MACRO_F1_DELTA', 'utility_lambda_grid': [0, 0.01, 0.02, 0.05],
             'cost_basis': 'ENERGY_IF_MEASURED_ELSE_TIME',
@@ -481,7 +487,7 @@ PENDING_DECISIONS = [
 # V3.1 closure addendum, approved after the catalog-denominator audit.  Keep
 # the historical declarations above for provenance, but export their resolved
 # forms to every JSON/YAML registry consumer.
-PENDING_DECISIONS = [item for item in PENDING_DECISIONS if item['id'] not in {1, 3, 6, 7, 8}]
+PENDING_DECISIONS = [item for item in PENDING_DECISIONS if item['id'] not in {1, 3, 5, 6, 7, 8, 9}]
 PENDING_DECISIONS.extend([
     {'id': 1, 'topic': 'LO current-grade group and exact proxy field names', 'status': 'CLOSED 2026-10-01',
      'resolution': 'current-grade group locked (9 columns); verified fields: assignment_problem_catalog_count, '
@@ -494,6 +500,10 @@ PENDING_DECISIONS.extend([
      'resolution': 'assignment_problem_catalog_count, exam_problem_catalog_count, assignment_best_correct_sum, exam_best_correct_sum'},
     {'id': 8, 'topic': 'Probability and clustered-uncertainty reporting', 'status': 'CLOSED 2026-10-01',
      'resolution': 'LO W2: log_loss + pr_auc_macro. When n_offerings_with_class<=2, also report offering-cluster bootstrap B=2000, CI=95%; applies to LO W1 TEST E and LO W3 TEST G'},
+    {'id': 5, 'topic': 'AccTEMPO primary S_san+ version v1 vs v2', 'status': 'CLOSED 2026-10-05',
+     'resolution': 'v1 is primary; v2/s_cal is reported only as a calibration sensitivity analysis. Every result table also publishes S_perf and all sanity components.'},
+    {'id': 9, 'topic': 'augmentation seed policy', 'status': 'CLOSED 2026-10-05',
+     'resolution': 'run the full master-seed design (42, 43, 44); augmentation seed equals the model master seed rather than a hidden fixed draw.'},
 ])
 
 
@@ -503,7 +513,7 @@ def all_registries() -> Dict[str, object]:
     return {'pipeline_registry': pipes, 'model_registry': MODEL_REGISTRY, 'metric_def': METRIC_DEF,
             's_san_formula': S_SAN_FORMULA, 'acctempo_def': ACCTEMPO_DEF, 'rec_rule': REC_RULE,
             'label_artifacts': LABEL_ARTIFACTS, 'split_registry': SPLIT_REGISTRY, 'sampling_strategy': SAMPLING_STRATEGY,
-            'pending_decisions': PENDING_DECISIONS}
+            'experiment_seeds': EXPERIMENT_SEEDS, 'pending_decisions': PENDING_DECISIONS}
 
 
 def write_registries(outdir: str) -> Dict[str, str]:

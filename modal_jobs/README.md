@@ -89,6 +89,26 @@ reject missing provenance, a V1 directory, a split/phase mismatch, duplicate
 `enrollment_id`, or a model input without the non-predictive audit context
 (offering, timeline, course, duration/long-offering and P1--P4 STRICT flags).
 
+## Seed-aligned augmentation and model grid
+
+The stability design uses master seeds `42`, `43`, and `44`.  Each balanced
+S2 TRAIN artifact is materialized once per master seed, and every model cell
+uses the augmentation artifact with the same seed.  This avoids confusing
+model-initialization variation with a hidden fixed augmentation draw.
+
+```powershell
+# One task: 3 windows × 4 imputer parents × 3 balancers × 3 master seeds.
+.\modal_jobs\run_augmentation_grid.ps1 -Task CQ -Seeds 42,43,44
+
+# The default policy matches augmentation seed to model seed.
+.\modal_jobs\run_model_grid.ps1 `
+  -Task CQ -Mode grid -Seeds 42,43,44 `
+  -AugmentationSeedPolicy match_model_seed
+```
+
+Use `-AugmentationSeedPolicy fixed -AugmentationSeed 42` only for an
+explicit fixed-augmentation sensitivity design; it is not the default.
+
 ## LO V3.1: model-ready execution path
 
 LO uses the same immutable Modal applications as CQ; it is not a separate
