@@ -63,15 +63,21 @@ def _cluster_per_class_ci(frame, *, repetitions: int, seed: int) -> list[dict]:
     groups = frame["offering_id"].astype("string").to_numpy()
     rng = np.random.default_rng(seed)
     rows: list[dict] = []
+    # Materialize offering-to-row membership once.  Re-scanning the full
+    # prediction frame for every sampled offering makes the bootstrap
+    # needlessly quadratic in the number of offerings.
+    all_groups, group_codes = np.unique(groups, return_inverse=True)
+    order = np.argsort(group_codes, kind="stable")
+    bounds = np.searchsorted(group_codes[order], np.arange(len(all_groups) + 1))
+    members = [order[bounds[code]:bounds[code + 1]] for code in range(len(all_groups))]
     for class_id in range(3):
         class_groups = np.unique(groups[truth == class_id])
         if len(class_groups) == 0 or len(class_groups) > 2:
             continue
-        all_groups = np.unique(groups)
         values = np.empty(repetitions, dtype=float)
         for draw in range(repetitions):
-            sampled = rng.choice(all_groups, size=len(all_groups), replace=True)
-            indices = np.concatenate([np.flatnonzero(groups == group) for group in sampled])
+            sampled = rng.integers(0, len(all_groups), size=len(all_groups))
+            indices = np.concatenate([members[code] for code in sampled])
             values[draw] = f1_score(truth[indices], pred[indices], labels=[class_id], average="macro", zero_division=0)
         rows.append({"class_index": class_id, "metric_name": "f1", "estimate": float(f1_score(truth, pred, labels=[class_id], average="macro", zero_division=0)),
                      "ci_lower": float(np.quantile(values, .025)), "ci_upper": float(np.quantile(values, .975)),

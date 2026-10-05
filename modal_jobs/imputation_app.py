@@ -311,6 +311,13 @@ def run_imputation(task: str, window: str, test_phase: str, variant: str,
     _require_enrollment_grain(validation, source=f"{task}/{window}/validation")
     for phase, frame in tests.items():
         _require_enrollment_grain(frame, source=f"{task}/{window}/test_{phase}")
+    # CQ labels do not carry a per-row threshold-set field, whereas LO labels
+    # do.  Both releases nevertheless have a locked threshold-set identity.
+    # Stamp it before preprocessing so WideImputer preserves it as the required
+    # non-predictive ``context__label_threshold_set`` audit field.
+    for frame in (train, validation, *tests.values()):
+        if "label_threshold_set" not in frame.columns:
+            frame["label_threshold_set"] = spec["label_threshold_set"]
     telemetry.mark("read")
     print(json.dumps({"event": "input_read_complete", "train_rows": len(train),
                       "validation_rows": len(validation),
@@ -327,7 +334,7 @@ def run_imputation(task: str, window: str, test_phase: str, variant: str,
     run_key = {"task": task, "feature_regime": FEATURE_REGIME[task], "window_id": window, "pipeline_id": pipeline_id,
                "model_name": "IMPUTATION_ONLY", "pipeline_version": "1.0.0",
                "variant": variant, "imputer_params": IMPUTER_PARAMS[variant], "fit_sample_rows": ("ALL_TRAIN" if effective_fit_sample_rows == 0 else effective_fit_sample_rows), "scaling_contract": SCALING_CONTRACT, "seed": seed, "fit_scope": "TRAIN_POOLED_P1_P4", "impute_scope": "OBSERVED_MISSING_ONLY",
-               **{k: release[k] for k in ("data_release_id", "release_id", "split_registry_id", "split_version", "phase_version", "feature_dictionary_version", "label_rule_version")}}
+               **{k: release[k] for k in ("data_release_id", "release_id", "split_registry_id", "split_version", "phase_version", "feature_dictionary_version", "label_rule_version", "label_threshold_set")}}
     run_id = canonical_hash(run_key)
     run_root = (root / "L1_runs" / f"task={task}" / f"feature_regime={FEATURE_REGIME[task]}" /
                 f"window_id={window}" / f"pipeline_id={pipeline_id}" /

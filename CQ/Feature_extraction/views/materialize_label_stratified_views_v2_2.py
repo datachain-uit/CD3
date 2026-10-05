@@ -270,6 +270,9 @@ view = (base.join(manifest.select(*manifest_join_columns), unit_columns, "inner"
     .withColumn("task", F.lit("CQ"))
     .withColumn("split_id", F.col("split"))
     .withColumn("split_rule_version", F.lit(split_rule_version))
+    # Locked CQ threshold-set identity; retained downstream exclusively as
+    # non-predictive audit context.
+    .withColumn("label_threshold_set", F.lit("CQ_VECTOR_PROXIMITY_PRIMARY_V1"))
     .withColumn("primary_risk_set", F.lit(1))
     .withColumn("label_available_by_cutoff_P1", (F.col("label_availability_time") <= F.col("cutoff_time_P1")).cast("int"))
     .withColumn("label_available_by_cutoff_P2", (F.col("label_availability_time") <= F.col("cutoff_time_P2")).cast("int"))

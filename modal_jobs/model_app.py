@@ -14,6 +14,10 @@ from pathlib import Path
 
 import modal
 
+# Strict torch deterministic algorithms require a fixed cuBLAS workspace on
+# CUDA >= 10.2.  Set this before a worker imports or initializes Torch.
+os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+
 APP_NAME, VOLUME_NAME, MOUNT = "tempo-model-v1", "tempo-data-v1", "/data"
 SEED_IMPUTATION, META_RELEASE = 20260922, "imputation-v1"
 REGIME = {"CQ": "CQ_RAW_EARLY", "LO": "LO_FULL_EARLY"}
