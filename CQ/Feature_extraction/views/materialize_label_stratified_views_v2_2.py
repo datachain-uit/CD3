@@ -5,6 +5,7 @@ remaining offerings are allocated to B--G by their actual Warning, Average
 and Good counts.  B--G are therefore label-stratified, not time intervals.
 """
 from hashlib import sha256
+import json
 import os
 import sys
 from pathlib import Path
@@ -72,6 +73,7 @@ if VIEW_RELEASE not in {"v1", "v2", "v2_1", "v2_2", "v2_3"}:
 OUT = f"{TASK_BASE}/CQ/hybrid/phase_views_{VIEW_RELEASE}/"
 MANIFEST_OUT = f"{TASK_BASE}/CQ/hybrid/split_manifest_{VIEW_RELEASE}/"
 TEST_PREFIX_OUT = f"{TASK_BASE}/CQ/hybrid/test_prefix_views_{VIEW_RELEASE}/"
+LINEAGE_OUT = f"{TASK_BASE}/CQ/hybrid/materialization_lineage_{VIEW_RELEASE}/"
 STRICT_CONTEXT_SOURCE = os.environ.get(
     "VIEW_TEMPORAL_STRICT_CONTEXT_SOURCE",
     f"{EXTERNAL_MANIFEST_SOURCE.rsplit('/', 1)[0]}/temporal_strict_context" if EXTERNAL_MANIFEST_SOURCE else "",
@@ -81,7 +83,7 @@ print(
     f"release={VIEW_RELEASE}; manifest_input={EXTERNAL_MANIFEST_SOURCE or 'built_in_v1'}; "
     f"strict_context_input={STRICT_CONTEXT_SOURCE or 'not-required'}; "
     f"manifest_output={MANIFEST_OUT}; phase_views_output={OUT}; "
-    f"test_prefix_output={TEST_PREFIX_OUT}"
+    f"test_prefix_output={TEST_PREFIX_OUT}; materialization_lineage_output={LINEAGE_OUT}"
 )
 WINDOWS = (
     ("W1", ("A",), "B", "C"),
@@ -108,6 +110,7 @@ log_run_context(logger, spark, {
     "output": OUT,
     "manifest_output": MANIFEST_OUT,
     "test_prefix_output": TEST_PREFIX_OUT,
+    "materialization_lineage_output": LINEAGE_OUT,
     "view_release": VIEW_RELEASE,
     "external_manifest_source": EXTERNAL_MANIFEST_SOURCE or None,
     "split": "method_5__A_chronological_60__B_to_G_greedy_label_count_stratified",
@@ -124,6 +127,7 @@ def require_one_row_per_enrollment(frame, source_name):
     duplicate records are collapsed here.  Any remaining repeated key stops
     materialization and must be repaired at its upstream producer.
     """
+    input_files = sorted(frame.inputFiles())
     rows_before = frame.count()
     deduplicated = frame.dropDuplicates()
     rows_after_exact_deduplication = deduplicated.count()
@@ -135,12 +139,23 @@ def require_one_row_per_enrollment(frame, source_name):
             f"{source_name} has non-identical repeated enrollment_id values; "
             f"examples={examples}. Repair the upstream source instead of selecting arbitrarily."
         )
+    audit = {
+        "source_name": source_name,
+        "analytical_unit": "enrollment_id",
+        "deduplication_rule_version": "exact_row_deduplication_v1",
+        "rows_before": int(rows_before),
+        "rows_after_exact_deduplication": int(rows_after_exact_deduplication),
+        "exact_duplicates_collapsed": int(rows_before - rows_after_exact_deduplication),
+        "source_schema_sha256": f"sha256:{sha256(frame.schema.json().encode('utf-8')).hexdigest()}",
+        "source_file_count": int(len(input_files)),
+        "source_file_list_sha256": f"sha256:{sha256(chr(10).join(input_files).encode('utf-8')).hexdigest()}",
+    }
     print(
         f"[materialize_cq] grain_ok source={source_name}; "
         f"rows_before={rows_before}; rows_after_exact_deduplication={rows_after_exact_deduplication}; "
         f"exact_duplicates_collapsed={rows_before - rows_after_exact_deduplication}"
     )
-    return deduplicated
+    return deduplicated, audit
 
 
 labels = (spark.read.parquet(LABEL_SOURCE)
@@ -152,9 +167,9 @@ labels = (spark.read.parquet(LABEL_SOURCE)
             "COELO_final", "AFELO_final", "ACELO_final", "CQ_label_vector",
             "CQ_distance_euclidean_final", "CQ_proximity_final",
             "TRIAD_distance_final", "observed_dimension_mask"))
-labels = require_one_row_per_enrollment(labels, "labels")
-features = require_one_row_per_enrollment(spark.read.parquet(FEATURE_SOURCE), "features")
-windows = require_one_row_per_enrollment((spark.read.parquet(WINDOWS_SOURCE)
+labels, labels_grain = require_one_row_per_enrollment(labels, "labels")
+features, features_grain = require_one_row_per_enrollment(spark.read.parquet(FEATURE_SOURCE), "features")
+windows, windows_grain = require_one_row_per_enrollment((spark.read.parquet(WINDOWS_SOURCE)
     .select("enrollment_id", F.col("offering_id").cast("string").alias("_source_offering_id"),
             F.col("window_end_date").alias("_offering_end_date"))), "enrollment_windows")
 base = features.join(labels, "enrollment_id", "inner").join(windows, "enrollment_id", "left")
@@ -164,7 +179,7 @@ if "offering_id" in features.columns:
 else:
     base = base.withColumn("offering_id", F.col("_source_offering_id"))
 base = base.drop("_source_offering_id")
-base = require_one_row_per_enrollment(base, "joined_base")
+base, joined_base_grain = require_one_row_per_enrollment(base, "joined_base")
 if base.filter(F.col("offering_id").isNull() | F.col("_offering_end_date").isNull()).limit(1).count():
     raise ValueError("Each eligible enrollment must have offering_id and window_end_date.")
 
@@ -314,6 +329,25 @@ block_audit = (offerings.groupBy("rolling_block")
     .withColumn("good_ratio", F.col("good_count") / F.col("enrollment_count"))
     .withColumn("warning_ratio", F.col("warning_count") / F.col("enrollment_count")))
 
+grain_records = [labels_grain, features_grain, windows_grain, joined_base_grain]
+lineage_contract = {
+    "lineage_schema_version": "materialization_lineage_v1",
+    "task": "CQ",
+    "view_release": VIEW_RELEASE,
+    "feature_source": FEATURE_SOURCE,
+    "label_source": LABEL_SOURCE,
+    "windows_source": WINDOWS_SOURCE,
+    "split_manifest_source": EXTERNAL_MANIFEST_SOURCE or "built_in_v1",
+    "temporal_strict_context_source": STRICT_CONTEXT_SOURCE or None,
+    "grain_records": grain_records,
+}
+lineage_sha256 = f"sha256:{sha256(json.dumps(lineage_contract, sort_keys=True).encode('utf-8')).hexdigest()}"
+materialization_lineage = spark.createDataFrame([
+    {**record, "task": "CQ", "view_release": VIEW_RELEASE,
+     "materialization_lineage_sha256": lineage_sha256}
+    for record in grain_records
+]).withColumn("lineage_generated_at_utc", F.current_timestamp())
+
 phase_audit_path = OUT.rstrip("/") + "_audit/"
 block_audit_path = MANIFEST_OUT.rstrip("/") + "_block_audit/"
 write_parquet(manifest, MANIFEST_OUT)
@@ -324,9 +358,10 @@ train_validation = view.filter(F.col("split") != "test")
 write_parquet(train_validation, OUT)
 write_parquet(phase_audit, phase_audit_path)
 write_parquet(block_audit, block_audit_path)
+write_parquet(materialization_lineage, LINEAGE_OUT)
 print(
     "[materialize_cq] primary outputs written: "
-    f"{MANIFEST_OUT}, {OUT}, {phase_audit_path}, {block_audit_path}"
+    f"{MANIFEST_OUT}, {OUT}, {phase_audit_path}, {block_audit_path}, {LINEAGE_OUT}"
 )
 schema = {field.name: field.dataType for field in view.schema.fields}
 for phase_index, prediction_phase in enumerate(("P1", "P2", "P3", "P4"), start=1):
@@ -352,6 +387,7 @@ for name, frame, keys, path in (
     ("cq_train_validation_views_v1", train_validation, ("window", "split", "enrollment_id"), OUT),
     ("cq_split_audit_v1", phase_audit, ("window", "split", "CQ_label_final"), phase_audit_path),
     ("cq_block_audit_v1", block_audit, ("rolling_block",), block_audit_path),
+    ("cq_materialization_lineage_v1", materialization_lineage, ("source_name",), LINEAGE_OUT),
 ):
     rows = log_dataframe(logger, name, frame, keys)
     log_write(logger, name, path, rows)
