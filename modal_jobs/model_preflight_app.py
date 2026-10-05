@@ -39,7 +39,7 @@ def _find_parent(task: str, window: str, pipeline: str, spec: dict[str, str]) ->
         if manifest.get("run_status") != "SUCCESS" or not (input_root / "train.parquet").exists():
             continue
         if any(manifest.get(field) != spec[field] for field in
-               ("release_id", "split_registry_id", "split_version", "phase_version")):
+               ("release_id", "split_registry_id", "split_version", "phase_version", "label_rule_version", "label_threshold_set")):
             continue
         missing = [name for name in ("train.parquet", "validation.parquet", "test_P1.parquet", "test_P2.parquet", "test_P3.parquet", "test_P4.parquet")
                    if not (input_root / name).exists()]
@@ -67,7 +67,7 @@ def _find_balanced(task: str, window: str, pipeline: str, *, spec: dict[str, str
         if manifest.get("validation_test_touched") is not False:
             return None, manifest, "augmentation illegally touched validation or test"
         if any(manifest.get(field) != spec[field] for field in
-               ("release_id", "split_registry_id", "split_version", "phase_version")):
+               ("release_id", "split_registry_id", "split_version", "phase_version", "label_rule_version", "label_threshold_set")):
             return None, manifest, "balanced TRAIN belongs to a different release"
         return train, manifest, None
     return None, None, "no successful balanced TRAIN artifact"
@@ -149,7 +149,7 @@ def model_status(task: str = "LO", model_name: str = "RNN", seed: int = 42, rele
                 if manifest.get("run_status") != "SUCCESS":
                     continue
                 if any(manifest.get(field) != spec[field] for field in
-                       ("release_id", "split_registry_id", "split_version", "phase_version")):
+                       ("release_id", "split_registry_id", "split_version", "phase_version", "label_rule_version", "label_threshold_set")):
                     result["reason"] = "successful run belongs to a different release"
                     break
                 required = [path.parent / "SUCCESS", path.parent / "checkpoint", path.parent / "train_history.parquet",

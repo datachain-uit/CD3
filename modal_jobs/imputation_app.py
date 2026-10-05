@@ -149,7 +149,7 @@ def materialize_s0(task: str, profile_sample_rows: int = S0_PROFILE_ROWS, seed: 
             # historical 100k-row S0 artifacts.
             "measurement_version": "s0_all_rows_v2",
             "code_version": implementation_version(),
-            **{k: release[k] for k in ("data_release_id", "release_id", "split_registry_id", "split_version", "phase_version", "feature_dictionary_version", "label_rule_version")},
+            **{k: release[k] for k in ("data_release_id", "release_id", "split_registry_id", "split_version", "phase_version", "feature_dictionary_version", "label_rule_version", "label_threshold_set")},
         }
         state_id = canonical_hash(state_key)
         state_ids.append(state_id)
@@ -441,7 +441,7 @@ def run_imputation(task: str, window: str, test_phase: str, variant: str,
         all_facts, resource, task=task, window=window, run_id=run_id,
         pipeline_id=pipeline_id, seed=seed,
         label_rule_version=release["label_rule_version"],
-        label_threshold_set=release.get("label_threshold_set", "PRIMARY"),
+        label_threshold_set=release["label_threshold_set"],
     )
     diagnostic_partition = (Path(f"task={task}") / f"feature_regime={FEATURE_REGIME[task]}" /
                             f"window_id={window}" / f"pipeline_id={pipeline_id}" /

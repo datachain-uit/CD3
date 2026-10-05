@@ -30,7 +30,7 @@ def _latest(root: Path, spec: dict[str, str]) -> tuple[Path, dict]:
         if manifest.get("run_status") != "SUCCESS":
             continue
         if all(manifest.get(field) == spec[field] for field in
-               ("release_id", "split_registry_id", "split_version", "phase_version", "label_rule_version")):
+               ("release_id", "split_registry_id", "split_version", "phase_version", "label_rule_version", "label_threshold_set")):
             return path.parent, manifest
     raise FileNotFoundError(f"No successful locked model artifact under {root}")
 

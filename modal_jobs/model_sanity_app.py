@@ -28,7 +28,7 @@ def _latest_attempt(root: Path, *, spec: dict[str, str]) -> tuple[Path, dict]:
         value = json.loads(path.read_text(encoding="utf-8"))
         if value.get("run_status") == "SUCCESS":
             if any(value.get(field) != spec[field] for field in
-                   ("release_id", "split_registry_id", "split_version", "phase_version")):
+                   ("release_id", "split_registry_id", "split_version", "phase_version", "label_rule_version", "label_threshold_set")):
                 continue
             return path.parent, value
     raise FileNotFoundError(f"No successful run under {root}")

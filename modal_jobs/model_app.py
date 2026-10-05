@@ -68,7 +68,9 @@ def _require_release(manifest: dict, *, source: Path, spec: dict[str, str]) -> N
             f"Model input is not release_id={spec['release_id']} ({spec['split_version']}/{spec['phase_version']}): {source}; "
             f"split={mismatch['split_version']!r}, phase={mismatch['phase_version']!r}."
         )
-    if manifest.get("release_id") != spec["release_id"] or manifest.get("split_registry_id") != spec["split_registry_id"]:
+    if (manifest.get("release_id") != spec["release_id"] or
+            manifest.get("split_registry_id") != spec["split_registry_id"] or
+            manifest.get("label_threshold_set") != spec["label_threshold_set"]):
         raise ValueError(f"Model input release identity/registry mismatch at {source}")
     if not mismatch["feature_dictionary_version"] or not mismatch["label_rule_version"]:
         raise ValueError(f"Model input lacks feature/label provenance: {source}")
@@ -114,7 +116,7 @@ def _latest_balanced_train(task: str, window: str, pipeline_id: str, parent_mani
             continue
         if manifest.get("validation_test_touched") is not False:
             raise ValueError(f"Balanced run illegally touched validation/test: {path}")
-        for field in ("release_id", "split_registry_id", "split_version", "phase_version", "label_rule_version"):
+        for field in ("release_id", "split_registry_id", "split_version", "phase_version", "label_rule_version", "label_threshold_set"):
             expected = spec[field]
             if manifest.get(field) != expected:
                 raise ValueError(
@@ -277,7 +279,7 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
               "expected_split_version": spec["split_version"], "expected_phase_version": spec["phase_version"],
               "feature_dictionary_version": input_manifest.get("feature_dictionary_version"),
               "label_rule_version": input_manifest.get("label_rule_version"),
-              "label_threshold_set": input_manifest.get("label_threshold_set", "PRIMARY"),
+              "label_threshold_set": input_manifest["label_threshold_set"],
               "input_channels": ["X", "M_missing", "M_available", "delta_t", "phase_id", "observed_length"],
               "parent_imputation_run_id": input_manifest.get("run_id"),
               "parent_augmentation_run_id": None if augmentation_manifest is None else augmentation_manifest.get("run_id")}

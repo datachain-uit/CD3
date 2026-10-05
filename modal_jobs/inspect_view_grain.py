@@ -121,7 +121,7 @@ def _latest_v0_inputs(task: str, window: str, *, spec: dict[str, str]) -> Path |
         inputs = manifest_path.parent / "model_inputs"
         if (manifest.get("run_status") == "SUCCESS" and (inputs / "train.parquet").exists() and
                 all(manifest.get(field) == spec[field] for field in
-                    ("release_id", "split_registry_id", "split_version", "phase_version"))):
+                    ("release_id", "split_registry_id", "split_version", "phase_version", "label_rule_version", "label_threshold_set"))):
             return inputs
     return None
 

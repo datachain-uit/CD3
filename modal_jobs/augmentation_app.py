@@ -189,6 +189,7 @@ def _latest_successful_canonical_train(root: Path, *, spec: dict[str, str]) -> t
                 manifest.get("split_version") == spec["split_version"] and
                 manifest.get("phase_version") == spec["phase_version"] and
                 manifest.get("label_rule_version") == spec["label_rule_version"] and
+                manifest.get("label_threshold_set") == spec["label_threshold_set"] and
                 manifest.get("feature_dictionary_version")):
             return train_path, manifest
     return None
@@ -456,7 +457,7 @@ def inspect_completed_augmentation(task: str, window: str,
         manifest_path = next((path for path in candidates if path.exists() and
                               (data := json.loads(path.read_text(encoding="utf-8"))).get("run_status") == "SUCCESS" and
                               all(data.get(field) == spec[field] for field in
-                                  ("release_id", "split_registry_id", "split_version", "phase_version", "label_rule_version"))), None)
+                                  ("release_id", "split_registry_id", "split_version", "phase_version", "label_rule_version", "label_threshold_set"))), None)
         if manifest_path is None:
             attempts = sorted(str(path.relative_to(base_root)) for path in base_root.glob("run_id=*/attempt_id=*"))
             record = {"window_id": window, "seed": seed, "pipeline_id": pipeline,
@@ -566,7 +567,7 @@ def inspect_augmentation_status(task: str, window: str,
         manifests = [path for path in sorted(base.glob("run_id=*/attempt_id=*/run_manifest.json"),
                            key=lambda path: path.stat().st_mtime, reverse=True)
                      if all(json.loads(path.read_text(encoding="utf-8")).get(field) == spec[field] for field in
-                            ("release_id", "split_registry_id", "split_version", "phase_version", "label_rule_version"))]
+                            ("release_id", "split_registry_id", "split_version", "phase_version", "label_rule_version", "label_threshold_set"))]
         attempts = sorted(str(path.relative_to(base)) for path in base.glob("run_id=*/attempt_id=*"))
         if not manifests:
             record = {"window_id": window, "pipeline_id": pipeline, "seed": seed,
