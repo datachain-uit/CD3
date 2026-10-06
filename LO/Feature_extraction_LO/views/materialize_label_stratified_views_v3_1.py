@@ -282,7 +282,14 @@ if EXTERNAL_MANIFEST_SOURCE:
         "v2_3": "offering_temporal_label_balanced_v2_3",
     }.get(VIEW_RELEASE, "offering_temporal_label_balanced_v2")
 
-view = (base.join(manifest.select(*manifest_join_columns), unit_columns, "inner")
+# ``window`` and ``split`` are assignment fields.  Some feature releases carry
+# similarly named upstream context columns; leaving both through this join lets
+# Spark resolve later filters to the upstream column and can multiply one
+# enrollment by all three window assignments.  Retain only the manifest's
+# controlled assignment columns.
+base = base.drop("window", "split", "split_id")
+assignment = manifest.select(*manifest_join_columns)
+view = (base.join(assignment, unit_columns, "inner")
     .withColumn("task", F.lit("LO_operational"))
     .withColumn("split_id", F.col("split"))
     .withColumn("split_rule_version", F.lit(split_rule_version))
@@ -311,6 +318,17 @@ unmatched = view.join(strict.select("enrollment_id", "window", "split"), ["enrol
 if unmatched.limit(1).count():
     raise ValueError("Some materialized LO rows lack temporal-strict context.")
 view = view.join(strict, ["enrollment_id", "window", "split"], "inner")
+
+# This is the final hand-off grain consumed by S0/imputation.  Checking the
+# source tables above is insufficient because a join can still multiply rows.
+duplicate_view_keys = (view.groupBy("enrollment_id", "window", "split").count()
+    .filter(F.col("count") > 1))
+if duplicate_view_keys.limit(1).count():
+    examples = [row.asDict() for row in duplicate_view_keys.limit(10).collect()]
+    raise ValueError(
+        "Materialized LO view violates one-row-per-enrollment/window/split grain; "
+        f"examples={examples}."
+    )
 
 split_counts = view.groupBy("window", "split", "LO_performance_label_3").agg(
     F.countDistinct("enrollment_id").alias("enrollment_count"))

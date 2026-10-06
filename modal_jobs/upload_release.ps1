@@ -26,6 +26,11 @@ param(
 
     [string]$Volume = "tempo-data-v1",
 
+    # Required only when replacing a release that already exists.  Modal's
+    # `volume put --force` overwrites same-named files but does not remove
+    # stale Parquet parts, which would silently violate enrollment grain.
+    [switch]$ReplaceExisting,
+
     [switch]$VerifyOnly
 )
 
@@ -88,6 +93,22 @@ Write-Host "  test=$testSource"
 Write-Host "  remote=$remoteRoot"
 
 if ($VerifyOnly) { return }
+
+if ($ReplaceExisting) {
+    # Deliberately narrow destructive scope: these are source inputs only.
+    # Never remove /meta_release=imputation-v1, where immutable run results
+    # and facts are retained for provenance.
+    foreach ($remotePath in @(
+        "$remoteRoot/$($release.PhaseDirectory)",
+        "$remoteRoot/$($release.TestDirectory)",
+        "$remoteRoot/release_manifest.json"
+    )) {
+        & python -X utf8 -m modal volume rm --recursive $Volume $remotePath
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not remove existing source input '$remotePath' (exit code $LASTEXITCODE)"
+        }
+    }
+}
 
 & python -X utf8 -m modal volume put --force $Volume $phaseSource "$remoteRoot/"
 if ($LASTEXITCODE -ne 0) { throw "Phase-view upload failed with exit code $LASTEXITCODE" }

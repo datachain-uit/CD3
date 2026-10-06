@@ -289,7 +289,13 @@ if EXTERNAL_MANIFEST_SOURCE:
         "v2_3": "offering_temporal_label_balanced_v2_3",
     }.get(VIEW_RELEASE, "offering_temporal_label_balanced_v2")
 
-view = (base.join(manifest.select(*manifest_join_columns), unit_columns, "inner")
+# ``window`` and ``split`` are assignment fields owned by the split manifest.
+# Drop same-named upstream context columns before the join: retaining both can
+# make later filters resolve to the upstream field and multiply one enrollment
+# across assignment rows.
+base = base.drop("window", "split", "split_id")
+assignment = manifest.select(*manifest_join_columns)
+view = (base.join(assignment, unit_columns, "inner")
     .withColumn("task", F.lit("CQ"))
     .withColumn("split_id", F.col("split"))
     .withColumn("split_rule_version", F.lit(split_rule_version))
@@ -321,6 +327,17 @@ if VIEW_RELEASE in {"v2_2", "v2_3"}:
     if unmatched.limit(1).count():
         raise ValueError("Some materialized CQ rows lack temporal-strict context.")
     view = view.join(strict, ["enrollment_id", "window", "split"], "inner")
+
+# Final hand-off guard: source-table checks do not prove that joins preserve
+# the one-row-per-enrollment/window/split grain required by S0 and imputation.
+duplicate_view_keys = (view.groupBy("enrollment_id", "window", "split").count()
+    .filter(F.col("count") > 1))
+if duplicate_view_keys.limit(1).count():
+    examples = [row.asDict() for row in duplicate_view_keys.limit(10).collect()]
+    raise ValueError(
+        "Materialized CQ view violates one-row-per-enrollment/window/split grain; "
+        f"examples={examples}."
+    )
 
 split_counts = view.groupBy("window", "split", "CQ_label_final").agg(
     F.countDistinct("enrollment_id").alias("enrollment_count"))

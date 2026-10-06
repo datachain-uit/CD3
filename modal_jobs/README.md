@@ -28,17 +28,23 @@ modify prior L1/L2 artifacts:
 # Upload CQ V2.2 after validation.
 .\modal_jobs\upload_release.ps1 -Task CQ `
   -PhaseViewsPath .\CQ\resuilt\phase_views_v2_2 `
-  -TestPrefixesPath .\CQ\resuilt\test_prefix_views_v2_2
+  -TestPrefixesPath .\CQ\resuilt\test_prefix_views_v2_2 `
+  -ReplaceExisting
 
 # Upload LO V3.1 after validation.
 .\modal_jobs\upload_release.ps1 -Task LO `
   -PhaseViewsPath .\LO\resuilt\phase_views_v3_1_scored_signal_excluded `
-  -TestPrefixesPath .\LO\resuilt\test_prefix_views_v3_1_scored_signal_excluded
+  -TestPrefixesPath .\LO\resuilt\test_prefix_views_v3_1_scored_signal_excluded `
+  -ReplaceExisting
 ```
 
 The paths may point either directly to the extracted release directory or to
 its parent directory. The runner requires at least one Parquet file for phase
 views and for each P1--P4 test-prefix directory before invoking Modal.
+When replacing an already uploaded release, `-ReplaceExisting` is mandatory:
+it removes only that release's phase views, test prefixes, and input manifest
+before uploading. This prevents stale Parquet files being read alongside the
+new release; it never removes L1/L2/L3 experiment outputs.
 
 Each `release_manifest.json` must declare `task`, `release_id`,
 `split_registry_id`, `split_version`, `phase_version`,

@@ -22,8 +22,12 @@ project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 python_bin="${PYTHON_BIN:-$project_root/.venv/bin/python}"
 modal_volume="${MODAL_VOLUME:-tempo-data-v1}"
 input_root="/input/LO_v3_1"
-phase_source="$project_root/LO/resuilt/phase_views_v3_1_scored_signal_excluded/phase_views_v3_1_scored_signal_excluded"
-test_source="$project_root/LO/resuilt/test_prefix_views_v3_1_scored_signal_excluded/test_prefix_views_v3_1_scored_signal_excluded"
+# The uploader consumes a caller-provided extracted release rather than an
+# analyst-specific results path.  Defaults match the WSL staging instructions;
+# set LO_ARTIFACT_ROOT, LO_PHASE_SOURCE, or LO_TEST_SOURCE when stored elsewhere.
+artifact_root="${LO_ARTIFACT_ROOT:-$project_root/upload_staging/LO}"
+phase_source="${LO_PHASE_SOURCE:-$artifact_root/phase_views_v3_1_scored_signal_excluded}"
+test_source="${LO_TEST_SOURCE:-$artifact_root/test_prefix_views_v3_1_scored_signal_excluded}"
 
 if [[ ! -x "$python_bin" ]]; then
   echo "Modal Python not found: $python_bin" >&2
@@ -34,17 +38,29 @@ modal_run() {
   "$python_bin" -X utf8 -m modal run "$@"
 }
 
+replace_remote_directory() {
+  local source="$1"
+  local destination="$2"
+  # ``volume put --force`` can retain obsolete Parquet parts. Clear only this
+  # release-owned input directory; never touch meta_release.
+  if "$python_bin" -m modal volume ls "$modal_volume" "$destination" >/dev/null 2>&1; then
+    "$python_bin" -m modal volume rm --recursive "$modal_volume" "$destination"
+  fi
+  "$python_bin" -m modal volume put --force "$modal_volume" "$source" "$(dirname "$destination")/"
+}
+
 case "$stage" in
   upload)
     [[ -d "$phase_source" ]] || { echo "Missing extracted artifact: $phase_source" >&2; exit 1; }
-    [[ -f "$phase_source/_SUCCESS" ]] || { echo "Phase view is incomplete (missing _SUCCESS)" >&2; exit 1; }
+    compgen -G "$phase_source/*.parquet" >/dev/null ||
+      { echo "Phase view has no Parquet data: $phase_source" >&2; exit 1; }
     [[ -d "$test_source" ]] || { echo "Missing extracted artifact: $test_source" >&2; exit 1; }
     for phase in P1 P2 P3 P4; do
-      [[ -f "$test_source/$phase/_SUCCESS" ]] ||
-        { echo "Test prefix is incomplete (missing $phase/_SUCCESS)" >&2; exit 1; }
+      compgen -G "$test_source/$phase/*.parquet" >/dev/null ||
+        { echo "Test prefix has no Parquet data: $test_source/$phase" >&2; exit 1; }
     done
-    "$python_bin" -m modal volume put --force "$modal_volume" "$phase_source" "$input_root/"
-    "$python_bin" -m modal volume put --force "$modal_volume" "$test_source" "$input_root/"
+    replace_remote_directory "$phase_source" "$input_root/phase_views_v3_1_scored_signal_excluded"
+    replace_remote_directory "$test_source" "$input_root/test_prefix_views_v3_1_scored_signal_excluded"
     "$python_bin" -m modal volume put --force "$modal_volume" \
       "$project_root/modal_jobs/lo_v3_1_release_manifest.json" \
       "$input_root/release_manifest.json"
