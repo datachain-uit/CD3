@@ -36,13 +36,14 @@ from release_core.runtime_config import BALANCERS as RUNTIME_BALANCERS
 from release_core.runtime_config import EXTRA_TREES as RUNTIME_EXTRA_TREES
 from release_core.runtime_config import MICE as RUNTIME_MICE
 from release_core.runtime_config import MODEL as RUNTIME_MODEL
+from release_core.contracts import RELEASE_SPECS
 
 try:
     from .seeds import sha256_of, SEED_PREPROCESS
 except ImportError:  # Supports ``python LO/registries.py`` as documented.
     from seeds import sha256_of, SEED_PREPROCESS
 
-REGISTRY_REVISION = 'registries_rev_2026-10-04_r3'
+REGISTRY_REVISION = 'registries_rev_2026-10-05_r1'
 
 # ---------------------------------------------------------------------------------------------
 # Pipeline registry V0–V16 (PLAN Table 7 / Table 14)
@@ -239,6 +240,13 @@ EXPERIMENT_SEEDS = {
     'master_seeds': [42, 43, 44],
     'augmentation_policy': 'MATCH_MASTER_SEED',
     'rule': 'materialize one S2 balanced TRAIN artifact per master seed; each S3 model cell consumes the S2 artifact with the same seed',
+    'role_seeds': {
+        'seed_model / seed_dataloader': 'int(sha256("{master}|{role}|{task}|{window}|{pipeline_id}|{model_name}")[:8], 16) mod (2**31 - 1), independent per cell (modal_jobs/model_app._role_seed)',
+        'seed_sampler = seed_augmentation': 'the master seed itself; None for pipelines without a balancer',
+        'seed_preprocess': SEED_PREPROCESS,
+        'supersedes': 'PLAN v1.6 §3.1 H(seed, role) = sha256("{seed}:{role}")[:4 bytes] and H(0, "preprocess"); never used by a materialized artifact',
+    },
+    'run_id_fields': 'seed, augmentation_seed and parent_augmentation_run_id are part of the hashed model run config',
     'status': 'LOCKED 2026-10-05',
 }
 REC_RULE = {'rec_rule_version': 'rec_v1.1', 'rec_objective': 'TEST_ACCTEMPO_M3_DELTA', 'rec_eps': 0.005,
@@ -281,15 +289,18 @@ LO_PROXY_CONTRACT = {
                                     'regime; QA23 (Spearman |rho|, NMI vs final_score) is run per phase on this group and reported'},
 }
 LABEL_ARTIFACTS = {
-    'CQ': {'label_rule_version': 'cq_vector_proximity_v1_zero_activity_policy', 'label_threshold_set': 'PRIMARY',
+    'CQ': {'label_rule_version': RELEASE_SPECS['CQ_V2_2']['label_rule_version'],
+           'label_threshold_set': RELEASE_SPECS['CQ_V2_2']['label_threshold_set'],
+           'label_threshold_set_alias': 'PRIMARY (PLAN v1.6 name; not a manifest value)',
            'score': 'cq_score_g_final = 1 - TRIAD_distance_final/sqrt(3) (alias CQ_proximity_final)',
            'thresholds': {'W': '< 0.10', 'A': '[0.10, 0.30)', 'G': '>= 0.30'},
            'invalid_component_policy': 'NULL with exclusion_reason; never coerced to W',
            'population': {'n_enrollments': 2684090, 'source': 'release V1 (REPORT_CQ_V1); [CL §8.3] distinct enrollment 2,684,090',
                           'class_counts': {'c0': 2582414, 'c1': 56129, 'c2': 45547}}},
     'LO': {
-        'label_rule_version': 'lo_final_score_catalog_normalized_v3_1',
-        'label_threshold_set': 'CATALOG_NORMALIZED_PRIMARY_V3',
+        'label_rule_version': RELEASE_SPECS['LO_V3_1']['label_rule_version'],
+        'label_threshold_set': RELEASE_SPECS['LO_V3_1']['label_threshold_set'],
+        'label_threshold_set_alias': 'CATALOG_NORMALIZED_PRIMARY_V3 (registry name until 2026-10-04; not a manifest value)',
         'v3_1_change': 'same formula and bands as V3; courses without any observed attempt in every weighted assignment/exam '
                        'component are excluded with reason no_scored_signal_in_course (102 courses, 172,003 enrollments) [V3.1 §4]',
         'label_field': 'LO_performance_label_3', 'score_field': 'performance_score',
@@ -504,12 +515,32 @@ PENDING_DECISIONS.extend([
      'resolution': 'v1 is primary; v2/s_cal is reported only as a calibration sensitivity analysis. Every result table also publishes S_perf and all sanity components.'},
     {'id': 9, 'topic': 'augmentation seed policy', 'status': 'CLOSED 2026-10-05',
      'resolution': 'run the full master-seed design (42, 43, 44); augmentation seed equals the model master seed rather than a hidden fixed draw.'},
+    {'id': 10, 'topic': 'full F1 grid and legacy LO result eligibility', 'status': 'CLOSED 2026-10-05',
+     'resolution': 'run the full registered architecture/pipeline/seed grid after L4 acceptance; the 51 pre-lineage LO cells remain quarantined and are ineligible for comparison, export, or meta-observation assembly.'},
 ])
+
+
+def validate_release_alignment() -> None:
+    """Keep exported registry identifiers equal to worker-validated release specs."""
+    for release_id, spec in RELEASE_SPECS.items():
+        task = spec['task']
+        label, split = LABEL_ARTIFACTS[task], SPLIT_REGISTRY['tasks'][task]
+        for key in ('label_rule_version', 'label_threshold_set'):
+            if label[key] != spec[key]:
+                raise ValueError(
+                    f'{release_id}: LABEL_ARTIFACTS[{task!r}][{key!r}]={label[key]!r} '
+                    f'!= RELEASE_SPECS {spec[key]!r}'
+                )
+        if split['split_version'] != spec['split_version'] or split['registry_id'] != spec['split_registry_id']:
+            raise ValueError(f'{release_id}: SPLIT_REGISTRY identifiers differ from RELEASE_SPECS')
+        if split['label_rule_version'] != spec['label_rule_version']:
+            raise ValueError(f'{release_id}: SPLIT_REGISTRY label_rule_version differs from RELEASE_SPECS')
 
 
 def all_registries() -> Dict[str, object]:
     pipes = build_pipeline_registry()
     validate_pipeline_registry(pipes)
+    validate_release_alignment()
     return {'pipeline_registry': pipes, 'model_registry': MODEL_REGISTRY, 'metric_def': METRIC_DEF,
             's_san_formula': S_SAN_FORMULA, 'acctempo_def': ACCTEMPO_DEF, 'rec_rule': REC_RULE,
             'label_artifacts': LABEL_ARTIFACTS, 'split_registry': SPLIT_REGISTRY, 'sampling_strategy': SAMPLING_STRATEGY,

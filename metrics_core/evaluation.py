@@ -115,7 +115,8 @@ def classification_metrics(y_true: np.ndarray, probabilities: np.ndarray, *, tra
     acctempo = float((max(s_perf, COMPOSITE_EPS) ** 0.6) * (max(s_san_plus, COMPOSITE_EPS) ** 0.4))
     output: dict[str, Any] = {
         "n_eval_samples": int(len(y_true)), "ev_n_classes_present": int((support > 0).sum()),
-        "small_subgroup_flag": bool(len(y_true) < 100), "confusion_matrix": matrix.tolist(),
+        # Registered subgroup rule: n_g < 30 or any present-class support < 5.
+        "small_subgroup_flag": bool(len(y_true) < 30 or int(support.min()) < 5), "confusion_matrix": matrix.tolist(),
         "probability_sum_max_abs_error": row_sum_error, "prediction_nan_inf_count": int((~np.isfinite(probabilities)).sum()),
         "macro_f1": macro_f1, "balanced_acc": balanced_accuracy, "mcc": mcc, "kappa": kappa,
         "gmean": gmean, "pr_auc_macro": float(np.mean(ap_values)) if ap_values else None,
