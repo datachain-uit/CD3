@@ -14,6 +14,32 @@ Required remote layout:
 /data/input/LO_v3_1/test_prefix_views_v3_1_scored_signal_excluded/P1/ ... /P4/
 ```
 
+Use the checked PowerShell uploader after extracting the downloaded artifacts.
+It uploads only the immutable `/input/...` release and does not delete or
+modify prior L1/L2 artifacts:
+
+```powershell
+# Validate paths/markers only first.
+.\modal_jobs\upload_release.ps1 -Task CQ `
+  -PhaseViewsPath .\CQ\resuilt\phase_views_v2_2 `
+  -TestPrefixesPath .\CQ\resuilt\test_prefix_views_v2_2 `
+  -VerifyOnly
+
+# Upload CQ V2.2 after validation.
+.\modal_jobs\upload_release.ps1 -Task CQ `
+  -PhaseViewsPath .\CQ\resuilt\phase_views_v2_2 `
+  -TestPrefixesPath .\CQ\resuilt\test_prefix_views_v2_2
+
+# Upload LO V3.1 after validation.
+.\modal_jobs\upload_release.ps1 -Task LO `
+  -PhaseViewsPath .\LO\resuilt\phase_views_v3_1_scored_signal_excluded `
+  -TestPrefixesPath .\LO\resuilt\test_prefix_views_v3_1_scored_signal_excluded
+```
+
+The paths may point either directly to the extracted release directory or to
+its parent directory. The runner requires at least one Parquet file for phase
+views and for each P1--P4 test-prefix directory before invoking Modal.
+
 Each `release_manifest.json` must declare `task`, `release_id`,
 `split_registry_id`, `split_version`, `phase_version`,
 `feature_dictionary_version`, `label_rule_version`, and `label_threshold_set`. The active
