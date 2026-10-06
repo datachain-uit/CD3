@@ -358,8 +358,11 @@ lineage_contract = {
     "grain_records": grain_records,
 }
 lineage_sha256 = f"sha256:{sha256(json.dumps(lineage_contract, sort_keys=True).encode('utf-8')).hexdigest()}"
+lineage_sources = {key: (str(value) if value else None) for key, value in lineage_contract.items()
+                   if key in {"feature_source", "label_source", "windows_source", "split_manifest_source",
+                              "temporal_strict_context_source"}}
 materialization_lineage = spark.createDataFrame([
-    {**record, "task": "LO", "view_release": VIEW_RELEASE,
+    {**record, **lineage_sources, "task": "LO", "view_release": VIEW_RELEASE,
      "materialization_lineage_sha256": lineage_sha256}
     for record in grain_records
 ]).withColumn("lineage_generated_at_utc", F.current_timestamp())

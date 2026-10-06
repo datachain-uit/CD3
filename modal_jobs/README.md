@@ -12,6 +12,8 @@ Required remote layout:
 /data/input/LO_v3_1/release_manifest.json
 /data/input/LO_v3_1/phase_views_v3_1_scored_signal_excluded/
 /data/input/LO_v3_1/test_prefix_views_v3_1_scored_signal_excluded/P1/ ... /P4/
+/data/input/CQ_v2_2/materialization_lineage_v2_2/
+/data/input/LO_v3_1/materialization_lineage_v3_1_scored_signal_excluded/
 ```
 
 Use the checked PowerShell uploader after extracting the downloaded artifacts.
@@ -23,18 +25,24 @@ modify prior L1/L2 artifacts:
 .\modal_jobs\upload_release.ps1 -Task CQ `
   -PhaseViewsPath .\CQ\resuilt\phase_views_v2_2 `
   -TestPrefixesPath .\CQ\resuilt\test_prefix_views_v2_2 `
+  -LineagePath .\CQ\resuilt\materialization_lineage_v2_2 `
+  -AllowMissingSuccessMarker `
   -VerifyOnly
 
 # Upload CQ V2.2 after validation.
 .\modal_jobs\upload_release.ps1 -Task CQ `
   -PhaseViewsPath .\CQ\resuilt\phase_views_v2_2 `
   -TestPrefixesPath .\CQ\resuilt\test_prefix_views_v2_2 `
+  -LineagePath .\CQ\resuilt\materialization_lineage_v2_2 `
+  -AllowMissingSuccessMarker `
   -ReplaceExisting
 
 # Upload LO V3.1 after validation.
 .\modal_jobs\upload_release.ps1 -Task LO `
   -PhaseViewsPath .\LO\resuilt\phase_views_v3_1_scored_signal_excluded `
   -TestPrefixesPath .\LO\resuilt\test_prefix_views_v3_1_scored_signal_excluded `
+  -LineagePath .\LO\resuilt\materialization_lineage_v3_1_scored_signal_excluded `
+  -AllowMissingSuccessMarker `
   -ReplaceExisting
 ```
 

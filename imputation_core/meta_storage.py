@@ -487,6 +487,16 @@ def release_inventory(input_root: Path, *, task: str) -> dict[str, Any]:
     release = {key: sidecar[key] for key in required}
     release["data_release_id"] = f"sha256:{canonical_hash({'inventory': payload, 'sidecar': sidecar})}"
     release["inventory"] = payload
+    lineage_dirs = sorted(
+        path.name for path in input_root.iterdir()
+        if path.is_dir() and path.name.startswith("materialization_lineage_")
+    )
+    release["materialization_lineage_dirs"] = lineage_dirs
+    if not lineage_dirs:
+        print(json.dumps({
+            "event": "release_inventory_warning", "task": task,
+            "message": "no materialization_lineage_* sidecar under input release",
+        }), flush=True)
     if sidecar:
         release["input_release_manifest"] = sidecar
     return release
