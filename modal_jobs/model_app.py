@@ -1,4 +1,4 @@
-"""Official V1.6 shared-checkpoint recurrent-model runner.
+"""Official shared-checkpoint temporal-model runner (F1/F2/F3).
 
 The runner resolves an immutable, explicitly V2.2-compatible parent run.  It
 never selects an arbitrary "latest" input, and only the TRAIN sequence may be
@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import modal
@@ -24,7 +25,12 @@ REGIME = {"CQ": "CQ_RAW_EARLY", "LO": "LO_FULL_EARLY"}
 CLASSES = {"CQ": ("warning", "average", "good"), "LO": ("I/D", "G", "E")}
 PARENT_PIPELINE = {"V2": "V1", "V3": "V1", "V4": "V1", "V6": "V5", "V7": "V5", "V8": "V5",
                    "V10": "V9", "V11": "V9", "V12": "V9", "V14": "V13", "V15": "V13", "V16": "V13"}
-ARCHITECTURES = {"RNN": "rnn", "LSTM": "lstm", "GRU": "gru", "BILSTM": "bilstm"}
+ARCHITECTURES = {
+    "RNN": "rnn", "LSTM": "lstm", "GRU": "gru", "BILSTM": "bilstm",
+    "PATCHTST": "patchtst", "MOMENT_SMALL": "moment_small", "MOMENT_BASE": "moment_base",
+}
+MOMENTFM_SOURCE_REPOSITORY = "https://github.com/moment-timeseries-foundation-model/moment.git"
+MOMENTFM_SOURCE_REVISION = "38f7310ad594100747ca2a8357e9c7ca7d323e0e"
 # LO V3.1 is the current catalog-normalised, source-faithful label release.
 # The arguments remain overridable for a later immutable LO release; no model
 # run can silently fall back to a prior split.
@@ -35,7 +41,10 @@ prediction_secret = modal.Secret.from_name(
     "tempo-prediction-salt", required_keys=["TEMPO_PREDICTION_SALT"]
 )
 image = (modal.Image.debian_slim(python_version="3.12")
-         .pip_install("numpy>=1.26", "pandas>=2.2", "pyarrow>=16", "scikit-learn>=1.5", "torch>=2.4", "nvidia-ml-py>=12")
+         .apt_install("git")
+         .pip_install("numpy>=1.26", "pandas>=2.2", "pyarrow>=16", "scikit-learn>=1.5", "torch>=2.4", "nvidia-ml-py>=12",
+                      "git+https://github.com/moment-timeseries-foundation-model/moment.git@38f7310ad594100747ca2a8357e9c7ca7d323e0e",
+                      "huggingface_hub>=0.24", "transformers>=4.54.1")
          .add_local_python_source("model")
          .add_local_python_source("release_core"))
 
@@ -159,14 +168,15 @@ def _write_json(path: Path, value: dict) -> None:
 
 def _prediction_frame(prediction: dict, source, *, task: str, window: str, phase: str,
                       run_id: str, attempt_id: str, split: str, salt: str,
-                      pipeline_id: str, model_name: str, seed_index: int):
+                      pipeline_id: str, model_name: str, model_family: str,
+                      model_revision: str, seed_index: int):
     import pandas as pd
     ids = source["enrollment_id"].astype("string") if "enrollment_id" in source else pd.Series(range(len(source)), dtype="string")
     anonymous = ids.map(lambda v: hashlib.sha256(f"{salt}|{v}".encode()).hexdigest())
     frame = pd.DataFrame({"enrollment_id_hash": anonymous, "task": task,
                           "feature_regime": REGIME[task], "window_id": window, "seed_index": seed_index,
-                          "model_family": "F1_RECURRENT", "model_name": model_name,
-                          "model_revision": "recurrent_shared_phase_v2_4_prefixsafe_epoch50", "pipeline_id": pipeline_id,
+                          "model_family": model_family, "model_name": model_name,
+                          "model_revision": model_revision, "pipeline_id": pipeline_id,
                           "phase_id": phase, "cohort_type": "FIXED", "eval_split": split,
                           "run_id": run_id, "attempt_id": attempt_id,
                           "y_true": [f"c{x}" for x in prediction["y_true"]],
@@ -213,11 +223,11 @@ def _require_prediction_context(frame, *, source: str) -> None:
 
 @app.function(image=image, volumes={MOUNT: volume}, secrets=[prediction_secret], gpu="L4", cpu=8, memory=65536,
               timeout=60 * 60 * 18)
-def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0",
+def train_temporal(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0",
                     model_name: str = "RNN", seed: int = 42, split_version: str = "",
                     phase_version: str = "", augmentation_seed: int = 42,
                     release_id: str = "") -> dict:
-    """Train one V1.6 recurrent checkpoint and test it at P1, P2, P3 and P4.
+    """Train one shared-phase temporal checkpoint and test it at P1--P4.
 
     No training, scaler fitting, selection, or preprocessing is done on any
     test prefix. ``phase_id=P4`` is intentionally not a separate model: it is
@@ -227,6 +237,7 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
     import numpy as np
     import pandas as pd
     import torch
+    from model.architectures import ARCHITECTURE_METADATA, MOMENT_SPECS
     from model.data import fit_layout
     from model.energy import GpuEnergyMeter
     from model.metrics import per_class_metric_records, stratified_bootstrap_per_class_ci
@@ -237,30 +248,50 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
         raise ValueError("task=CQ|LO, window=W1..W3, pipeline_id=V0..V16 required")
     if model_name not in ARCHITECTURES:
         raise ValueError(f"model_name must be one of {sorted(ARCHITECTURES)}")
+    architecture = ARCHITECTURES[model_name]
+    architecture_metadata = ARCHITECTURE_METADATA[architecture]
     spec = resolve_release(task, release_id)
     if split_version and split_version != spec["split_version"]:
         raise ValueError(f"split_version is controlled by {spec['release_id']}; expected {spec['split_version']!r}")
     if phase_version and phase_version != spec["phase_version"]:
         raise ValueError(f"phase_version is controlled by {spec['release_id']}; expected {spec['phase_version']!r}")
     volume.reload()
-    started = time.perf_counter(); cpu_started = time.process_time()
     if augmentation_seed < 0:
         raise ValueError("augmentation_seed must be non-negative")
     prediction_salt = os.environ.get("TEMPO_PREDICTION_SALT")
     if not prediction_salt:
         raise RuntimeError("TEMPO_PREDICTION_SALT must be supplied by the tempo-prediction-salt Modal secret")
+    # Validate immutable parents before a potentially expensive pretrained
+    # snapshot fetch.
     train_path, input_root, input_manifest, augmentation_manifest = _resolve_model_inputs(
         task, window, pipeline_id, spec=spec, augmentation_seed=augmentation_seed)
+    # Foundation weights are acquired and resolved before the measured model
+    # interval.  Their full Hub commit is then part of the immutable run ID.
+    moment_asset = None
+    asset_prepare_s = 0.0
+    if architecture in MOMENT_SPECS:
+        from model.architectures import prepare_moment_snapshot
+        asset_started = time.perf_counter()
+        moment_asset = prepare_moment_snapshot(
+            architecture, cache_dir=str(Path(MOUNT) / "model_cache" / "huggingface")
+        )
+        asset_prepare_s = time.perf_counter() - asset_started
+    started = time.perf_counter(); cpu_started = time.process_time()
     seed_model = _role_seed(seed, "model", task=task, window=window, pipeline_id=pipeline_id, model_name=model_name)
     seed_dataloader = _role_seed(seed, "dataloader", task=task, window=window, pipeline_id=pipeline_id, model_name=model_name)
     seed_bundle = {"master_seed": seed, "seed_model": seed_model,
                    "seed_sampler": augmentation_seed if augmentation_manifest is not None else None,
                    "seed_augmentation": augmentation_seed if augmentation_manifest is not None else None,
                    "seed_dataloader": seed_dataloader, "seed_preprocess": SEED_IMPUTATION}
-    config = {"config_version": "recurrent_shared_phase_v2_4_prefixsafe_epoch50", "task": task, "feature_regime": REGIME[task],
+    config_version = ("recurrent_shared_phase_v2_4_prefixsafe_epoch50"
+                      if architecture_metadata["model_family"] == "F1_RECURRENT"
+                      else "shared_phase_multi_family_v3_0")
+    config = {"config_version": config_version, "task": task, "feature_regime": REGIME[task],
               "window_id": window, "pipeline_id": pipeline_id,
               "pipeline_name": "RAW_CONSTANT_FILL_WITH_MASKS" if pipeline_id == "V0" else "IMPUTE_AND_BALANCE",
-              "model_name": model_name, "model_revision": "recurrent_shared_phase_v2_4_prefixsafe_epoch50", "seed": seed,
+              "model_name": model_name, "architecture": architecture,
+              "model_family": architecture_metadata["model_family"],
+              "model_revision": architecture_metadata["model_revision"], "seed": seed,
               "augmentation_seed": augmentation_seed,
               "prediction_id_salt_sha256": hashlib.sha256(prediction_salt.encode("utf-8")).hexdigest(),
               **seed_bundle,
@@ -283,6 +314,15 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
               "input_channels": ["X", "M_missing", "M_available", "delta_t", "phase_id", "observed_length"],
               "parent_imputation_run_id": input_manifest.get("run_id"),
               "parent_augmentation_run_id": None if augmentation_manifest is None else augmentation_manifest.get("run_id")}
+    if architecture in MOMENT_SPECS:
+        config["pretrained_backbone"] = {
+            **{key: value for key, value in moment_asset.items() if key != "snapshot"},
+            "adaptation_mode": "FROZEN_LINEAR_PROBE",
+            "library_source_repository": MOMENTFM_SOURCE_REPOSITORY,
+            "library_source_revision": MOMENTFM_SOURCE_REVISION,
+            "cache_policy": "SNAPSHOT_BEFORE_MEASURED_TRAINING",
+            "prefix_padding": "RIGHT_ZERO_WITH_EXPLICIT_TIME_MASK_TO_PATCH_LENGTH",
+        }
     run_id = hashlib.sha256(_canonical_json(config).encode()).hexdigest()
     run_base = (Path(MOUNT) / f"meta_release={META_RELEASE}" / "L1_runs" / f"task={task}" /
             f"feature_regime={REGIME[task]}" / f"window_id={window}" / f"pipeline_id={pipeline_id}" /
@@ -309,8 +349,10 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
     # prefix inference; resource cost is a run-level quantity.
     energy_meter = GpuEnergyMeter(); energy_meter.__enter__()
     trained, runtime = train_shared_checkpoint(layout=layout, classes=classes, train_frame=train,
-        validation_frame=validation, architecture=ARCHITECTURES[model_name], seed=seed_model,
+        validation_frame=validation, architecture=architecture, seed=seed_model,
         dataloader_seed=seed_dataloader,
+        moment_cache_dir=str(Path(MOUNT) / "model_cache" / "huggingface"),
+        moment_snapshot=None if moment_asset is None else moment_asset["snapshot"],
         **{key: value for key, value in MODEL.items() if key != "precision_policy"})
     train_s = time.perf_counter() - started - read_s
     checkpoint_root = root / "checkpoint"; checkpoint_root.mkdir(parents=True, exist_ok=True)
@@ -329,7 +371,9 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
         path = root / "predictions" / "eval_split=VALIDATION" / f"phase_id={phase}"; path.mkdir(parents=True, exist_ok=True)
         prediction_frame = _prediction_frame(prediction, validation, task=task, window=window, phase=phase, run_id=run_id,
                                              attempt_id=attempt_id, split="VALIDATION", salt=salt,
-                                             pipeline_id=pipeline_id, model_name=model_name, seed_index=seed)
+                                             pipeline_id=pipeline_id, model_name=model_name,
+                                             model_family=config["model_family"], model_revision=config["model_revision"],
+                                             seed_index=seed)
         prediction_frame.to_parquet(path / "part-00000.parquet", index=False)
         probability_root = root / "probability_matrices" / "eval_split=VALIDATION" / f"phase_id={phase}"
         probability_root.mkdir(parents=True, exist_ok=True)
@@ -365,7 +409,9 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
         path = root / "predictions" / "eval_split=TEST" / f"phase_id={phase}"; path.mkdir(parents=True, exist_ok=True)
         prediction_frame = _prediction_frame(prediction, frame, task=task, window=window, phase=phase, run_id=run_id,
                                              attempt_id=attempt_id, split="TEST", salt=salt,
-                                             pipeline_id=pipeline_id, model_name=model_name, seed_index=seed)
+                                             pipeline_id=pipeline_id, model_name=model_name,
+                                             model_family=config["model_family"], model_revision=config["model_revision"],
+                                             seed_index=seed)
         prediction_frame.to_parquet(path / "part-00000.parquet", index=False)
         probability_root = root / "probability_matrices" / "eval_split=TEST" / f"phase_id={phase}"
         probability_root.mkdir(parents=True, exist_ok=True)
@@ -444,6 +490,7 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
     resource = {"task": task, "feature_regime": REGIME[task], "window_id": window, "phase_id": "P1_P2_P3_P4",
                 "stage": "S3_MODEL", "pipeline_id": pipeline_id, "model_name": model_name, "run_id": run_id, "attempt_id": attempt_id,
                 "time_read_s": read_s, "time_train_selection_s": train_s, "time_test_inference_s": inference_s,
+                "time_pretrained_asset_prepare_s": asset_prepare_s,
                 "time_run_total_s": total_s, "cpu_process_s": cpu_process_s,
                 "cpu_cores_allocated": 8, "cpu_cores_mean_used": float(cpu_process_s / max(total_s, 1e-9)),
                 "memory_allocated_mb": 65536, "peak_ram_mb": peak_ram_mb, "gpu_used": True,
@@ -459,8 +506,10 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
     pd.DataFrame([{"run_id": run_id, "attempt_id": attempt_id, "task": task, "window_id": window,
                    "pipeline_id": pipeline_id, "model_name": model_name, "time_read_s": read_s,
                    "time_train_selection_s": train_s, "time_test_inference_s": inference_s,
+                   "time_pretrained_asset_prepare_s": asset_prepare_s,
                    "time_run_total_s": total_s}]).to_parquet(root / "timing.parquet", index=False)
     manifest = {**config, "run_id": run_id, "attempt_id": attempt_id, "run_status": "SUCCESS",
+                "created_at_utc": datetime.now(timezone.utc).isoformat(),
                 "input_root": str(input_root), "classes": list(classes), "class_code_order": ["c0", "c1", "c2"],
                 "train_input_path": str(train_path),
                 "best_epoch": trained["best_epoch"], "train_rows": trained["train_rows"], "validation_rows": trained["validation_rows"],
@@ -470,13 +519,18 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
                 "selection_audit_path": str(selection_root / "part-00000.parquet"),
                 "small_support_fact_written": bool(per_class_records),
                 "bootstrap_small_support_fact_written": bool(bootstrap_records)}
+    if "pretrained_backbone" in trained["checkpoint"]:
+        # Snapshot path includes the resolved full Hugging Face revision. It is
+        # evidence/provenance only; the run identity was intentionally based
+        # on the registered immutable revision requested in ``config``.
+        manifest["pretrained_backbone_resolved"] = trained["checkpoint"]["pretrained_backbone"]
     _write_json(root / "run_manifest.json", manifest)
     registry = Path(MOUNT) / f"meta_release={META_RELEASE}" / "L0_registry" / "run_registry"; registry.mkdir(parents=True, exist_ok=True)
     _write_json(registry / f"run_id={run_id}.json", manifest)
     model_registry = Path(MOUNT) / f"meta_release={META_RELEASE}" / "L0_registry" / "model_registry" / f"model_name={model_name}"
     model_registry.mkdir(parents=True, exist_ok=True)
-    _write_json(model_registry / "model_revision=recurrent_shared_phase_v2_4_prefixsafe_epoch50.json", {
-        "model_family": "F1_RECURRENT", "model_name": model_name, "model_revision": "recurrent_shared_phase_v2_4_prefixsafe_epoch50",
+    _write_json(model_registry / f"model_revision={config['model_revision']}.json", {
+        "model_family": config["model_family"], "model_name": model_name, "model_revision": config["model_revision"],
         "pipeline_id": pipeline_id, "input_mode": "v0_mask" if pipeline_id == "V0" else "imputed_or_balanced",
         "temporal_contract": config["training_sequence"],
         "selection_objective": config["validation_selection"], "config": config,
@@ -496,6 +550,6 @@ def train_recurrent(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0
 def cli(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0",
         model_name: str = "RNN", seed: int = 42, split_version: str = "", phase_version: str = "",
         augmentation_seed: int = 42, release_id: str = "") -> None:
-    print(json.dumps(train_recurrent.remote(
+    print(json.dumps(train_temporal.remote(
         task, window, pipeline_id, model_name, seed, split_version, phase_version, augmentation_seed, release_id
     ), indent=2, default=str))

@@ -196,8 +196,56 @@ def audit(task: str = "CQ", window: str = "", scope: str = "all", release_id: st
     return report
 
 
+@app.function(image=image, volumes={MOUNT: volume}, cpu=4, memory=32768, timeout=60 * 60)
+def audit_model_train(task: str = "LO", window: str = "W1", pipeline_id: str = "V2",
+                      model_name: str = "RNN", seed: int = 42, release_id: str = "") -> dict:
+    """Read-only grain audit of the actual TRAIN parquet consumed by one model run.
+
+    For V2--V16 this is ``balanced_train.parquet``; for an imputation-only
+    pipeline it is the canonical ``model_inputs/train.parquet``.  It therefore
+    verifies the optimisation input rather than merely the source view.
+    """
+    from release_core import resolve_release
+
+    if task not in REGIME or window not in {"W1", "W2", "W3"}:
+        raise ValueError("task=CQ|LO and window=W1..W3 required")
+    spec = resolve_release(task, release_id)
+    root = (Path(MOUNT) / f"meta_release={META_RELEASE}" / "L1_runs" / f"task={task}" /
+            f"feature_regime={REGIME[task]}" / f"window_id={window}" / f"pipeline_id={pipeline_id}" /
+            f"model_name={model_name}" / f"seed={seed}")
+    candidates = sorted(root.glob("run_id=*/attempt_id=*/run_manifest.json"), key=lambda item: item.stat().st_mtime, reverse=True)
+    selected_path, manifest = None, None
+    for path in candidates:
+        value = json.loads(path.read_text(encoding="utf-8"))
+        if value.get("run_status") != "SUCCESS":
+            continue
+        if any(value.get(field) != spec[field] for field in
+               ("release_id", "split_registry_id", "split_version", "phase_version", "label_rule_version", "label_threshold_set")):
+            continue
+        selected_path, manifest = path, value
+        break
+    if selected_path is None or manifest is None:
+        raise FileNotFoundError(f"No successful {task}/{window}/{pipeline_id}/{model_name} run matching {spec['release_id']}")
+    train_path = Path(manifest["train_input_path"])
+    result = _grain(train_path, LABEL[task])
+    return {
+        "task": task, "release_id": spec["release_id"], "window_id": window,
+        "pipeline_id": pipeline_id, "model_name": model_name, "seed": seed,
+        "run_id": manifest["run_id"], "attempt_id": manifest["attempt_id"],
+        "train_input_path": str(train_path), "grain": result,
+        "verdict": "GRAIN_OK" if result.get("ratio_rows_over_distinct") == 1.0 else "GRAIN_VIOLATION",
+    }
+
+
 @app.local_entrypoint()
-def cli(task: str = "CQ", window: str = "", scope: str = "all", release_id: str = "") -> None:
-    print(json.dumps({"event": "grain_audit_submitted", "task": task, "window": window or "ALL", "scope": scope,
-                      "release_id": release_id or "DEFAULT_FOR_TASK"}), flush=True)
-    print(json.dumps(audit.remote(task, window, scope, release_id), indent=2, ensure_ascii=False, default=str))
+def cli(task: str = "CQ", window: str = "", scope: str = "all", release_id: str = "",
+        mode: str = "views", pipeline_id: str = "V2", model_name: str = "RNN", seed: int = 42) -> None:
+    if mode == "views":
+        print(json.dumps({"event": "grain_audit_submitted", "task": task, "window": window or "ALL", "scope": scope,
+                          "release_id": release_id or "DEFAULT_FOR_TASK"}), flush=True)
+        result = audit.remote(task, window, scope, release_id)
+    elif mode == "model_train":
+        result = audit_model_train.remote(task, window or "W1", pipeline_id, model_name, seed, release_id)
+    else:
+        raise ValueError("mode must be views or model_train")
+    print(json.dumps(result, indent=2, ensure_ascii=False, default=str))

@@ -455,6 +455,71 @@ def run_imputation(task: str, window: str, test_phase: str, variant: str,
     return manifest
 
 
+@app.function(image=image, volumes={MOUNT: volume}, timeout=30 * 60)
+def audit_imputation_runs(task: str = "CQ", seed: int = 20260922) -> dict:
+    """Read-only completeness/QA audit for the five S1 imputation pipelines."""
+    from imputation_core.meta_storage import FEATURE_REGIME, PIPELINE_ID, release_inventory
+    from release_core import resolve_release
+
+    if task not in {"CQ", "LO"}:
+        raise ValueError("task must be CQ or LO")
+    spec = resolve_release(task, "")
+    active_input_root = Path(MOUNT) / "input" / spec["input_dir"]
+    active_data_release_id = release_inventory(active_input_root, task=task)["data_release_id"]
+    root = Path(MOUNT) / f"meta_release={META_RELEASE}" / "L1_runs" / f"task={task}" / \
+        f"feature_regime={FEATURE_REGIME[task]}"
+    required_inputs = {"train.parquet", "validation.parquet", *(f"test_{phase}.parquet" for phase in ("P1", "P2", "P3", "P4"))}
+    rows: list[dict] = []
+    for window in ("W1", "W2", "W3"):
+        for variant, pipeline_id in PIPELINE_ID.items():
+            base = (root / f"window_id={window}" / f"pipeline_id={pipeline_id}" /
+                    "model_name=IMPUTATION_ONLY" / f"seed={seed}")
+            attempts: list[tuple[float, Path, dict]] = []
+            if base.exists():
+                for manifest_path in base.glob("run_id=*/attempt_id=*/run_manifest.json"):
+                    try:
+                        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+                        attempts.append((manifest_path.stat().st_mtime, manifest_path.parent, payload))
+                    except (OSError, ValueError, json.JSONDecodeError):
+                        continue
+            successful = [item for item in attempts if item[2].get("run_status") == "SUCCESS"
+                          and item[2].get("data_release_id") == active_data_release_id
+                          and item[2].get("split_version") == spec["split_version"]
+                          and item[2].get("phase_version") == spec["phase_version"]]
+            if not successful:
+                rows.append({"window_id": window, "pipeline_id": pipeline_id, "variant": variant,
+                             "status": "MISSING_OR_NOT_SUCCESS", "attempts_found": len(attempts)})
+                continue
+            _, attempt_dir, manifest = max(successful, key=lambda item: item[0])
+            actual_inputs = {path.name for path in (attempt_dir / "model_inputs").glob("*.parquet")}
+            splits = manifest.get("splits", {})
+            remaining_nulls = sum(float(value.get("remaining_numeric_nulls", 0)) for value in splits.values())
+            required_remaining_nulls = sum(float(splits.get(name, {}).get("remaining_numeric_nulls", 0))
+                                           for name in ("train", "validation", "test_P4"))
+            future_imputed = sum(float(value.get("future_imputed_cells", 0)) for value in splits.values())
+            unfittable = sum(len(value.get("unfittable_dynamic_columns", [])) + len(value.get("unfittable_static_columns", []))
+                             for value in splits.values())
+            rows.append({
+                "window_id": window, "pipeline_id": pipeline_id, "variant": variant,
+                # TEST P1--P3 intentionally retain future-phase values as null.
+                # Only train, validation, and fully observed TEST P4 must have no
+                # residual eligible numeric nulls.
+                "status": "SUCCESS" if required_inputs.issubset(actual_inputs) and (attempt_dir / "fitted_preprocessors" / "fitted_pipeline.joblib").exists() and required_remaining_nulls == 0 and future_imputed == 0 and unfittable == 0 else "QA_FAILED",
+                "attempts_found": len(attempts), "attempt_id": manifest.get("attempt_id"),
+                "run_id": manifest.get("run_id"), "input_files_ok": required_inputs.issubset(actual_inputs),
+                "preprocessor_ok": (attempt_dir / "fitted_preprocessors" / "fitted_pipeline.joblib").exists(),
+                "remaining_numeric_nulls_all_splits": remaining_nulls,
+                "remaining_numeric_nulls_required_splits": required_remaining_nulls,
+                "future_imputed_cells": future_imputed, "unfittable_column_count": unfittable,
+                "release_id": manifest.get("release_id"), "split_version": manifest.get("split_version"),
+                "phase_version": manifest.get("phase_version"), "profile_scope": manifest.get("profile_scope"),
+            })
+    counts = {status: sum(row["status"] == status for row in rows) for status in {row["status"] for row in rows}}
+    return {"task": task, "seed": seed, "expected_cells": 15, "actual_cells": len(rows),
+            "status_counts": counts, "all_success": len(rows) == 15 and counts.get("SUCCESS", 0) == 15,
+            "runs": rows}
+
+
 @app.local_entrypoint()
 def cli(mode: str = "impute", task: str = "CQ", window: str = "W1", test_phase: str = "ALL", variant: str = "median", fit_sample_rows: int = 1_000_000, seed: int = 20260922, release_id: str = ""):
     if mode == "s0":
@@ -463,6 +528,8 @@ def cli(mode: str = "impute", task: str = "CQ", window: str = "W1", test_phase: 
         result = export_s0_facts.remote()
     elif mode == "impute":
         result = run_imputation.remote(task, window, test_phase, variant, fit_sample_rows, seed, release_id)
+    elif mode == "audit":
+        result = audit_imputation_runs.remote(task, seed)
     else:
-        raise ValueError("mode must be s0, export_s0, or impute")
+        raise ValueError("mode must be s0, export_s0, impute, or audit")
     print(json.dumps(result, indent=2))

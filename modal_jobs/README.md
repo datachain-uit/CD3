@@ -131,23 +131,76 @@ reject missing provenance, a V1 directory, a split/phase mismatch, duplicate
 
 ## Seed-aligned augmentation and model grid
 
-The stability design uses master seeds `42`, `43`, and `44`.  Each balanced
-S2 TRAIN artifact is materialized once per master seed, and every model cell
-uses the augmentation artifact with the same seed.  This avoids confusing
-model-initialization variation with a hidden fixed augmentation draw.
+### Audit execution cadence
+
+Avoid recomputing an audit merely because a report is regenerated.  The
+following cadence is part of the execution contract:
+
+| Artifact or audit | Re-run trigger |
+| --- | --- |
+| `materialization_lineage_*` | A new phase-view / label / feature release only. |
+| QA23 label-proxy audit | A changed feature dictionary, label contract, or phase-view release only. |
+| S0, S1 imputation, S2 augmentation | A changed input release or an explicitly changed augmentation-seed policy. |
+| Per-class metrics, calibration, checkpoint selection | Written automatically by every S3 model run. |
+| STRICT/OVERLAP prediction-slice audit | Once per distinct prediction grid (model family × seed × pipeline scope). |
+| Report export | Reads existing immutable L2 facts; never retrains or recomputes model predictions. |
+
+Consequently, after a validation-governed shortlist is locked, repeat S3 and
+the prediction-slice audit only for the shortlisted pipelines and planned
+seeds/architectures.  Do not use a TEST report refresh as a reason to rerun
+S0--S3.
+
+Balanced S2 TRAIN artifacts are materialized once with augmentation seed `42`.
+Model stability is then measured with model seeds `42`, `43`, and `44`, all
+using that same fixed augmentation artifact.
 
 ```powershell
 # One task: 3 windows × 4 imputer parents × 3 balancers × 3 master seeds.
-.\modal_jobs\run_augmentation_grid.ps1 -Task CQ -Seeds 42,43,44
+.\modal_jobs\run_augmentation_grid.ps1 -Task CQ -Seeds 42
 
-# The default policy matches augmentation seed to model seed.
+# The default policy keeps augmentation seed fixed at 42.
 .\modal_jobs\run_model_grid.ps1 `
   -Task CQ -Mode grid -Seeds 42,43,44 `
-  -AugmentationSeedPolicy match_model_seed
+  -AugmentationSeedPolicy fixed -AugmentationSeed 42
 ```
 
-Use `-AugmentationSeedPolicy fixed -AugmentationSeed 42` only for an
-explicit fixed-augmentation sensitivity design; it is not the default.
+Use `-AugmentationSeedPolicy match_model_seed` only for a separate
+augmentation-seed sensitivity design.
+
+### Ordered temporal-family extension
+
+`PATCHTST`, `MOMENT_SMALL`, and `MOMENT_BASE` use the same fitted numeric
+prefix tensor, static branch, class order, validation selection, predictions,
+and L2 fact schema as the recurrent models.  They are deliberately excluded
+from `-Mode grid`: the protocol evaluates them by the ordered F1 → F2 → F3
+stages rather than multiplying them across V0--V16 before validation evidence.
+
+```powershell
+# FM0: CQ (or LO) correctness/resource smoke test, four ordered representatives.
+.\modal_jobs\run_model_grid.ps1 `
+  -Task CQ -Mode family_smoke -Seeds 42 `
+  -AugmentationSeedPolicy fixed -AugmentationSeed 42
+
+# Explicit MOMENT-base run; MOMENT remains frozen and only its task head trains.
+.\modal_jobs\run_model_grid.ps1 `
+  -Task CQ -Mode pilot -Windows W1 -Pipelines V0 `
+  -Models MOMENT_BASE -Seeds 42 `
+  -AugmentationSeedPolicy fixed -AugmentationSeed 42
+
+# FM1: matched V0/V12 screening, paired master seeds.
+.\modal_jobs\run_model_grid.ps1 `
+  -Task CQ -Mode family_screen -Seeds 42,43,44 `
+  -AugmentationSeedPolicy fixed -AugmentationSeed 42
+```
+
+PatchTST uses the registered two-phase/stride-one prefix patches. MOMENT uses
+the official `momentfm` embedding model at its pinned repository revision;
+each observed prefix is right-padded only to its pretrained patch length with
+an explicit time mask. The encoder is frozen (`FROZEN_LINEAR_PROBE`), its
+resolved snapshot is recorded in the run manifest, and only the shared task
+head is checkpointed. The initial snapshot download is cached under
+`/data/model_cache/huggingface`; do not treat a first-download wall time as
+measured model training time.
 
 ## LO V3.1: model-ready execution path
 

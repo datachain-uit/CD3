@@ -29,6 +29,7 @@ def _augmentation_quality_metrics(train, synthetic, batch, numeric_columns, labe
     CQ training pools while retaining a declared, reproducible audit sample.
     """
     import numpy as np
+    import pandas as pd
 
     if len(synthetic) == 0:
         return {
@@ -584,6 +585,60 @@ def inspect_augmentation_status(task: str, window: str,
     return records
 
 
+@app.function(image=image, volumes={MOUNT: volume}, cpu=8, memory=196608, timeout=60 * 60 * 4)
+def audit_radius_fallback(task: str, window: str, parent_pipeline: str = "V1",
+                          seed: int = 42, release_id: str = "") -> dict:
+    """Replay Radius neighbour selection solely to recover class-level audit facts.
+
+    This does not write a balanced TRAIN parquet, ledger, or L1 run.  With the
+    same locked parent input, radius and seed it deterministically reproduces
+    the neighbour-selection step used by S2 and writes only an L2 audit.
+    """
+    import pandas as pd
+    from augmentation_core import RadiusSMOTE, augmentable_model_columns
+    from release_core import BALANCERS, SAMPLING, resolve_release
+
+    if task not in REGIME or window not in {"W1", "W2", "W3"} or parent_pipeline not in PARENT:
+        raise ValueError("task=CQ|LO, window=W1..W3, parent_pipeline=V1|V5|V9|V13 required")
+    spec = resolve_release(task, release_id)
+    volume.reload()
+    source, layout, parent_manifest = _resolve_parent_train(task, window, parent_pipeline, spec=spec)
+    if source is None or parent_manifest is None:
+        raise FileNotFoundError(f"Missing locked parent input for {task}/{window}/{parent_pipeline}")
+    train = pd.read_parquet(source)
+    label = _label(task)
+    categorical = tuple(parent_manifest.get("categorical_columns", ()))
+    if not categorical:
+        raise ValueError("Parent imputation manifest lacks categorical_columns")
+    numeric = augmentable_model_columns(train, label_column=label, phase_id="P4", categorical_columns=categorical)
+    balancer = RadiusSMOTE(random_state=seed, ir_target=SAMPLING["ir_target"],
+                           max_expansion_per_class=SAMPLING["max_expansion_per_class"],
+                           radius=BALANCERS["RADIUS_SMOTE"]["radius"])
+    # `fit_resample` is intentionally the same deterministic computation as
+    # S2.  Discard the synthetic matrix immediately; this is an audit replay.
+    balancer.fit_resample(train[numeric].to_numpy(dtype="float32", copy=True), train[label].to_numpy())
+    audit = balancer.audit
+    rows = []
+    for class_code, values in audit["fallback_by_class"].items():
+        rows.append({
+            "task": task, "feature_regime": REGIME[task], "window_id": window,
+            "parent_pipeline": parent_pipeline, "balance_pipeline": _pipeline(parent_pipeline, "RADIUS_SMOTE"),
+            "seed_augmentation": seed, "release_id": spec["release_id"],
+            "data_release_parent_run_id": parent_manifest["run_id"],
+            "source_layout": layout, "audit_replay": True, "class_code": class_code,
+            "radius": audit["radius"], "radius_space": audit["radius_space"], **values,
+        })
+    root = (Path(MOUNT) / "meta_release=imputation-v1/L2_facts/radius_fallback_audit" /
+            f"task={task}" / f"feature_regime={REGIME[task]}" / f"window_id={window}" /
+            f"parent_pipeline={parent_pipeline}" / f"seed={seed}" /
+            f"parent_imputation_run_id={parent_manifest['run_id']}")
+    root.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(rows).to_parquet(root / "part-00000.parquet", index=False)
+    volume.commit()
+    return {"task": task, "window_id": window, "parent_pipeline": parent_pipeline,
+            "rows": len(rows), "audit": audit, "path": str(root / "part-00000.parquet")}
+
+
 @app.local_entrypoint()
 def cli(mode: str = "augment", task: str = "CQ", window: str = "W1", phase: str = "P4",
         parent_pipeline: str = "V1", method: str = "CDSMOTE", seed: int = 42,
@@ -608,8 +663,10 @@ def cli(mode: str = "augment", task: str = "CQ", window: str = "W1", phase: str 
             result.extend(inspect_augmentation_status.remote(task, scoped_window, pipelines, seed, release_id))
     elif mode == "inspect_parents":
         result = inspect_parent_imputations.remote(task, release_id)
+    elif mode == "audit_radius":
+        result = audit_radius_fallback.remote(task, window, parent_pipeline, seed, release_id)
     elif mode == "augment":
         result = run_augmentation.remote(task, window, phase, parent_pipeline, method, seed, release_id)
     else:
-        raise ValueError("mode must be augment, inspect, inspect_all_windows, status, status_all_windows, or inspect_parents")
+        raise ValueError("mode must be augment, audit_radius, inspect, inspect_all_windows, status, status_all_windows, or inspect_parents")
     print(json.dumps(result, indent=2, default=str))

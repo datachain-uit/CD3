@@ -8,11 +8,13 @@ waits for completion, then materializes sanity facts from that immutable run.
 [CmdletBinding(SupportsShouldProcess)]
 param(
     [ValidateSet("CQ", "LO")][string]$Task = "CQ",
-    [ValidateSet("pilot", "baseline", "grid")][string]$Mode = "pilot",
+    [ValidateSet("pilot", "baseline", "grid", "family_smoke", "family_screen")][string]$Mode = "pilot",
     [string[]]$Windows,
     [string[]]$Pipelines,
     [string[]]$Models,
     [int[]]$Seeds,
+    # Registered stability policy: S2 is replicated at the model master
+    # seed.  Use `fixed` only for an explicitly documented sensitivity run.
     [ValidateSet("match_model_seed", "fixed")][string]$AugmentationSeedPolicy = "match_model_seed",
     [int]$AugmentationSeed = -1,
     [ValidateSet("CQ_V2_2", "LO_V3_1")][string]$ReleaseId = "",
@@ -52,6 +54,21 @@ switch ($Mode) {
         if (-not $Windows) { $Windows = @("W1", "W2", "W3") }
         if (-not $Pipelines) { $Pipelines = 0..16 | ForEach-Object { "V$_" } }
         if (-not $Models) { $Models = @("RNN", "LSTM", "GRU", "BILSTM") }
+        if (-not $Seeds) { $Seeds = @(42, 43, 44) }
+    }
+    # Ordered-family stages are intentionally separate from the recurrent
+    # factorial grid.  They retain the same tensor/selection contract without
+    # multiplying PatchTST or MOMENT across all V0--V16 prematurely.
+    "family_smoke" {
+        if (-not $Windows) { $Windows = @("W1") }
+        if (-not $Pipelines) { $Pipelines = @("V0") }
+        if (-not $Models) { $Models = @("RNN", "LSTM", "PATCHTST", "MOMENT_SMALL") }
+        if (-not $Seeds) { $Seeds = @(42) }
+    }
+    "family_screen" {
+        if (-not $Windows) { $Windows = @("W1") }
+        if (-not $Pipelines) { $Pipelines = @("V0", "V12") }
+        if (-not $Models) { $Models = @("RNN", "LSTM", "PATCHTST", "MOMENT_SMALL") }
         if (-not $Seeds) { $Seeds = @(42, 43, 44) }
     }
 }

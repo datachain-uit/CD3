@@ -13,7 +13,9 @@ param(
     [string[]]$Windows = @("W1", "W2", "W3"),
     [ValidateSet("V1", "V5", "V9", "V13")][string[]]$ParentPipelines = @("V1", "V5", "V9", "V13"),
     [ValidateSet("CDSMOTE", "SASMOTE", "RADIUS_SMOTE")][string[]]$Methods = @("CDSMOTE", "SASMOTE", "RADIUS_SMOTE"),
-    [int[]]$Seeds = @(42, 43, 44),
+    # The pilot is seed 42.  Stability calls explicitly pass 42,43,44 so
+    # every augmented TRAIN artifact is paired with its model master seed.
+    [int[]]$Seeds = @(42),
     [ValidateSet("CQ_V2_2", "LO_V3_1")][string]$ReleaseId = "",
     [string]$LogRoot = ".\logs\augmentation_grid"
 )

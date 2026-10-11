@@ -25,6 +25,30 @@ def _parquet_rows(path: Path) -> int | None:
         return None
 
 
+def _parquet_grain(path: Path) -> dict:
+    """Full-scan the analytical key without loading feature columns."""
+    import pyarrow.compute as pc
+    import pyarrow.parquet as pq
+
+    source = pq.ParquetFile(path)
+    rows = int(source.metadata.num_rows)
+    schema_names = set(source.schema_arrow.names)
+    if "enrollment_id" not in schema_names:
+        return {"status": "MISSING_ENROLLMENT_ID", "rows": rows}
+    keys = source.read(columns=["enrollment_id"])["enrollment_id"].combine_chunks()
+    nulls = int(pc.sum(pc.is_null(keys)).as_py() or 0)
+    valid_keys = pc.filter(keys, pc.invert(pc.is_null(keys)))
+    distinct = int(pc.count_distinct(valid_keys).as_py())
+    duplicates = rows - nulls - distinct
+    return {
+        "status": "GRAIN_OK" if nulls == 0 and duplicates == 0 else "GRAIN_VIOLATION",
+        "rows": rows,
+        "distinct_enrollment_id": distinct,
+        "null_enrollment_id": nulls,
+        "duplicate_rows": duplicates,
+    }
+
+
 def _latest_manifest(window: str, pipeline_id: str) -> tuple[Path | None, dict | None]:
     root = (
         Path(MOUNT) / f"meta_release={META_RELEASE}" / "L1_runs" / "task=LO" /
@@ -42,8 +66,8 @@ def _latest_manifest(window: str, pipeline_id: str) -> tuple[Path | None, dict |
     return path, json.loads(path.read_text(encoding="utf-8"))
 
 
-@app.function(image=image, volumes={MOUNT: volume}, cpu=2, memory=4096, timeout=60 * 10)
-def inspect_lo_imputation(variants_csv: str = "v0") -> list[dict]:
+@app.function(image=image, volumes={MOUNT: volume}, cpu=4, memory=16384, timeout=60 * 60)
+def inspect_lo_imputation(variants_csv: str = "v0", include_grain: bool = False) -> list[dict]:
     """Return concise manifests and Parquet metadata without loading input data."""
     requested = [value.strip() for value in variants_csv.split(",") if value.strip()]
     if requested == ["all"]:
@@ -69,6 +93,15 @@ def inspect_lo_imputation(variants_csv: str = "v0") -> list[dict]:
                 }.items()
                 if (inputs / filename).is_file()
             }
+            grain = {
+                name: _parquet_grain(inputs / filename)
+                for name, filename in {
+                    "train": "train.parquet", "validation": "validation.parquet",
+                    "test_p1": "test_P1.parquet", "test_p2": "test_P2.parquet",
+                    "test_p3": "test_P3.parquet", "test_p4": "test_P4.parquet",
+                }.items()
+                if include_grain and (inputs / filename).is_file()
+            }
             records.append({
                 "variant": variant,
                 "pipeline_id": PIPELINES[variant],
@@ -82,11 +115,12 @@ def inspect_lo_imputation(variants_csv: str = "v0") -> list[dict]:
                 "split_version": manifest.get("split_version"),
                 "phase_version": manifest.get("phase_version"),
                 "model_input_rows": rows,
+                "model_input_grain": grain if include_grain else None,
                 "preprocessor_sha256": manifest.get("preprocessor_sha256"),
             })
     return records
 
 
 @app.local_entrypoint()
-def cli(variants: str = "v0") -> None:
-    print(json.dumps(inspect_lo_imputation.remote(variants), ensure_ascii=False, indent=2))
+def cli(variants: str = "v0", grain: bool = False) -> None:
+    print(json.dumps(inspect_lo_imputation.remote(variants, grain), ensure_ascii=False, indent=2))
