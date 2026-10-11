@@ -14,7 +14,7 @@ from torch import nn
 from torch.amp import GradScaler, autocast
 from torch.utils.data import DataLoader, Dataset
 
-from .architectures import SharedPhaseHybridRecurrentClassifier
+from .architectures import ARCHITECTURE_METADATA, build_shared_phase_model
 from .data import FeatureLayout, PHASES, transform_frame
 from .metrics import calibration_metrics, classification_metrics
 
@@ -77,12 +77,42 @@ def _evaluate_prefixes(model: nn.Module, dynamic: np.ndarray, static: np.ndarray
     return metrics, predictions
 
 
+def _checkpoint_state(model: nn.Module) -> tuple[dict, str]:
+    """Snapshot only trainable tensors for a frozen foundation backbone.
+
+    MOMENT weights are immutable and recoverable from the pinned repository
+    revision recorded in the manifest.  Duplicating them in every L1
+    checkpoint would both waste storage and obscure the actual adaptation
+    mode.  All task-trained architectures retain a complete state dict.
+    """
+    if getattr(model, "frozen_backbone", False):
+        return ({name: parameter.detach().cpu().clone()
+                 for name, parameter in model.named_parameters() if parameter.requires_grad}, "trainable_only")
+    return (copy.deepcopy(model.state_dict()), "full")
+
+
+def _restore_checkpoint_state(model: nn.Module, state: dict, scope: str) -> None:
+    if scope == "full":
+        model.load_state_dict(state)
+        return
+    if scope != "trainable_only":
+        raise ValueError(f"unknown checkpoint scope: {scope}")
+    parameters = dict(model.named_parameters())
+    with torch.no_grad():
+        for name, value in state.items():
+            if name not in parameters or not parameters[name].requires_grad:
+                raise ValueError(f"invalid frozen-backbone checkpoint tensor: {name}")
+            parameters[name].copy_(value.to(parameters[name].device))
+
+
 def train_shared_checkpoint(*, layout: FeatureLayout, classes: tuple[str, ...], train_frame: pd.DataFrame,
                             validation_frame: pd.DataFrame, architecture: str, seed: int,
                             dataloader_seed: int | None = None,
                             hidden_size: int = 128, num_layers: int = 1, dropout: float = .3,
                             batch_size: int = 2048, max_epochs: int = 50, patience: int = 5,
-                            learning_rate: float = 1e-3, weight_decay: float = 1e-5, workers: int = 4) -> tuple[dict, dict]:
+                            learning_rate: float = 1e-3, weight_decay: float = 1e-5, workers: int = 4,
+                            moment_cache_dir: str | None = None,
+                            moment_snapshot: str | None = None) -> tuple[dict, dict]:
     """Fit a single checkpoint using average CE over P1--P4 real train rows."""
     seed_everything(seed)
     dataloader_seed = seed if dataloader_seed is None else dataloader_seed
@@ -92,9 +122,15 @@ def train_shared_checkpoint(*, layout: FeatureLayout, classes: tuple[str, ...], 
     val_dynamic, val_static, _, val_y = transform_frame(validation_frame, layout, classes=classes, use_masks=True)
     train_loader = _loader(SharedPhaseDataset(train_dynamic, train_static, train_y), batch_size, True, workers,
                            seed=dataloader_seed)
-    model = SharedPhaseHybridRecurrentClassifier(train_dynamic.shape[2], train_static.shape[1], len(classes), architecture,
-                                                  hidden_size, num_layers, dropout).to(device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    model = build_shared_phase_model(
+        train_dynamic.shape[2], train_static.shape[1], len(classes), architecture,
+        hidden_size=hidden_size, num_layers=num_layers, dropout=dropout,
+        moment_cache_dir=moment_cache_dir, moment_snapshot=moment_snapshot,
+    ).to(device)
+    trainable_parameters = [parameter for parameter in model.parameters() if parameter.requires_grad]
+    if not trainable_parameters:
+        raise ValueError("selected architecture has no trainable task parameters")
+    optimizer = torch.optim.AdamW(trainable_parameters, lr=learning_rate, weight_decay=weight_decay)
     scaler = GradScaler("cuda", enabled=device.type == "cuda"); amp_device = "cuda" if device.type == "cuda" else "cpu"
     criterion = nn.CrossEntropyLoss(); best_state = None; best_key = (-np.inf, -np.inf); best_epoch = 0; stale = 0; history = []
     for epoch in range(1, max_epochs + 1):
@@ -115,7 +151,8 @@ def train_shared_checkpoint(*, layout: FeatureLayout, classes: tuple[str, ...], 
         history.append({"epoch": epoch, "train_cross_entropy_mean_p1_p4": total / max(rows, 1), "validation_macro_f1_mean_p1_p4": mean_f1, "validation_cross_entropy_mean_p1_p4": mean_ce})
         key = (mean_f1, -mean_ce)
         if key > best_key:
-            best_key, best_epoch, stale, best_state = key, epoch, 0, copy.deepcopy(model.state_dict())
+            best_key, best_epoch, stale = key, epoch, 0
+            best_state, best_state_scope = _checkpoint_state(model)
         else:
             stale += 1
         print(json.dumps({
@@ -130,11 +167,16 @@ def train_shared_checkpoint(*, layout: FeatureLayout, classes: tuple[str, ...], 
             print(json.dumps({"event": "early_stopping", "epoch": epoch, "best_epoch": best_epoch,
                               "patience": patience}, sort_keys=True), flush=True)
             break
-    model.load_state_dict(best_state)
+    _restore_checkpoint_state(model, best_state, best_state_scope)
     val_metrics, val_predictions = _evaluate_prefixes(model, val_dynamic, val_static, val_y, batch_size, workers, device, class_ids,
                                                        seed=dataloader_seed)
-    checkpoint = {"model_state_dict": model.state_dict(), "classes": list(classes), "layout": layout.as_dict(),
-                  "architecture": architecture, "best_epoch": best_epoch, "selection_objective": "mean_validation_macro_f1_p1_p4"}
+    saved_state, saved_scope = _checkpoint_state(model)
+    checkpoint = {"model_state_dict": saved_state, "checkpoint_state_scope": saved_scope,
+                  "classes": list(classes), "layout": layout.as_dict(),
+                  "architecture": architecture, "architecture_metadata": ARCHITECTURE_METADATA[architecture],
+                  "best_epoch": best_epoch, "selection_objective": "mean_validation_macro_f1_p1_p4"}
+    if getattr(model, "backbone_source", None):
+        checkpoint["pretrained_backbone"] = model.backbone_source
     return {"checkpoint": checkpoint, "history": history, "validation_metrics": val_metrics,
              "validation_predictions": val_predictions, "best_epoch": best_epoch, "device": str(device),
              "train_rows": len(train_y), "validation_rows": len(val_y)}, {"model": model, "device": device}
