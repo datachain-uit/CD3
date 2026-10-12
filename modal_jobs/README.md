@@ -147,10 +147,11 @@ following cadence is part of the execution contract:
 
 The registered F1 design is the full grid (17 pipelines x 4 recurrent models
 x 3 windows x 3 seeds per task, `GRID_POLICY`); VALIDATION facts are reported
-and used for the selection-margin check, not to shortlist pipelines.  The
-scope of the F2/F3 stages (`family_smoke`, `family_screen`) is a design
-change that must be registered by the authors before any F2/F3 result is
-read.  Do not use a TEST report refresh as a reason to rerun S0--S3.
+and used for the selection-margin check, not to shortlist pipelines. F2 is
+also full-grid after its deterministic pilot. F3 MOMENT_SMALL is a registered
+exploratory subset after its deterministic pilot and frozen-embedding cache;
+MOMENT_BASE is deferred from GĐ1. Do not use a TEST report refresh as a reason
+to rerun S0--S3.
 
 The registered stability policy is `MATCH_MASTER_SEED` (decision of
 2026-10-05, `LO/registries.py` `EXPERIMENT_SEEDS`): one balanced S2 TRAIN
@@ -176,24 +177,28 @@ protocol.
 
 `PATCHTST`, `MOMENT_SMALL`, and `MOMENT_BASE` use the same fitted numeric
 prefix tensor, static branch, class order, validation selection, predictions,
-and L2 fact schema as the recurrent models. They are exposed through ordered
-F1/F2/F3 smoke and screen stages. This is exploratory, not a substitute for
-the registered full grid: authors must register the final F2/F3 scope in
-`GRID_POLICY` before interpreting any F2/F3 result.
+and L2 fact schema as the recurrent models. Each new family first runs the
+required deterministic pilot twice on CQ/W1/V0/seed42. PatchTST is then run as
+the F2 full grid; MOMENT_SMALL uses its registered 13-pipeline F3 exploratory
+subset only after frozen embedding caching is available.
 
 ```powershell
-# FM0: CQ (or LO) correctness/resource smoke test, four ordered representatives.
+# Determinism acceptance: run each command twice and compare prediction/probability
+# checksums, metrics, best_epoch, and manifest identity.
 .\modal_jobs\run_model_grid.ps1 `
-  -Task CQ -Mode family_smoke -Seeds 42
+  -Task CQ -Mode pilot -Windows W1 -Pipelines V0 -Models PATCHTST -Seeds 42
+.\modal_jobs\run_model_grid.ps1 `
+  -Task CQ -Mode pilot -Windows W1 -Pipelines V0 -Models MOMENT_SMALL -Seeds 42
 
-# Explicit MOMENT-base run; MOMENT remains frozen and only its task head trains.
+# F2 primary: full grid, after PatchTST determinism acceptance.
 .\modal_jobs\run_model_grid.ps1 `
-  -Task CQ -Mode pilot -Windows W1 -Pipelines V0 `
-  -Models MOMENT_BASE -Seeds 42
+  -Task CQ -Mode grid -Models PATCHTST -Seeds 42,43,44
 
-# FM1: matched V0/V12 screening, paired master seeds.
+# F3 exploratory: 13 registered pipelines; requires frozen embedding cache.
 .\modal_jobs\run_model_grid.ps1 `
-  -Task CQ -Mode family_screen -Seeds 42,43,44
+  -Task CQ -Mode grid `
+  -Pipelines V0,V1,V5,V9,V13,V2,V6,V10,V14,V4,V8,V12,V16 `
+  -Models MOMENT_SMALL -Seeds 42,43,44
 ```
 
 PatchTST uses registered two-phase/stride-one prefix patches independently for

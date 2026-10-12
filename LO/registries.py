@@ -43,7 +43,7 @@ try:
 except ImportError:  # Supports ``python LO/registries.py`` as documented.
     from seeds import sha256_of, SEED_PREPROCESS
 
-REGISTRY_REVISION = 'registries_rev_2026-10-12_r2'
+REGISTRY_REVISION = 'registries_rev_2026-10-12_r4'
 
 # ---------------------------------------------------------------------------------------------
 # Pipeline registry V0–V16 (PLAN Table 7 / Table 14)
@@ -167,12 +167,12 @@ MODEL_REGISTRY = [
      'model_revision': 'patchtst_channel_independent_v2_prefixsafe',
      'implementation_note': 'each dynamic channel is patched and Transformer-encoded independently with shared weights; '
                             'the classification head receives concatenated post-encoder channel embeddings and static features'},
-    {'model_name': 'MOMENT_SMALL', 'model_tier': 'F3_TS_FOUNDATION', 'model_family': 'MOMENT', 'variant_role': 'PRIMARY', 'is_pretrained': 1,
+    {'model_name': 'MOMENT_SMALL', 'model_tier': 'F3_TS_FOUNDATION', 'model_family': 'MOMENT', 'variant_role': 'EXPLORATORY', 'is_pretrained': 1,
      'finetune_mode': 'LINEAR_PROBE', 'pretrained_repo': 'AutonLab/MOMENT-1-small', 'pretrained_revision': '43ee05b',
      'library_revision': 'momentfm @ 38f7310', 'input_encoding': 'PHASE_AS_PATCH_REPEAT_v1', 'revin_statistics_fusion': True,
      'embedding_reduction': 'mean_over_channels_then_mean_over_observed_patches',
      'model_revision': 'moment_frozen_linear_probe_v2_phase_patch'},
-    {'model_name': 'MOMENT_BASE', 'model_tier': 'F3_TS_FOUNDATION', 'model_family': 'MOMENT', 'variant_role': 'PRIMARY', 'is_pretrained': 1,
+    {'model_name': 'MOMENT_BASE', 'model_tier': 'F3_TS_FOUNDATION', 'model_family': 'MOMENT', 'variant_role': 'DEFERRED', 'is_pretrained': 1,
      'finetune_mode': 'LINEAR_PROBE', 'pretrained_repo': 'AutonLab/MOMENT-1-base', 'pretrained_revision': 'b0ae575',
      'library_revision': 'momentfm @ 38f7310', 'input_encoding': 'PHASE_AS_PATCH_REPEAT_v1', 'revin_statistics_fusion': True,
      'embedding_reduction': 'mean_over_channels_then_mean_over_observed_patches',
@@ -199,6 +199,33 @@ for _m in MODEL_REGISTRY:
                                                 else 'b0ae575'),
                 'prefix_padding': 'RIGHT_ZERO_WITH_EXPLICIT_TIME_MASK_TO_PATCH_LENGTH',
             })
+
+# Locked on 2026-10-12 after the F2/F3 code review.  This is intentionally
+# separate from MODEL_REGISTRY: it declares execution scope, not architecture.
+TEMPORAL_FAMILY_POLICY = {
+    'status': 'LOCKED 2026-10-12',
+    'determinism_pilot': {
+        'required': True,
+        'task': 'CQ', 'window_id': 'W1', 'pipeline_ids': ['V0'], 'seed': 42,
+        'repetitions': 2,
+        'families': ['PATCHTST', 'MOMENT_SMALL'],
+        'acceptance': 'probability/prediction checksum, metrics, best_epoch, and manifest identity must agree',
+    },
+    'F2_PATCHTST': {
+        'role': 'PRIMARY', 'scope': 'FULL_GRID',
+        'pipelines': [f'V{i}' for i in range(17)], 'windows': ['W1', 'W2', 'W3'], 'master_seeds': [42, 43, 44],
+        'implementation': 'channel_independent_shared_encoder__flatten_after_shared_encoder',
+    },
+    'F3_MOMENT_SMALL': {
+        'role': 'EXPLORATORY', 'scope': 'REGISTERED_SUBSET',
+        'pipelines': ['V0', 'V1', 'V5', 'V9', 'V13', 'V2', 'V6', 'V10', 'V14', 'V4', 'V8', 'V12', 'V16'],
+        'windows': ['W1', 'W2', 'W3'], 'master_seeds': [42, 43, 44],
+        'requires_frozen_embedding_cache': True,
+        'radius_smote_policy': 'excluded_from_core__sensitivity_only_due_to_registered_fallback_warning',
+        'interpretation': 'P1 primarily evaluates RevIN statistics/static branch; foundation-backbone benefit is not claimed at P1',
+    },
+    'F3_MOMENT_BASE': {'role': 'DEFERRED', 'scope': 'NOT_SCHEDULED_GD1'},
+}
 
 # ---------------------------------------------------------------------------------------------
 # Metric, sanity, AccTEMPO and recommendation definitions
@@ -528,7 +555,7 @@ PENDING_DECISIONS = [
 # V3.1 closure addendum, approved after the catalog-denominator audit.  Keep
 # the historical declarations above for provenance, but export their resolved
 # forms to every JSON/YAML registry consumer.
-PENDING_DECISIONS = [item for item in PENDING_DECISIONS if item['id'] not in {1, 3, 5, 6, 7, 8, 9}]
+PENDING_DECISIONS = [item for item in PENDING_DECISIONS if item['id'] not in {1, 3, 5, 6, 7, 8, 9, 11, 12}]
 PENDING_DECISIONS.extend([
     {'id': 1, 'topic': 'LO current-grade group and exact proxy field names', 'status': 'CLOSED 2026-10-01',
      'resolution': 'current-grade group locked (9 columns); verified fields: assignment_problem_catalog_count, '
@@ -547,6 +574,13 @@ PENDING_DECISIONS.extend([
      'resolution': 'run the full master-seed design (42, 43, 44); augmentation seed equals the model master seed rather than a hidden fixed draw.'},
     {'id': 10, 'topic': 'full F1 grid and legacy LO result eligibility', 'status': 'CLOSED 2026-10-05',
      'resolution': 'run the full registered architecture/pipeline/seed grid after L4 acceptance; the 51 pre-lineage LO cells remain quarantined and are ineligible for comparison, export, or meta-observation assembly.'},
+    {'id': 11, 'topic': 'F2/F3 experiment scope', 'status': 'CLOSED 2026-10-12',
+     'resolution': 'F2 PATCHTST is PRIMARY and uses the full V0-V16 × W1-W3 × master-seed 42/43/44 grid. '
+                   'F3 MOMENT_SMALL is EXPLORATORY and uses the registered 13-pipeline subset with a frozen embedding cache; '
+                   'MOMENT_BASE is deferred from GĐ1.'},
+    {'id': 12, 'topic': 'PatchTST implementation/identity', 'status': 'CLOSED 2026-10-12',
+     'resolution': 'Use channel-independent PatchTST with shared patch projection/Transformer weights per dynamic channel and '
+                   'concatenate post-encoder channel embeddings only in the task head; revision patchtst_channel_independent_v2_prefixsafe.'},
 ])
 
 
@@ -574,7 +608,8 @@ def all_registries() -> Dict[str, object]:
     return {'pipeline_registry': pipes, 'model_registry': MODEL_REGISTRY, 'metric_def': METRIC_DEF,
             's_san_formula': S_SAN_FORMULA, 'acctempo_def': ACCTEMPO_DEF, 'rec_rule': REC_RULE,
             'label_artifacts': LABEL_ARTIFACTS, 'split_registry': SPLIT_REGISTRY, 'sampling_strategy': SAMPLING_STRATEGY,
-            'experiment_seeds': EXPERIMENT_SEEDS, 'pending_decisions': PENDING_DECISIONS}
+            'experiment_seeds': EXPERIMENT_SEEDS, 'temporal_family_policy': TEMPORAL_FAMILY_POLICY,
+            'pending_decisions': PENDING_DECISIONS}
 
 
 def write_registries(outdir: str) -> Dict[str, str]:
