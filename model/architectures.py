@@ -21,10 +21,45 @@ ARCHITECTURE_METADATA = {
     "lstm": {"model_family": "F1_RECURRENT", "model_revision": "recurrent_shared_phase_v2_4_prefixsafe_epoch50"},
     "gru": {"model_family": "F1_RECURRENT", "model_revision": "recurrent_shared_phase_v2_4_prefixsafe_epoch50"},
     "bilstm": {"model_family": "F1_RECURRENT", "model_revision": "recurrent_shared_phase_v2_4_prefixsafe_epoch50"},
-    "patchtst": {"model_family": "F2_TS_TRANSFORMER", "model_revision": "patchtst_shared_phase_v1_prefixsafe"},
-    "moment_small": {"model_family": "F3_TS_FOUNDATION", "model_revision": "moment_frozen_linear_probe_v1_prefixsafe"},
-    "moment_base": {"model_family": "F3_TS_FOUNDATION", "model_revision": "moment_frozen_linear_probe_v1_prefixsafe"},
+    # Channel-independent PatchTST: each dynamic channel is patched and
+    # encoded with the same Transformer weights; channels only meet in the
+    # task classification head after temporal encoding.
+    "patchtst": {"model_family": "F2_TS_TRANSFORMER", "model_revision": "patchtst_channel_independent_v2_prefixsafe",
+                 "channel_mixing": False, "channel_aggregation": "flatten_after_shared_encoder",
+                 "patch_len": 2, "patch_stride": 1, "transformer_layers": 2, "attention_heads": 4},
+    # v2: phase-as-patch input encoding.  v1 right-padded a k<=4 step prefix inside one 8-step patch, which
+    # momentfm marks as unobserved (a patch is valid only when all patch_len positions are observed); the
+    # encoder then saw the constant mask embedding and ``reduction="mean"`` divided by zero -> NaN.
+    "moment_small": {"model_family": "F3_TS_FOUNDATION", "model_revision": "moment_frozen_linear_probe_v2_phase_patch",
+                     "input_encoding": "PHASE_AS_PATCH_REPEAT_v1", "revin_statistics_fusion": True},
+    "moment_base": {"model_family": "F3_TS_FOUNDATION", "model_revision": "moment_frozen_linear_probe_v2_phase_patch",
+                    "input_encoding": "PHASE_AS_PATCH_REPEAT_v1", "revin_statistics_fusion": True},
 }
+MAX_PHASES = 4
+
+
+def moment_phase_patch_inputs(dynamic_x: torch.Tensor, patch_len: int, max_phases: int = MAX_PHASES):
+    """Encode an observed P1..Pk prefix for the official MOMENT embedding API.
+
+    Each phase occupies one full pretrained patch: its value is repeated ``patch_len`` times, so the
+    ``k`` observed phases form ``k`` fully observed patches and the ``max_phases - k`` future phases form
+    patches whose time mask is zero.  momentfm treats a patch as observed only when every position is
+    observed, drops unobserved patches from attention and from the mean reduction, and RevIN normalises
+    over the masked positions only.  Returns ``(values, time_mask, revin_statistics)`` where
+    ``values`` is ``[batch, channels, max_phases * patch_len]``, ``time_mask`` is
+    ``[batch, max_phases * patch_len]`` and ``revin_statistics`` is ``[batch, 2 * channels]`` (per-channel
+    mean and population std over the observed phases, i.e. exactly what RevIN removes).
+    """
+    batch, steps, channels = dynamic_x.shape
+    if steps < 1 or steps > max_phases:
+        raise ValueError(f"prefix must have 1..{max_phases} phases, got {steps}")
+    values = dynamic_x.new_zeros((batch, channels, max_phases * patch_len))
+    values[:, :, :steps * patch_len] = dynamic_x.transpose(1, 2).repeat_interleave(patch_len, dim=2)
+    time_mask = dynamic_x.new_zeros((batch, max_phases * patch_len))
+    time_mask[:, :steps * patch_len] = 1
+    mean = dynamic_x.mean(dim=1)
+    std = dynamic_x.std(dim=1, unbiased=False) if steps > 1 else dynamic_x.new_zeros((batch, channels))
+    return values, time_mask, torch.cat((mean, std), dim=1)
 
 MOMENT_SPECS = {
     # Weight files were introduced in these immutable repository commits.  At
@@ -150,12 +185,18 @@ class SharedPhaseHybridRecurrentClassifier(nn.Module):
 
 
 class SharedPhasePatchTSTClassifier(nn.Module):
-    """Task-trained PatchTST-style encoder with causal prefix evaluation.
+    """Channel-independent PatchTST with causal prefix evaluation.
+
+    Each dynamic feature is patched as its own univariate series and all
+    channels share patch projection and Transformer weights.  The classifier
+    sees the concatenated *post-encoder* channel representations plus static
+    features.  Thus temporal encoding follows the PatchTST channel-independent
+    contract while the final task head may use the identity of each feature.
 
     P1--P4 has only four time points, so the locked F2 configuration uses
-    two-phase patches and stride one.  P1 is right-padded inside its patch;
-    the padding mask is separate from a numeric zero and no computation for a
-    prefix ever receives a later phase.
+    two-phase patches and stride one. P1 is right-padded inside its patch; the
+    validity values are part of every channel patch and are never confused
+    with a scaled numeric zero.
     """
 
     def __init__(self, dynamic_dim: int, static_dim: int, num_classes: int,
@@ -168,9 +209,11 @@ class SharedPhasePatchTSTClassifier(nn.Module):
         if hidden_size % attention_heads:
             raise ValueError("PatchTST hidden_size must divide attention_heads")
         self.patch_len, self.patch_stride = patch_len, patch_stride
-        # A dedicated validity channel distinguishes right-padding from a
-        # legitimate scaled zero in a feature value.
-        self.patch_projection = nn.Linear((dynamic_dim + 1) * patch_len, hidden_size)
+        self.dynamic_dim = int(dynamic_dim)
+        # A channel is encoded independently as [values, validity] for every
+        # position in its patch. Projection/encoder weights are shared across
+        # all C channels, as required by channel-independent PatchTST.
+        self.patch_projection = nn.Linear(2 * patch_len, hidden_size)
         self.position = nn.Parameter(torch.zeros(1, 4, hidden_size))
         layer = nn.TransformerEncoderLayer(
             d_model=hidden_size, nhead=attention_heads, dim_feedforward=hidden_size * 4,
@@ -178,29 +221,38 @@ class SharedPhasePatchTSTClassifier(nn.Module):
         )
         self.encoder = nn.TransformerEncoder(layer, num_layers=transformer_layers)
         self.norm = nn.LayerNorm(hidden_size)
-        self.head = nn.Sequential(nn.Dropout(dropout), nn.Linear(hidden_size + static_dim, num_classes))
+        self.head = nn.Sequential(
+            nn.Dropout(dropout),
+            nn.Linear(self.dynamic_dim * hidden_size + static_dim, num_classes),
+        )
 
     def _encode_prefix(self, dynamic_x: torch.Tensor) -> torch.Tensor:
         """Encode exactly the supplied prefix, never a padded future phase."""
         batch, observed_steps, channels = dynamic_x.shape
+        if channels != self.dynamic_dim:
+            raise ValueError("PatchTST channel count differs from fitted shared feature tensor")
         steps = observed_steps
         if steps < self.patch_len:
             pad = dynamic_x.new_zeros((batch, self.patch_len - steps, channels))
             dynamic_x = torch.cat((dynamic_x, pad), dim=1)
             steps = self.patch_len
-        validity = dynamic_x.new_zeros((batch, steps, 1))
-        validity[:, :observed_steps] = 1
-        patch_input = torch.cat((dynamic_x, validity), dim=2)
-        patches = patch_input.unfold(1, self.patch_len, self.patch_stride)
-        # unfold gives [B, n_patches, C+1, patch_len]; flatten in a documented,
-        # deterministic channel-then-time order.
-        patches = patches.contiguous().reshape(batch, patches.size(1), (channels + 1) * self.patch_len)
+        validity = dynamic_x.new_zeros((batch, 1, steps))
+        validity[:, :, :observed_steps] = 1
+        # [B, C, T] -> [B, C, patches, patch_len]. The validity channel is
+        # duplicated per series rather than used as a cross-channel feature.
+        values = dynamic_x.transpose(1, 2)
+        value_patches = values.unfold(2, self.patch_len, self.patch_stride)
+        valid_patches = validity.expand(-1, channels, -1).unfold(2, self.patch_len, self.patch_stride)
+        patches = torch.cat((value_patches, valid_patches), dim=3)
+        n_patches = patches.size(2)
+        patches = patches.contiguous().reshape(batch * channels, n_patches, 2 * self.patch_len)
         tokens = self.patch_projection(patches)
         if tokens.size(1) > self.position.size(1):
             raise ValueError("PatchTST prefix has more patches than the registered P1-P4 contract")
         tokens = tokens + self.position[:, :tokens.size(1)]
         encoded = self.encoder(tokens)
-        return self.norm(encoded.mean(dim=1))
+        channel_embeddings = self.norm(encoded.mean(dim=1)).reshape(batch, channels, -1)
+        return channel_embeddings.flatten(start_dim=1)
 
     def forward(self, dynamic_x: torch.Tensor, static_x: torch.Tensor) -> torch.Tensor:
         outputs = []
@@ -213,11 +265,15 @@ class SharedPhasePatchTSTClassifier(nn.Module):
 class SharedPhaseMomentClassifier(nn.Module):
     """Frozen official MOMENT encoder plus a trainable static-fusion head.
 
-    The official MOMENT embedding API handles multi-channel tensors.  We keep
-    every numeric/mask/timing channel from the common tensor as a channel,
-    pad only the *right* side of the observed P1--Pk prefix to its pretrained
-    patch length, and pass an explicit time mask.  Encoder weights remain
-    frozen; only the task head is optimized (the registered linear-probe mode).
+    The official MOMENT embedding API handles multi-channel tensors.  Every
+    numeric/mask/timing channel of the common tensor is one channel.  Each
+    observed phase is encoded as one full pretrained patch (value repeated
+    ``patch_len`` times) and future phases are masked out, so a P1..Pk prefix
+    yields ``k`` observed patches (see :func:`moment_phase_patch_inputs`).
+    Encoder weights remain frozen; only the task head is optimized (the
+    registered linear-probe mode).  Per-channel RevIN statistics of the
+    prefix are fused into the head because RevIN removes them from the
+    encoder input.
     """
 
     frozen_backbone = True
@@ -253,7 +309,12 @@ class SharedPhaseMomentClassifier(nn.Module):
         embedding_dim = int(getattr(self.backbone.config, "d_model"))
         self.patch_len = int(getattr(self.backbone.config, "patch_len", 8))
         self.dynamic_dim = dynamic_dim
-        self.head = nn.Sequential(nn.Dropout(dropout), nn.Linear(embedding_dim + static_dim, num_classes))
+        self.revin_statistics_fusion = True
+        # RevIN removes the per-channel level and scale of every series; with k <= 4 phases that is most of
+        # the signal (at P1 the normalised input is identically zero).  The statistics are therefore handed
+        # to the task head, which keeps the backbone frozen and the adaptation linear.
+        statistics_dim = 2 * dynamic_dim if self.revin_statistics_fusion else 0
+        self.head = nn.Sequential(nn.Dropout(dropout), nn.Linear(embedding_dim + statistics_dim + static_dim, num_classes))
 
     def train(self, mode: bool = True):
         super().train(mode)
@@ -262,15 +323,11 @@ class SharedPhaseMomentClassifier(nn.Module):
         self.backbone.eval()
         return self
 
-    def _embedding(self, dynamic_x: torch.Tensor) -> torch.Tensor:
+    def _embedding(self, dynamic_x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         batch, steps, channels = dynamic_x.shape
         if channels != self.dynamic_dim:
             raise ValueError("MOMENT channel count differs from fitted shared feature tensor")
-        length = max(steps, self.patch_len)
-        values = dynamic_x.new_zeros((batch, channels, length))
-        values[:, :, :steps] = dynamic_x.transpose(1, 2)
-        time_mask = dynamic_x.new_zeros((batch, length))
-        time_mask[:, :steps] = 1
+        values, time_mask, statistics = moment_phase_patch_inputs(dynamic_x, self.patch_len, MAX_PHASES)
         embeddings = []
         # Frozen encoder has no backward requirement. Microbatching avoids
         # materialising B × hundreds-of-channels inside a foundation backbone.
@@ -281,13 +338,17 @@ class SharedPhaseMomentClassifier(nn.Module):
                     x_enc=values[start:end], input_mask=time_mask[start:end], reduction="mean"
                 )
                 embeddings.append(output.embeddings)
-        return torch.cat(embeddings, dim=0).to(dtype=dynamic_x.dtype)
+        embedding = torch.cat(embeddings, dim=0).to(dtype=dynamic_x.dtype)
+        if not torch.isfinite(embedding).all():
+            raise RuntimeError("MOMENT returned a non-finite embedding; check the phase-as-patch time mask")
+        return embedding, statistics
 
     def forward(self, dynamic_x: torch.Tensor, static_x: torch.Tensor) -> torch.Tensor:
         outputs = []
         for end in range(1, dynamic_x.size(1) + 1):
-            temporal = self._embedding(dynamic_x[:, :end])
-            outputs.append(self.head(torch.cat((temporal, static_x), dim=1)))
+            temporal, statistics = self._embedding(dynamic_x[:, :end])
+            parts = (temporal, statistics, static_x) if self.revin_statistics_fusion else (temporal, static_x)
+            outputs.append(self.head(torch.cat(parts, dim=1)))
         return torch.stack(outputs, dim=1)
 
 

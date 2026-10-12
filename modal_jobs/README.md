@@ -145,58 +145,65 @@ following cadence is part of the execution contract:
 | STRICT/OVERLAP prediction-slice audit | Once per distinct prediction grid (model family × seed × pipeline scope). |
 | Report export | Reads existing immutable L2 facts; never retrains or recomputes model predictions. |
 
-Consequently, after a validation-governed shortlist is locked, repeat S3 and
-the prediction-slice audit only for the shortlisted pipelines and planned
-seeds/architectures.  Do not use a TEST report refresh as a reason to rerun
-S0--S3.
+The registered F1 design is the full grid (17 pipelines x 4 recurrent models
+x 3 windows x 3 seeds per task, `GRID_POLICY`); VALIDATION facts are reported
+and used for the selection-margin check, not to shortlist pipelines.  The
+scope of the F2/F3 stages (`family_smoke`, `family_screen`) is a design
+change that must be registered by the authors before any F2/F3 result is
+read.  Do not use a TEST report refresh as a reason to rerun S0--S3.
 
-Balanced S2 TRAIN artifacts are materialized once with augmentation seed `42`.
-Model stability is then measured with model seeds `42`, `43`, and `44`, all
-using that same fixed augmentation artifact.
+The registered stability policy is `MATCH_MASTER_SEED` (decision of
+2026-10-05, `LO/registries.py` `EXPERIMENT_SEEDS`): one balanced S2 TRAIN
+artifact per master seed `42`, `43`, `44`, and every S3 cell with master seed
+`s` consumes the S2 artifact created with the same `s`.  The seed-42 pilot
+needs only the seed-42 artifacts; the stability runs need all three.
 
 ```powershell
 # One task: 3 windows × 4 imputer parents × 3 balancers × 3 master seeds.
-.\modal_jobs\run_augmentation_grid.ps1 -Task CQ -Seeds 42
+.\modal_jobs\run_augmentation_grid.ps1 -Task CQ -Seeds 42          # pilot
+.\modal_jobs\run_augmentation_grid.ps1 -Task CQ -Seeds 42,43,44    # stability
 
-# The default policy keeps augmentation seed fixed at 42.
+# The default policy of run_model_grid.ps1 is match_model_seed; no flag is needed.
 .\modal_jobs\run_model_grid.ps1 `
-  -Task CQ -Mode grid -Seeds 42,43,44 `
-  -AugmentationSeedPolicy fixed -AugmentationSeed 42
+  -Task CQ -Mode grid -Seeds 42,43,44
 ```
 
-Use `-AugmentationSeedPolicy match_model_seed` only for a separate
-augmentation-seed sensitivity design.
+Use `-AugmentationSeedPolicy fixed -AugmentationSeed 42` only for a separately
+registered fixed-augmentation sensitivity design; it is not the stability
+protocol.
 
 ### Ordered temporal-family extension
 
 `PATCHTST`, `MOMENT_SMALL`, and `MOMENT_BASE` use the same fitted numeric
 prefix tensor, static branch, class order, validation selection, predictions,
-and L2 fact schema as the recurrent models.  They are deliberately excluded
-from `-Mode grid`: the protocol evaluates them by the ordered F1 → F2 → F3
-stages rather than multiplying them across V0--V16 before validation evidence.
+and L2 fact schema as the recurrent models. They are exposed through ordered
+F1/F2/F3 smoke and screen stages. This is exploratory, not a substitute for
+the registered full grid: authors must register the final F2/F3 scope in
+`GRID_POLICY` before interpreting any F2/F3 result.
 
 ```powershell
 # FM0: CQ (or LO) correctness/resource smoke test, four ordered representatives.
 .\modal_jobs\run_model_grid.ps1 `
-  -Task CQ -Mode family_smoke -Seeds 42 `
-  -AugmentationSeedPolicy fixed -AugmentationSeed 42
+  -Task CQ -Mode family_smoke -Seeds 42
 
 # Explicit MOMENT-base run; MOMENT remains frozen and only its task head trains.
 .\modal_jobs\run_model_grid.ps1 `
   -Task CQ -Mode pilot -Windows W1 -Pipelines V0 `
-  -Models MOMENT_BASE -Seeds 42 `
-  -AugmentationSeedPolicy fixed -AugmentationSeed 42
+  -Models MOMENT_BASE -Seeds 42
 
 # FM1: matched V0/V12 screening, paired master seeds.
 .\modal_jobs\run_model_grid.ps1 `
-  -Task CQ -Mode family_screen -Seeds 42,43,44 `
-  -AugmentationSeedPolicy fixed -AugmentationSeed 42
+  -Task CQ -Mode family_screen -Seeds 42,43,44
 ```
 
-PatchTST uses the registered two-phase/stride-one prefix patches. MOMENT uses
-the official `momentfm` embedding model at its pinned repository revision;
-each observed prefix is right-padded only to its pretrained patch length with
-an explicit time mask. The encoder is frozen (`FROZEN_LINEAR_PROBE`), its
+PatchTST uses registered two-phase/stride-one prefix patches independently for
+each dynamic channel with shared projection/Transformer weights; only its task
+head combines post-encoder channel embeddings with static features. MOMENT uses the
+official `momentfm` embedding model at its pinned repository revision with the
+phase-as-patch encoding: each observed phase fills one pretrained patch
+(`patch_len` repeats) and future phases are masked, because momentfm counts a
+patch as observed only when every position is observed; the per-channel RevIN
+statistics of the prefix are fused into the task head. The encoder is frozen (`FROZEN_LINEAR_PROBE`), its
 resolved snapshot is recorded in the run manifest, and only the shared task
 head is checkpointed. The initial snapshot download is cached under
 `/data/model_cache/huggingface`; do not treat a first-download wall time as

@@ -28,6 +28,7 @@ input_root="/input/LO_v3_1"
 artifact_root="${LO_ARTIFACT_ROOT:-$project_root/upload_staging/LO}"
 phase_source="${LO_PHASE_SOURCE:-$artifact_root/phase_views_v3_1_scored_signal_excluded}"
 test_source="${LO_TEST_SOURCE:-$artifact_root/test_prefix_views_v3_1_scored_signal_excluded}"
+allow_missing_success_marker="${ALLOW_MISSING_SUCCESS_MARKER:-0}"
 
 if [[ ! -x "$python_bin" ]]; then
   echo "Modal Python not found: $python_bin" >&2
@@ -49,15 +50,32 @@ replace_remote_directory() {
   "$python_bin" -m modal volume put --force "$modal_volume" "$source" "$(dirname "$destination")/"
 }
 
+require_success_marker() {
+  local directory="$1"
+  local description="$2"
+  if [[ -f "$directory/_SUCCESS" ]]; then
+    return 0
+  fi
+  if [[ "$allow_missing_success_marker" == "1" ]]; then
+    echo "WARNING: $description has no _SUCCESS marker; explicit override enabled" >&2
+    return 0
+  fi
+  echo "$description is missing _SUCCESS: $directory/_SUCCESS" >&2
+  echo "Set ALLOW_MISSING_SUCCESS_MARKER=1 only for a manually extracted release that was independently verified." >&2
+  exit 1
+}
+
 case "$stage" in
   upload)
     [[ -d "$phase_source" ]] || { echo "Missing extracted artifact: $phase_source" >&2; exit 1; }
     compgen -G "$phase_source/*.parquet" >/dev/null ||
       { echo "Phase view has no Parquet data: $phase_source" >&2; exit 1; }
+    require_success_marker "$phase_source" "Phase view"
     [[ -d "$test_source" ]] || { echo "Missing extracted artifact: $test_source" >&2; exit 1; }
     for phase in P1 P2 P3 P4; do
       compgen -G "$test_source/$phase/*.parquet" >/dev/null ||
         { echo "Test prefix has no Parquet data: $test_source/$phase" >&2; exit 1; }
+      require_success_marker "$test_source/$phase" "Test prefix $phase"
     done
     replace_remote_directory "$phase_source" "$input_root/phase_views_v3_1_scored_signal_excluded"
     replace_remote_directory "$test_source" "$input_root/test_prefix_views_v3_1_scored_signal_excluded"

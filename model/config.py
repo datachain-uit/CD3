@@ -5,7 +5,7 @@ from dataclasses import asdict, dataclass
 from typing import Literal
 
 
-Architecture = Literal["rnn", "lstm", "gru", "bilstm"]
+Architecture = Literal["rnn", "lstm", "gru", "bilstm", "patchtst", "moment_small", "moment_base"]
 
 
 @dataclass(frozen=True)
@@ -42,8 +42,8 @@ class ModelConfig:
             raise ValueError("window_id must be W1, W2 or W3")
         if self.phase_id not in {"P1", "P2", "P3", "P4"}:
             raise ValueError("phase_id must be P1-P4")
-        if self.architecture not in {"rnn", "lstm", "gru", "bilstm"}:
-            raise ValueError("architecture must be rnn/lstm/gru/bilstm")
+        if self.architecture not in {"rnn", "lstm", "gru", "bilstm", "patchtst", "moment_small", "moment_base"}:
+            raise ValueError("architecture must be rnn/lstm/gru/bilstm/patchtst/moment_small/moment_base")
         if self.input_mode == "v0_mask" and not self.use_masks:
             raise ValueError("V0_mask must retain availability and missingness masks")
 

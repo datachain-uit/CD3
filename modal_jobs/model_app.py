@@ -321,7 +321,9 @@ def train_temporal(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0"
             "library_source_repository": MOMENTFM_SOURCE_REPOSITORY,
             "library_source_revision": MOMENTFM_SOURCE_REVISION,
             "cache_policy": "SNAPSHOT_BEFORE_MEASURED_TRAINING",
-            "prefix_padding": "RIGHT_ZERO_WITH_EXPLICIT_TIME_MASK_TO_PATCH_LENGTH",
+            "input_encoding": architecture_metadata["input_encoding"],
+            "revin_statistics_fusion": architecture_metadata["revin_statistics_fusion"],
+            "embedding_reduction": "mean_over_channels_then_mean_over_observed_patches",
         }
     run_id = hashlib.sha256(_canonical_json(config).encode()).hexdigest()
     run_base = (Path(MOUNT) / f"meta_release={META_RELEASE}" / "L1_runs" / f"task={task}" /

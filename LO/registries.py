@@ -43,7 +43,7 @@ try:
 except ImportError:  # Supports ``python LO/registries.py`` as documented.
     from seeds import sha256_of, SEED_PREPROCESS
 
-REGISTRY_REVISION = 'registries_rev_2026-10-05_r1'
+REGISTRY_REVISION = 'registries_rev_2026-10-12_r2'
 
 # ---------------------------------------------------------------------------------------------
 # Pipeline registry V0–V16 (PLAN Table 7 / Table 14)
@@ -161,14 +161,44 @@ MODEL_REGISTRY = [
     {'model_name': 'LSTM', 'model_tier': 'F1_RECURRENT', 'model_family': 'LSTM', 'variant_role': 'PRIMARY'},
     {'model_name': 'GRU', 'model_tier': 'F1_RECURRENT', 'model_family': 'GRU', 'variant_role': 'ROBUSTNESS'},
     {'model_name': 'BILSTM', 'model_tier': 'F1_RECURRENT', 'model_family': 'LSTM', 'variant_role': 'ROBUSTNESS'},
-    {'model_name': 'PATCHTST', 'model_tier': 'F2_TS_TRANSFORMER', 'model_family': 'PATCHTST', 'variant_role': 'PRIMARY'},
-    {'model_name': 'MOMENT_SMALL', 'model_tier': 'F3_TS_FOUNDATION', 'model_family': 'MOMENT', 'variant_role': 'PRIMARY', 'is_pretrained': 1, 'finetune_mode': 'LINEAR_PROBE'},
-    {'model_name': 'MOMENT_BASE', 'model_tier': 'F3_TS_FOUNDATION', 'model_family': 'MOMENT', 'variant_role': 'PRIMARY', 'is_pretrained': 1, 'finetune_mode': 'LINEAR_PROBE'},
+    {'model_name': 'PATCHTST', 'model_tier': 'F2_TS_TRANSFORMER', 'model_family': 'PATCHTST', 'variant_role': 'PRIMARY',
+     'max_seq_len': 4, 'patch_len': 2, 'patch_stride': 1, 'transformer_layers': 2, 'attention_heads': 4, 'd_model': 128,
+     'channel_mixing': False, 'channel_aggregation': 'flatten_after_shared_encoder',
+     'model_revision': 'patchtst_channel_independent_v2_prefixsafe',
+     'implementation_note': 'each dynamic channel is patched and Transformer-encoded independently with shared weights; '
+                            'the classification head receives concatenated post-encoder channel embeddings and static features'},
+    {'model_name': 'MOMENT_SMALL', 'model_tier': 'F3_TS_FOUNDATION', 'model_family': 'MOMENT', 'variant_role': 'PRIMARY', 'is_pretrained': 1,
+     'finetune_mode': 'LINEAR_PROBE', 'pretrained_repo': 'AutonLab/MOMENT-1-small', 'pretrained_revision': '43ee05b',
+     'library_revision': 'momentfm @ 38f7310', 'input_encoding': 'PHASE_AS_PATCH_REPEAT_v1', 'revin_statistics_fusion': True,
+     'embedding_reduction': 'mean_over_channels_then_mean_over_observed_patches',
+     'model_revision': 'moment_frozen_linear_probe_v2_phase_patch'},
+    {'model_name': 'MOMENT_BASE', 'model_tier': 'F3_TS_FOUNDATION', 'model_family': 'MOMENT', 'variant_role': 'PRIMARY', 'is_pretrained': 1,
+     'finetune_mode': 'LINEAR_PROBE', 'pretrained_repo': 'AutonLab/MOMENT-1-base', 'pretrained_revision': 'b0ae575',
+     'library_revision': 'momentfm @ 38f7310', 'input_encoding': 'PHASE_AS_PATCH_REPEAT_v1', 'revin_statistics_fusion': True,
+     'embedding_reduction': 'mean_over_channels_then_mean_over_observed_patches',
+     'model_revision': 'moment_frozen_linear_probe_v2_phase_patch'},
 ]
 for _m in MODEL_REGISTRY:
     if _m['model_tier'] != 'F0_REFERENCE':
         _m.update({'input_channels': INPUT_CHANNELS, 'uses_mask_channels': 1, 'uses_delta_t': 1, 'uses_phase_id': 1,
                    'uses_observed_length': 1, 'identifier_embeddings': 0, **COMMON_HPARAMS})
+        if _m['model_name'] == 'PATCHTST':
+            _m.update({
+                'hparam_config_id': 'HP_PATCHTST_CHANNEL_INDEPENDENT_v2',
+                'patch_len': 2, 'patch_stride': 1, 'transformer_layers': 2,
+                'attention_heads': 4, 'prefix_padding': 'RIGHT_ZERO_WITH_SEPARATE_PATCH_MASK',
+                'channel_mixing': False, 'channel_aggregation': 'flatten_after_shared_encoder',
+            })
+        elif _m['model_name'] in {'MOMENT_SMALL', 'MOMENT_BASE'}:
+            _m.update({
+                'hparam_config_id': 'HP_MOMENT_FROZEN_LINEAR_PROBE_v1',
+                'finetune_mode': 'LINEAR_PROBE', 'encoder_frozen': 1,
+                'backbone_repo': ('AutonLab/MOMENT-1-small' if _m['model_name'] == 'MOMENT_SMALL'
+                                  else 'AutonLab/MOMENT-1-base'),
+                'backbone_requested_revision': ('43ee05b' if _m['model_name'] == 'MOMENT_SMALL'
+                                                else 'b0ae575'),
+                'prefix_padding': 'RIGHT_ZERO_WITH_EXPLICIT_TIME_MASK_TO_PATCH_LENGTH',
+            })
 
 # ---------------------------------------------------------------------------------------------
 # Metric, sanity, AccTEMPO and recommendation definitions

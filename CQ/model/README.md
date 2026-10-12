@@ -16,3 +16,9 @@ tree, and execution identity.
 
 - `patchtst/`: F2 task-trained causal PatchTST.
 - `moment_small/`: F3 frozen MOMENT-Small encoder with a trainable task head.
+
+Run a single cell through its task wrapper, for example:
+
+```powershell
+python .\CQ\model\patchtst\run_vastai.py --data-root <release-root> --output-root <runs-root> --window W1 --pipeline-id V0 --seed 42
+```

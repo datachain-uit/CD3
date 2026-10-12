@@ -117,16 +117,31 @@ Write-Host "  remote=$remoteRoot"
 
 if ($VerifyOnly) { return }
 
+$remoteTargets = @(
+    "$remoteRoot/$($release.PhaseDirectory)",
+    "$remoteRoot/$($release.TestDirectory)",
+    "$remoteRoot/$($release.LineageDirectory)",
+    "$remoteRoot/release_manifest.json"
+)
+$existingRemoteTargets = @()
+foreach ($remotePath in $remoteTargets) {
+    # ``volume put --force`` updates matching file names but retains stale
+    # parts.  A caller must explicitly choose the narrow replacement path.
+    & python -X utf8 -m modal volume ls $Volume $remotePath *> $null
+    if ($LASTEXITCODE -eq 0) { $existingRemoteTargets += $remotePath }
+}
+if ($existingRemoteTargets.Count -gt 0 -and -not $ReplaceExisting) {
+    throw (
+        "Remote release already exists ($($existingRemoteTargets -join ', ')). " +
+        "Refusing a partial overwrite; rerun with -ReplaceExisting after confirming the release scope."
+    )
+}
+
 if ($ReplaceExisting) {
     # Deliberately narrow destructive scope: these are source inputs only.
     # Never remove /meta_release=imputation-v1, where immutable run results
     # and facts are retained for provenance.
-    foreach ($remotePath in @(
-        "$remoteRoot/$($release.PhaseDirectory)",
-        "$remoteRoot/$($release.TestDirectory)",
-        "$remoteRoot/$($release.LineageDirectory)",
-        "$remoteRoot/release_manifest.json"
-    )) {
+    foreach ($remotePath in $remoteTargets) {
         & python -X utf8 -m modal volume rm --recursive $Volume $remotePath
         if ($LASTEXITCODE -ne 0) {
             throw "Could not remove existing source input '$remotePath' (exit code $LASTEXITCODE)"
