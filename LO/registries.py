@@ -168,7 +168,7 @@ MODEL_REGISTRY = [
      'attention_backend': 'math_sdp__scoped_to_encoder_call__flash_and_mem_efficient_rejected_for_large_BxC',
      'implementation_note': 'each dynamic channel is patched and Transformer-encoded independently with shared weights; '
                             'the classification head receives concatenated post-encoder channel embeddings and static features'},
-    {'model_name': 'MOMENT_SMALL', 'model_tier': 'F3_TS_FOUNDATION', 'model_family': 'MOMENT', 'variant_role': 'EXPLORATORY', 'is_pretrained': 1,
+    {'model_name': 'MOMENT_SMALL', 'model_tier': 'F3_TS_FOUNDATION', 'model_family': 'MOMENT', 'variant_role': 'DEFERRED_UNTIL_F2_COMPLETE', 'is_pretrained': 1,
      'finetune_mode': 'LINEAR_PROBE', 'pretrained_repo': 'AutonLab/MOMENT-1-small', 'pretrained_revision': '43ee05b',
      'library_revision': 'momentfm @ 38f7310', 'input_encoding': 'PHASE_AS_PATCH_REPEAT_v1_1', 'revin_statistics_fusion': True,
      'constant_channel_guard': 'zero_input_when_prefix_std_below_1e-6_relative',
@@ -214,7 +214,7 @@ TEMPORAL_FAMILY_POLICY = {
         'required': True,
         'task': 'CQ', 'window_id': 'W1', 'pipeline_ids': ['V0'], 'seed': 42,
         'repetitions': 2,
-        'families': ['PATCHTST', 'MOMENT_SMALL'],
+        'families': ['PATCHTST'],
         'acceptance': 'probability/prediction checksum, metrics, best_epoch, and manifest identity must agree',
     },
     'F2_PATCHTST': {
@@ -223,7 +223,7 @@ TEMPORAL_FAMILY_POLICY = {
         'implementation': 'channel_independent_shared_encoder__flatten_after_shared_encoder',
     },
     'F3_MOMENT_SMALL': {
-        'role': 'EXPLORATORY', 'scope': 'REGISTERED_SUBSET',
+        'role': 'DEFERRED', 'scope': 'AFTER_F2_COMPLETE',
         # The registered 13-cell exploratory core retains both usable
         # augmentation families. RadiusSMOTE is deliberately outside this
         # core because its locked-radius audit has a 56--90% nearest-neighbour
@@ -587,7 +587,7 @@ PENDING_DECISIONS.extend([
      'resolution': 'run the full registered architecture/pipeline/seed grid after L4 acceptance; the 51 pre-lineage LO cells remain quarantined and are ineligible for comparison, export, or meta-observation assembly.'},
     {'id': 11, 'topic': 'F2/F3 experiment scope', 'status': 'CLOSED 2026-10-12',
      'resolution': 'F2 PATCHTST is PRIMARY and uses the full V0-V16 × W1-W3 × master-seed 42/43/44 grid. '
-                   'F3 MOMENT_SMALL is EXPLORATORY and uses the registered 13-pipeline subset with a frozen embedding cache; '
+                   'F3 MOMENT_SMALL is deferred until F2 completion; it then uses the registered 13-pipeline subset with a frozen embedding cache; '
                    'MOMENT_BASE is deferred from GĐ1.'},
     {'id': 12, 'topic': 'PatchTST implementation/identity', 'status': 'CLOSED 2026-10-12',
      'resolution': 'Use channel-independent PatchTST with shared patch projection/Transformer weights per dynamic channel and '

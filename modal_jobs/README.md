@@ -148,8 +148,9 @@ following cadence is part of the execution contract:
 The registered F1 design is the full grid (17 pipelines x 4 recurrent models
 x 3 windows x 3 seeds per task, `GRID_POLICY`); VALIDATION facts are reported
 and used for the selection-margin check, not to shortlist pipelines. F2 is
-also full-grid after its deterministic pilot. F3 MOMENT_SMALL is a registered
-exploratory subset after its deterministic pilot and frozen-embedding cache;
+also full-grid after its deterministic pilot. F3 MOMENT_SMALL is deferred until
+F2 completes; its registered exploratory subset then requires a frozen-embedding
+cache.
 MOMENT_BASE is deferred from GĐ1. Do not use a TEST report refresh as a reason
 to rerun S0--S3.
 
@@ -177,27 +178,25 @@ protocol.
 
 `PATCHTST`, `MOMENT_SMALL`, and `MOMENT_BASE` use the same fitted numeric
 prefix tensor, static branch, class order, validation selection, predictions,
-and L2 fact schema as the recurrent models. Each new family first runs the
-required deterministic pilot twice on CQ/W1/V0/seed42. PatchTST is then run as
-the F2 full grid; MOMENT_SMALL uses its registered 13-pipeline F3 exploratory
-subset only after frozen embedding caching is available.
+and L2 fact schema as the recurrent models. PatchTST first runs the required
+deterministic pilot twice on CQ/W1/V0/seed42 and then the F2 full grid.
+MOMENT_SMALL is deferred until F2 is complete; its registered 13-pipeline F3
+exploratory subset then requires frozen embedding caching.
 
 ```powershell
-# Determinism acceptance: run each command twice and compare prediction/probability
+# Determinism acceptance: run this command twice and compare prediction/probability
 # checksums, metrics, best_epoch, and manifest identity.
 .\modal_jobs\run_model_grid.ps1 `
   -Task CQ -Mode pilot -Windows W1 -Pipelines V0 -Models PATCHTST -Seeds 42
-.\modal_jobs\run_model_grid.ps1 `
-  -Task CQ -Mode pilot -Windows W1 -Pipelines V0 -Models MOMENT_SMALL -Seeds 42
 
 # F2 primary: full grid, after PatchTST determinism acceptance.
 .\modal_jobs\run_model_grid.ps1 `
   -Task CQ -Mode grid -Models PATCHTST -Seeds 42,43,44
 
-# F3 exploratory core: five imputers, CDSMOTE and SASMOTE (13 pipelines);
-# RadiusSMOTE is a separately-labelled sensitivity analysis because its
-# registered fallback rate exceeds the warning threshold. Requires frozen
-# embedding cache.
+# F3 exploratory core, only after F2 is complete: five imputers, CDSMOTE and
+# SASMOTE (13 pipelines). RadiusSMOTE is a separately-labelled sensitivity
+# analysis because its registered fallback rate exceeds the warning threshold.
+# Requires frozen embedding cache.
 .\modal_jobs\run_model_grid.ps1 `
   -Task CQ -Mode grid `
   -Pipelines V0,V1,V5,V9,V13,V2,V6,V10,V14,V3,V7,V11,V15 `

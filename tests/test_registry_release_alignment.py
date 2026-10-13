@@ -68,6 +68,9 @@ def test_model_registry_rows_match_architecture_metadata():
 
 def test_moment_exploratory_core_excludes_radius_and_keeps_sasmote():
     policy = registries.TEMPORAL_FAMILY_POLICY["F3_MOMENT_SMALL"]
+    assert policy["role"] == "DEFERRED"
+    assert policy["scope"] == "AFTER_F2_COMPLETE"
+    assert registries.TEMPORAL_FAMILY_POLICY["determinism_pilot"]["families"] == ["PATCHTST"]
     core = set(policy["pipelines"])
     sensitivity = set(policy["sensitivity_pipeline_ids"])
     assert len(core) == 13
