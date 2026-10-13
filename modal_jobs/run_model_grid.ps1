@@ -18,6 +18,7 @@ param(
     [ValidateSet("match_model_seed", "fixed")][string]$AugmentationSeedPolicy = "match_model_seed",
     [int]$AugmentationSeed = -1,
     [ValidateSet("CQ_V2_2", "LO_V3_1")][string]$ReleaseId = "",
+    [int]$AccumulationSteps = 1,
     [switch]$SkipSanity,
     [string]$LogRoot = ".\logs\model_grid"
 )
@@ -80,6 +81,7 @@ foreach ($item in $plan) {
                    "--pipeline-id", $item.pipeline_id, "--model-name", $item.model_name,
                    "--seed", "$($item.seed)", "--augmentation-seed", "$($item.augmentation_seed)",
                    "--release-id", $item.release_id)
+    if ($AccumulationSteps -gt 1) { $modelArgs += @("--accumulation-steps", "$AccumulationSteps") }
     if ($PSCmdlet.ShouldProcess($tag, "train model")) {
         # Python/Modal emits deprecation warnings on stderr.  PowerShell 7
         # otherwise promotes that stderr text to NativeCommandError when

@@ -6,6 +6,8 @@ The MOMENT test reproduces the patch-view mask arithmetic of momentfm revision
 from __future__ import annotations
 
 import torch
+import numpy as np
+import pandas as pd
 
 from model.architectures import (
     ARCHITECTURE_METADATA,
@@ -164,3 +166,38 @@ def test_factory_preserves_shared_phase_shape_for_task_trained_backbones() -> No
     for architecture in ("rnn", "lstm", "gru", "bilstm", "patchtst"):
         model = build_shared_phase_model(7, 3, 3, architecture, hidden_size=16, num_layers=1)
         assert model(dynamic, static).shape == (2, 4, 3)
+
+
+def test_patchtst_gradient_accumulation_preserves_registered_update() -> None:
+    from model.data import fit_layout
+    from model.shared_phase import train_shared_checkpoint
+    rng = np.random.default_rng(7)
+    def frame(rows: int) -> pd.DataFrame:
+        values: dict[str, object] = {"enrollment_id": [f"e{n}" for n in range(rows)],
+                                     "CQ_label_final": rng.choice(["warning", "average", "good"], rows),
+                                     "static_a": rng.normal(size=rows).astype("float32")}
+        for phase in range(1, 5):
+            values[f"phase_available_P{phase}"] = np.ones(rows, dtype="float32")
+            for modality in ("video", "problem", "comment"):
+                values[f"{modality}_observed_mask_P{phase}"] = np.ones(rows, dtype="float32")
+            for base in ("video_count", "problem_count"):
+                values[f"{base}_P{phase}"] = rng.normal(size=rows).astype("float32")
+                values[f"missing__{base}_P{phase}"] = np.zeros(rows, dtype="float32")
+        return pd.DataFrame(values)
+    train, validation = frame(64), frame(16)
+    layout = fit_layout(train, task="CQ", phase_id="P4", use_masks=True)
+    full, _ = train_shared_checkpoint(layout=layout, classes=("warning", "average", "good"),
+        train_frame=train, validation_frame=validation, architecture="patchtst", seed=7,
+        dataloader_seed=11, hidden_size=16, dropout=0.0, batch_size=64, max_epochs=1,
+        patience=1, workers=0, accumulation_steps=1)
+    accumulated, _ = train_shared_checkpoint(layout=layout, classes=("warning", "average", "good"),
+        train_frame=train, validation_frame=validation, architecture="patchtst", seed=7,
+        dataloader_seed=11, hidden_size=16, dropout=0.0, batch_size=64, max_epochs=1,
+        patience=1, workers=0, accumulation_steps=4)
+    assert accumulated["micro_batch_size"] == 16
+    assert accumulated["history"][0]["train_seconds"] > 0
+    for name, tensor in full["checkpoint"]["model_state_dict"].items():
+        other = accumulated["checkpoint"]["model_state_dict"][name]
+        if name.endswith("self_attn.in_proj_bias"):
+            continue  # zero-gradient key-bias is AdamW rounding-sensitive
+        assert torch.allclose(tensor, other, atol=5e-5, rtol=1e-4), name

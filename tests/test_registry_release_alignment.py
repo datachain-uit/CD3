@@ -20,7 +20,8 @@ from release_core.contracts import RELEASE_SPECS  # noqa: E402
 from model.architectures import ARCHITECTURE_METADATA  # noqa: E402
 
 sys.path.insert(0, str(ROOT / "tools"))
-from vastai_metadata_contract import RELEASE_FIELDS  # noqa: E402
+from vastai_metadata_contract import (RELEASE_FIELDS, augmentation_source_seed,
+                                      train_relative_candidates)  # noqa: E402
 
 
 def test_label_and_split_identifiers_equal_release_specs():
@@ -86,3 +87,12 @@ def test_portable_vastai_release_vocabulary_equals_release_specs():
         for key, value in manifest.items():
             if key in fields:
                 assert fields[key] == value, (release_id, key)
+
+
+def test_portable_tree_resolves_one_s2_artifact_per_master_seed():
+    assert train_relative_candidates("W1", "V0", 43) == ["train/W1/V0/train.parquet"]
+    assert train_relative_candidates("W2", "V12", 44) == [
+        "train/W2/V12/seed=44/balanced_train.parquet", "train/W2/V12/balanced_train.parquet"]
+    remote = "meta_release=imputation-v1/L1_runs/task=CQ/stage=S2/window_id=W1/pipeline_id=V2/seed=43/run_id=x/attempt_id=1/balanced_train.parquet"
+    assert augmentation_source_seed(remote) == 43
+    assert augmentation_source_seed("meta_release=imputation-v1/L1_runs/task=CQ/stage=S1/window_id=W1/pipeline_id=V1/run_id=x/train.parquet") is None

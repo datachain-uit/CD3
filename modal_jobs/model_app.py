@@ -226,7 +226,7 @@ def _require_prediction_context(frame, *, source: str) -> None:
 def train_temporal(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0",
                     model_name: str = "RNN", seed: int = 42, split_version: str = "",
                     phase_version: str = "", augmentation_seed: int = 42,
-                    release_id: str = "") -> dict:
+                    release_id: str = "", accumulation_steps: int = 1) -> dict:
     """Train one shared-phase temporal checkpoint and test it at P1--P4.
 
     No training, scaler fitting, selection, or preprocessing is done on any
@@ -258,6 +258,8 @@ def train_temporal(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0"
     volume.reload()
     if augmentation_seed < 0:
         raise ValueError("augmentation_seed must be non-negative")
+    if accumulation_steps < 1 or MODEL["batch_size"] % accumulation_steps:
+        raise ValueError("accumulation_steps must be >= 1 and divide the registered batch size")
     prediction_salt = os.environ.get("TEMPO_PREDICTION_SALT")
     if not prediction_salt:
         raise RuntimeError("TEMPO_PREDICTION_SALT must be supplied by the tempo-prediction-salt Modal secret")
@@ -297,6 +299,10 @@ def train_temporal(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0"
               **seed_bundle,
               "gpu_type": "L4", "precision_policy": MODEL["precision_policy"], "logits_loss_dtype": "float32",
               "training_sequence": "P1_P2_P3_P4", "checkpoint_count": 1,
+              **({"gradient_accumulation": {"steps": accumulation_steps,
+                                            "micro_batch_size": MODEL["batch_size"] // accumulation_steps,
+                                            "optimisation_batch_size": MODEL["batch_size"]}}
+                 if accumulation_steps > 1 else {}),
               "validation_selection": "mean_macro_f1(P1,P2,P3,P4); tie=min_mean_cross_entropy",
               "small_support_contract": {"threshold": 400, "bootstrap_ci": "stratified_95pct",
                                          "bootstrap_repetitions": 2000,
@@ -355,6 +361,7 @@ def train_temporal(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0"
         dataloader_seed=seed_dataloader,
         moment_cache_dir=str(Path(MOUNT) / "model_cache" / "huggingface"),
         moment_snapshot=None if moment_asset is None else moment_asset["snapshot"],
+        accumulation_steps=accumulation_steps,
         **{key: value for key, value in MODEL.items() if key != "precision_policy"})
     train_s = time.perf_counter() - started - read_s
     checkpoint_root = root / "checkpoint"; checkpoint_root.mkdir(parents=True, exist_ok=True)
@@ -551,7 +558,8 @@ def train_temporal(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0"
 @app.local_entrypoint()
 def cli(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0",
         model_name: str = "RNN", seed: int = 42, split_version: str = "", phase_version: str = "",
-        augmentation_seed: int = 42, release_id: str = "") -> None:
+        augmentation_seed: int = 42, release_id: str = "", accumulation_steps: int = 1) -> None:
     print(json.dumps(train_temporal.remote(
-        task, window, pipeline_id, model_name, seed, split_version, phase_version, augmentation_seed, release_id
+        task, window, pipeline_id, model_name, seed, split_version, phase_version, augmentation_seed, release_id,
+        accumulation_steps,
     ), indent=2, default=str))

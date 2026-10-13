@@ -245,6 +245,19 @@ same conditions, which the runner now enforces or records:
   copied (a copy drifted on 2026-10-12 for the LO `label_threshold_set`).
 - Ingestion of VastAI cells into the L2 facts and the report export is not
   implemented; until it is, VastAI cells are pilots, not grid results.
+- The registered optimisation batch is 2048 rows for every family. The
+  channel-independent PatchTST does not fit that batch with the 274 CQ
+  channels on a 24 GB L4, so it is run with gradient accumulation
+  (`--accumulation-steps 4`: four 512-row micro-batches, one optimiser step
+  per 2048 rows; `run_model_grid.ps1 -AccumulationSteps 4` on Modal). The
+  update equals the full-batch update; `batch_size`, `micro_batch_size` and
+  `accumulation_steps` are recorded in the manifest. A plain `--batch-size 512`
+  changes the registered protocol and must not be used for grid cells.
+- Balanced TRAIN follows MATCH_MASTER_SEED: the tree holds one S2 artifact per
+  master seed (`train/<W>/<V>/seed=<s>/balanced_train.parquet`, or the flat
+  path for a single-seed tree), and the runner refuses a cell whose artifact
+  comes from another S2 seed unless `--augmentation-seed-policy fixed` is
+  passed for a registered sensitivity design.
 
 ## LO V3.1: model-ready execution path
 

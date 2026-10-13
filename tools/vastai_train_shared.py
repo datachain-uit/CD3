@@ -43,7 +43,8 @@ if str(PROJECT_ROOT) not in sys.path:
 from model.architectures import ARCHITECTURE_METADATA
 from model.data import fit_layout
 from model.shared_phase import evaluate_test_prefix, train_shared_checkpoint
-from vastai_metadata_contract import build_contract, write_contract
+from vastai_metadata_contract import (augmentation_source_seed, build_contract, load_download_manifest,
+                                      train_relative_candidates, write_contract)
 
 try:  # ``resource`` is available in the Linux VastAI container, not Windows.
     import resource
@@ -93,7 +94,12 @@ def parse() -> argparse.Namespace:
     parser.add_argument("--pipeline-id", choices=tuple(f"V{i}" for i in range(17)), required=True)
     parser.add_argument("--model-name", choices=("RNN", "LSTM", "GRU", "BILSTM", "PATCHTST", "MOMENT_SMALL"), required=True)
     parser.add_argument("--seed", type=int, required=True)
-    parser.add_argument("--batch-size", type=int, default=2048)
+    parser.add_argument("--batch-size", type=int, default=2048,
+                        help="Registered optimisation batch (2048).")
+    parser.add_argument("--accumulation-steps", type=int, default=1,
+                        help="Split each optimisation batch into micro-batches before one optimiser step.")
+    parser.add_argument("--augmentation-seed-policy", choices=("match_model_seed", "fixed"), default="match_model_seed",
+                        help="Balanced TRAIN must use the S2 artefact of this model seed unless fixed is registered.")
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--max-epochs", type=int, default=50,
                         help="Epoch cap; use 1 only for environment smoke tests.")
@@ -143,8 +149,19 @@ def main() -> None:
         moment_cache_dir = os.environ.get("MOMENT_CACHE_DIR", "/workspace/.cache/moment")
         moment_snapshot = prepare_moment_snapshot(architecture, cache_dir=moment_cache_dir)
     parent = PARENTS.get(args.pipeline_id, args.pipeline_id)
-    train_name = "train.parquet" if args.pipeline_id == parent else "balanced_train.parquet"
-    train_path = args.data_root / "train" / args.window / args.pipeline_id / train_name
+    if args.accumulation_steps < 1 or args.batch_size % args.accumulation_steps:
+        raise ValueError("--accumulation-steps must be >= 1 and divide --batch-size")
+    candidates = train_relative_candidates(args.window, args.pipeline_id, args.seed)
+    train_relative = next((relative for relative in candidates if (args.data_root / relative).is_file()), candidates[-1])
+    train_path = args.data_root / train_relative
+    _, remote_paths, _ = load_download_manifest(args.data_root, task=args.task)
+    seed_augmentation = augmentation_source_seed(remote_paths.get(train_relative)) if args.pipeline_id != parent else None
+    if args.pipeline_id != parent:
+        if seed_augmentation is None:
+            raise ValueError(f"balanced TRAIN {train_relative} has no S2 seed in its download-manifest remote path")
+        if args.augmentation_seed_policy == "match_model_seed" and seed_augmentation != args.seed:
+            raise ValueError(f"MATCH_MASTER_SEED violated: {train_relative} comes from S2 seed {seed_augmentation}, "
+                             f"cell master seed is {args.seed}")
     evaluation = args.data_root / "evaluation" / args.window / parent
     validation_path = evaluation / "validation.parquet"
     test_paths = {phase: evaluation / f"test_{phase}.parquet" for phase in ("P1", "P2", "P3", "P4")}
@@ -169,7 +186,7 @@ def main() -> None:
         layout=layout, classes=classes, train_frame=train, validation_frame=validation,
         architecture=architecture, seed=model_seed, dataloader_seed=loader_seed,
         batch_size=args.batch_size, workers=args.workers, max_epochs=args.max_epochs,
-        patience=min(args.patience, args.max_epochs),
+        patience=min(args.patience, args.max_epochs), accumulation_steps=args.accumulation_steps,
         **HPARAMS,
         moment_cache_dir=moment_cache_dir, moment_snapshot=(moment_snapshot or {}).get("snapshot"),
     )
@@ -207,7 +224,9 @@ def main() -> None:
         "architecture_metadata": ARCHITECTURE_METADATA[architecture],
         **HPARAMS,
         "seed": args.seed, "seed_model": model_seed, "seed_dataloader": loader_seed,
-        "batch_size": args.batch_size, "max_epochs": args.max_epochs,
+        "seed_augmentation": seed_augmentation, "augmentation_seed_policy": args.augmentation_seed_policy,
+        "batch_size": args.batch_size, "micro_batch_size": trained["micro_batch_size"],
+        "accumulation_steps": trained["accumulation_steps"], "max_epochs": args.max_epochs,
         "early_stopping_patience": min(args.patience, args.max_epochs),
         "precision_policy": "cuda_bfloat16_logits_loss_float32", "best_epoch": trained["best_epoch"],
         "pretrained_backbone": moment_snapshot,
@@ -225,7 +244,7 @@ def main() -> None:
     # A separate, deterministic sidecar preserves complete release lineage without
     # making the execution manifest depend on a local download layout.
     write_contract(build_contract(task=args.task, data_root=args.data_root, run_dir=output,
-                                  manifest=manifest, runner_path=SCRIPT_PATH),
+                                  manifest=manifest, runner_path=SCRIPT_PATH, train_relative=train_relative),
                    output / "metadata_contract.json")
     print(json.dumps(manifest, indent=2), flush=True)
 

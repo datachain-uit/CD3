@@ -112,15 +112,18 @@ def train_shared_checkpoint(*, layout: FeatureLayout, classes: tuple[str, ...], 
                             batch_size: int = 2048, max_epochs: int = 50, patience: int = 5,
                             learning_rate: float = 1e-3, weight_decay: float = 1e-5, workers: int = 4,
                             moment_cache_dir: str | None = None,
-                            moment_snapshot: str | None = None) -> tuple[dict, dict]:
+                            moment_snapshot: str | None = None, accumulation_steps: int = 1) -> tuple[dict, dict]:
     """Fit a single checkpoint using average CE over P1--P4 real train rows."""
     seed_everything(seed)
+    if accumulation_steps < 1 or batch_size % accumulation_steps:
+        raise ValueError("accumulation_steps must be >= 1 and divide batch_size")
+    micro_batch_size = batch_size // accumulation_steps
     dataloader_seed = seed if dataloader_seed is None else dataloader_seed
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     class_ids = np.arange(len(classes), dtype=np.int64)
     train_dynamic, train_static, _, train_y = transform_frame(train_frame, layout, classes=classes, use_masks=True)
     val_dynamic, val_static, _, val_y = transform_frame(validation_frame, layout, classes=classes, use_masks=True)
-    train_loader = _loader(SharedPhaseDataset(train_dynamic, train_static, train_y), batch_size, True, workers,
+    train_loader = _loader(SharedPhaseDataset(train_dynamic, train_static, train_y), micro_batch_size, True, workers,
                            seed=dataloader_seed)
     model = build_shared_phase_model(
         train_dynamic.shape[2], train_static.shape[1], len(classes), architecture,
@@ -133,22 +136,36 @@ def train_shared_checkpoint(*, layout: FeatureLayout, classes: tuple[str, ...], 
     optimizer = torch.optim.AdamW(trainable_parameters, lr=learning_rate, weight_decay=weight_decay)
     scaler = GradScaler("cuda", enabled=device.type == "cuda"); amp_device = "cuda" if device.type == "cuda" else "cpu"
     criterion = nn.CrossEntropyLoss(); best_state = None; best_key = (-np.inf, -np.inf); best_epoch = 0; stale = 0; history = []
+    n_micro_batches = len(train_loader)
     for epoch in range(1, max_epochs + 1):
         epoch_started = time.perf_counter()
-        model.train(); total = 0.; rows = 0
-        for dx, sx, target in train_loader:
-            dx, sx, target = dx.to(device), sx.to(device), target.to(device); optimizer.zero_grad(set_to_none=True)
+        model.train(); total = 0.; rows = 0; group_rows = 0; pending = 0
+        optimizer.zero_grad(set_to_none=True)
+        for step, (dx, sx, target) in enumerate(train_loader, 1):
+            dx, sx, target = dx.to(device), sx.to(device), target.to(device)
             # L4 supports bfloat16. Cross-entropy is explicitly computed on
             # logits.float() below, so checkpoint selection remains fp32.
             with autocast(device_type=amp_device, dtype=torch.bfloat16,
                           enabled=device.type == "cuda"):
                 logits = model(dx, sx)
                 loss = sum(criterion(logits[:, i].float(), target) for i in range(logits.size(1))) / logits.size(1)
-            scaler.scale(loss).backward(); scaler.step(optimizer); scaler.update(); total += float(loss.detach()) * len(target); rows += len(target)
+            total += float(loss.detach()) * len(target); rows += len(target)
+            if accumulation_steps == 1:
+                scaler.scale(loss).backward(); scaler.step(optimizer); scaler.update(); optimizer.zero_grad(set_to_none=True)
+                continue
+            scaler.scale(loss * len(target)).backward(); group_rows += len(target); pending += 1
+            if pending == accumulation_steps or step == n_micro_batches:
+                for parameter in trainable_parameters:
+                    if parameter.grad is not None:
+                        parameter.grad.div_(group_rows)
+                scaler.step(optimizer); scaler.update(); optimizer.zero_grad(set_to_none=True)
+                group_rows = 0; pending = 0
+        train_seconds = time.perf_counter() - epoch_started
         val_metrics, _ = _evaluate_prefixes(model, val_dynamic, val_static, val_y, batch_size, workers, device, class_ids,
                                             seed=dataloader_seed)
         mean_f1 = float(np.mean([val_metrics[p]["f1_macro"] for p in PHASES])); mean_ce = float(np.mean([val_metrics[p]["cross_entropy"] for p in PHASES]))
-        history.append({"epoch": epoch, "train_cross_entropy_mean_p1_p4": total / max(rows, 1), "validation_macro_f1_mean_p1_p4": mean_f1, "validation_cross_entropy_mean_p1_p4": mean_ce})
+        history.append({"epoch": epoch, "train_cross_entropy_mean_p1_p4": total / max(rows, 1), "validation_macro_f1_mean_p1_p4": mean_f1, "validation_cross_entropy_mean_p1_p4": mean_ce,
+                        "train_seconds": round(train_seconds, 3), "epoch_seconds": round(time.perf_counter() - epoch_started, 3)})
         key = (mean_f1, -mean_ce)
         if key > best_key:
             best_key, best_epoch, stale = key, epoch, 0
@@ -179,7 +196,9 @@ def train_shared_checkpoint(*, layout: FeatureLayout, classes: tuple[str, ...], 
         checkpoint["pretrained_backbone"] = model.backbone_source
     return {"checkpoint": checkpoint, "history": history, "validation_metrics": val_metrics,
              "validation_predictions": val_predictions, "best_epoch": best_epoch, "device": str(device),
-             "train_rows": len(train_y), "validation_rows": len(val_y)}, {"model": model, "device": device}
+             "train_rows": len(train_y), "validation_rows": len(val_y),
+             "batch_size": batch_size, "micro_batch_size": micro_batch_size,
+             "accumulation_steps": accumulation_steps}, {"model": model, "device": device}
 
 
 def evaluate_test_prefix(model: nn.Module, frame: pd.DataFrame, full_layout: FeatureLayout,

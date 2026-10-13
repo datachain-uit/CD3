@@ -87,15 +87,31 @@ def load_download_manifest(data_root: Path, *, task: str) -> tuple[dict[str, Any
     return manifest, paths, _sha256_file(path)
 
 
+def train_relative_candidates(window: str, pipeline: str, seed: int) -> list[str]:
+    """Return candidate portable TRAIN paths, ordered most-specific first."""
+    parent = PARENT_PIPELINES.get(pipeline, pipeline)
+    if pipeline == parent:
+        return [f"train/{window}/{pipeline}/train.parquet"]
+    return [f"train/{window}/{pipeline}/seed={seed}/balanced_train.parquet",
+            f"train/{window}/{pipeline}/balanced_train.parquet"]
+
+
+def augmentation_source_seed(remote_path: str | None) -> int | None:
+    identity = _artifact_identity(remote_path)
+    seed = (identity or {}).get("seed", "")
+    return int(seed) if str(seed).isdigit() else None
+
+
 def build_contract(*, task: str, data_root: Path, run_dir: Path, manifest: dict[str, Any],
-                   runner_path: Path) -> dict[str, Any]:
+                   runner_path: Path, train_relative: str | None = None) -> dict[str, Any]:
     download, remote_paths, download_hash = load_download_manifest(data_root, task=task)
     pipeline = str(manifest["pipeline_id"])
     window = str(manifest["window_id"])
     parent = PARENT_PIPELINES.get(pipeline, pipeline)
-    train_name = "train.parquet" if pipeline == parent else "balanced_train.parquet"
+    if train_relative is None:
+        train_relative = train_relative_candidates(window, pipeline, int(manifest["seed"]))[-1]
     input_relatives = {
-        "train": f"train/{window}/{pipeline}/{train_name}",
+        "train": train_relative,
         "validation": f"evaluation/{window}/{parent}/validation.parquet",
         **{phase: f"evaluation/{window}/{parent}/test_{phase}.parquet" for phase in ("P1", "P2", "P3", "P4")},
     }
@@ -122,16 +138,17 @@ def build_contract(*, task: str, data_root: Path, run_dir: Path, manifest: dict[
             "feature_dictionary_version", "label_rule_version", "label_threshold_set", "scenario")},
         "model_identity": {key: manifest.get(key) for key in (
             "task", "window_id", "pipeline_id", "parent_pipeline", "model_name", "architecture", "model_revision",
-            "architecture_metadata", "seed", "protocol", "precision_policy", "batch_size", "max_epochs",
-            "early_stopping_patience", "hidden_size", "num_layers", "dropout", "learning_rate", "weight_decay",
-            "best_epoch")},
+            "architecture_metadata", "seed", "protocol", "precision_policy", "batch_size", "micro_batch_size",
+            "accumulation_steps", "max_epochs", "early_stopping_patience", "hidden_size", "num_layers", "dropout",
+            "learning_rate", "weight_decay", "best_epoch")},
         "execution": {key: manifest.get(key) for key in (
             "execution_backend", "gpu", "gpu_count", "gpu_total_memory_gb", "cuda_capability", "torch_version",
             "cuda_version", "cudnn_version", "cublas_workspace_config", "deterministic_algorithms",
             "energy_measurement")},
         "seed_bundle": {"master_seed": manifest.get("seed"), "seed_model": manifest.get("seed_model"),
                         "seed_dataloader": manifest.get("seed_dataloader"), "seed_preprocess": 20260922,
-                        "seed_augmentation": seed_augmentation},
+                        "seed_augmentation": seed_augmentation,
+                        "augmentation_seed_policy": manifest.get("augmentation_seed_policy")},
         "lineage": {"input_download_manifest_sha256": download_hash, "runner_sha256": _sha256_file(runner_path),
                     "release_contract_sha256": _release_contract_sha256(),
                     "run_manifest_sha256": _sha256_file(run_dir / "run_manifest.json"),
