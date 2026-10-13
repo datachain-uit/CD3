@@ -43,7 +43,7 @@ try:
 except ImportError:  # Supports ``python LO/registries.py`` as documented.
     from seeds import sha256_of, SEED_PREPROCESS
 
-REGISTRY_REVISION = 'registries_rev_2026-10-12_r4'
+REGISTRY_REVISION = 'registries_rev_2026-10-12_r5'
 
 # ---------------------------------------------------------------------------------------------
 # Pipeline registry V0–V16 (PLAN Table 7 / Table 14)
@@ -164,19 +164,22 @@ MODEL_REGISTRY = [
     {'model_name': 'PATCHTST', 'model_tier': 'F2_TS_TRANSFORMER', 'model_family': 'PATCHTST', 'variant_role': 'PRIMARY',
      'max_seq_len': 4, 'patch_len': 2, 'patch_stride': 1, 'transformer_layers': 2, 'attention_heads': 4, 'd_model': 128,
      'channel_mixing': False, 'channel_aggregation': 'flatten_after_shared_encoder',
-     'model_revision': 'patchtst_channel_independent_v2_prefixsafe',
+     'model_revision': 'patchtst_channel_independent_v2_1_math_sdp',
+     'attention_backend': 'math_sdp__flash_and_mem_efficient_disabled_for_large_BxC',
      'implementation_note': 'each dynamic channel is patched and Transformer-encoded independently with shared weights; '
                             'the classification head receives concatenated post-encoder channel embeddings and static features'},
     {'model_name': 'MOMENT_SMALL', 'model_tier': 'F3_TS_FOUNDATION', 'model_family': 'MOMENT', 'variant_role': 'EXPLORATORY', 'is_pretrained': 1,
      'finetune_mode': 'LINEAR_PROBE', 'pretrained_repo': 'AutonLab/MOMENT-1-small', 'pretrained_revision': '43ee05b',
-     'library_revision': 'momentfm @ 38f7310', 'input_encoding': 'PHASE_AS_PATCH_REPEAT_v1', 'revin_statistics_fusion': True,
+     'library_revision': 'momentfm @ 38f7310', 'input_encoding': 'PHASE_AS_PATCH_REPEAT_v1_1', 'revin_statistics_fusion': True,
+     'constant_channel_guard': 'zero_input_when_prefix_std_below_1e-6_relative',
      'embedding_reduction': 'mean_over_channels_then_mean_over_observed_patches',
-     'model_revision': 'moment_frozen_linear_probe_v2_phase_patch'},
+     'model_revision': 'moment_frozen_linear_probe_v2_1_phase_patch'},
     {'model_name': 'MOMENT_BASE', 'model_tier': 'F3_TS_FOUNDATION', 'model_family': 'MOMENT', 'variant_role': 'DEFERRED', 'is_pretrained': 1,
      'finetune_mode': 'LINEAR_PROBE', 'pretrained_repo': 'AutonLab/MOMENT-1-base', 'pretrained_revision': 'b0ae575',
-     'library_revision': 'momentfm @ 38f7310', 'input_encoding': 'PHASE_AS_PATCH_REPEAT_v1', 'revin_statistics_fusion': True,
+     'library_revision': 'momentfm @ 38f7310', 'input_encoding': 'PHASE_AS_PATCH_REPEAT_v1_1', 'revin_statistics_fusion': True,
+     'constant_channel_guard': 'zero_input_when_prefix_std_below_1e-6_relative',
      'embedding_reduction': 'mean_over_channels_then_mean_over_observed_patches',
-     'model_revision': 'moment_frozen_linear_probe_v2_phase_patch'},
+     'model_revision': 'moment_frozen_linear_probe_v2_1_phase_patch'},
 ]
 for _m in MODEL_REGISTRY:
     if _m['model_tier'] != 'F0_REFERENCE':
@@ -188,16 +191,19 @@ for _m in MODEL_REGISTRY:
                 'patch_len': 2, 'patch_stride': 1, 'transformer_layers': 2,
                 'attention_heads': 4, 'prefix_padding': 'RIGHT_ZERO_WITH_SEPARATE_PATCH_MASK',
                 'channel_mixing': False, 'channel_aggregation': 'flatten_after_shared_encoder',
+                'attention_backend': 'math_sdp__flash_and_mem_efficient_disabled_for_large_BxC',
             })
         elif _m['model_name'] in {'MOMENT_SMALL', 'MOMENT_BASE'}:
             _m.update({
-                'hparam_config_id': 'HP_MOMENT_FROZEN_LINEAR_PROBE_v1',
+                'hparam_config_id': 'HP_MOMENT_FROZEN_LINEAR_PROBE_v2_1_phase_patch',
                 'finetune_mode': 'LINEAR_PROBE', 'encoder_frozen': 1,
                 'backbone_repo': ('AutonLab/MOMENT-1-small' if _m['model_name'] == 'MOMENT_SMALL'
                                   else 'AutonLab/MOMENT-1-base'),
                 'backbone_requested_revision': ('43ee05b' if _m['model_name'] == 'MOMENT_SMALL'
                                                 else 'b0ae575'),
-                'prefix_padding': 'RIGHT_ZERO_WITH_EXPLICIT_TIME_MASK_TO_PATCH_LENGTH',
+                # v1 right-padding inside one pretrained patch produced NaN embeddings (review 2026-10-12);
+                # every observed phase now fills one full patch and future phases are masked.
+                'prefix_padding': 'NONE__PHASE_AS_PATCH_REPEAT_v1_1_FUTURE_PHASES_MASKED',
             })
 
 # Locked on 2026-10-12 after the F2/F3 code review.  This is intentionally
@@ -218,7 +224,12 @@ TEMPORAL_FAMILY_POLICY = {
     },
     'F3_MOMENT_SMALL': {
         'role': 'EXPLORATORY', 'scope': 'REGISTERED_SUBSET',
-        'pipelines': ['V0', 'V1', 'V5', 'V9', 'V13', 'V2', 'V6', 'V10', 'V14', 'V4', 'V8', 'V12', 'V16'],
+        # The registered 13-cell exploratory core retains both usable
+        # augmentation families. RadiusSMOTE is deliberately outside this
+        # core because its locked-radius audit has a 56--90% nearest-neighbour
+        # fallback rate; it is a separately labelled sensitivity analysis.
+        'pipelines': ['V0', 'V1', 'V5', 'V9', 'V13', 'V2', 'V6', 'V10', 'V14', 'V3', 'V7', 'V11', 'V15'],
+        'sensitivity_pipeline_ids': ['V4', 'V8', 'V12', 'V16'],
         'windows': ['W1', 'W2', 'W3'], 'master_seeds': [42, 43, 44],
         'requires_frozen_embedding_cache': True,
         'radius_smote_policy': 'excluded_from_core__sensitivity_only_due_to_registered_fallback_warning',

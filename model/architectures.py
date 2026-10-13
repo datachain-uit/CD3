@@ -24,18 +24,24 @@ ARCHITECTURE_METADATA = {
     # Channel-independent PatchTST: each dynamic channel is patched and
     # encoded with the same Transformer weights; channels only meet in the
     # task classification head after temporal encoding.
-    "patchtst": {"model_family": "F2_TS_TRANSFORMER", "model_revision": "patchtst_channel_independent_v2_prefixsafe",
+    "patchtst": {"model_family": "F2_TS_TRANSFORMER", "model_revision": "patchtst_channel_independent_v2_1_math_sdp",
                  "channel_mixing": False, "channel_aggregation": "flatten_after_shared_encoder",
-                 "patch_len": 2, "patch_stride": 1, "transformer_layers": 2, "attention_heads": 4},
+                 "patch_len": 2, "patch_stride": 1, "transformer_layers": 2, "attention_heads": 4,
+                 "attention_backend": "math_sdp__flash_and_mem_efficient_disabled_for_large_BxC"},
     # v2: phase-as-patch input encoding.  v1 right-padded a k<=4 step prefix inside one 8-step patch, which
     # momentfm marks as unobserved (a patch is valid only when all patch_len positions are observed); the
     # encoder then saw the constant mask embedding and ``reduction="mean"`` divided by zero -> NaN.
-    "moment_small": {"model_family": "F3_TS_FOUNDATION", "model_revision": "moment_frozen_linear_probe_v2_phase_patch",
-                     "input_encoding": "PHASE_AS_PATCH_REPEAT_v1", "revin_statistics_fusion": True},
-    "moment_base": {"model_family": "F3_TS_FOUNDATION", "model_revision": "moment_frozen_linear_probe_v2_phase_patch",
-                    "input_encoding": "PHASE_AS_PATCH_REPEAT_v1", "revin_statistics_fusion": True},
+    "moment_small": {"model_family": "F3_TS_FOUNDATION", "model_revision": "moment_frozen_linear_probe_v2_1_phase_patch",
+                     "input_encoding": "PHASE_AS_PATCH_REPEAT_v1_1", "revin_statistics_fusion": True,
+                     "constant_channel_guard": "zero_input_when_prefix_std_below_1e-6_relative"},
+    "moment_base": {"model_family": "F3_TS_FOUNDATION", "model_revision": "moment_frozen_linear_probe_v2_1_phase_patch",
+                    "input_encoding": "PHASE_AS_PATCH_REPEAT_v1_1", "revin_statistics_fusion": True,
+                    "constant_channel_guard": "zero_input_when_prefix_std_below_1e-6_relative"},
 }
 MAX_PHASES = 4
+# Relative tolerance below which a channel counts as constant over the prefix (float32 rounding of a
+# 2..4-value mean is at most a few 1e-7 relative; genuine variation of a scaled feature is far larger).
+CONSTANT_CHANNEL_RTOL = 1e-6
 
 
 def moment_phase_patch_inputs(dynamic_x: torch.Tensor, patch_len: int, max_phases: int = MAX_PHASES):
@@ -53,12 +59,21 @@ def moment_phase_patch_inputs(dynamic_x: torch.Tensor, patch_len: int, max_phase
     batch, steps, channels = dynamic_x.shape
     if steps < 1 or steps > max_phases:
         raise ValueError(f"prefix must have 1..{max_phases} phases, got {steps}")
-    values = dynamic_x.new_zeros((batch, channels, max_phases * patch_len))
-    values[:, :, :steps * patch_len] = dynamic_x.transpose(1, 2).repeat_interleave(patch_len, dim=2)
-    time_mask = dynamic_x.new_zeros((batch, max_phases * patch_len))
-    time_mask[:, :steps * patch_len] = 1
     mean = dynamic_x.mean(dim=1)
     std = dynamic_x.std(dim=1, unbiased=False) if steps > 1 else dynamic_x.new_zeros((batch, channels))
+    # A channel that is constant over the observed phases (every channel at P1; any cumulative feature
+    # without new activity later) normalises to exactly zero in exact arithmetic.  momentfm's RevIN
+    # divides by ``std + 1e-5``, so float32 rounding of the mean (|delta| ~ 1e-7 * |x|) would otherwise be
+    # amplified into values of order 1e-2 (order 1 for unscaled magnitudes) that enter the pretrained
+    # encoder as representation-dependent pseudo-signal.  Such channels are therefore fed as zeros; their
+    # level is still carried to the task head through the RevIN statistics below.
+    constant = std <= CONSTANT_CHANNEL_RTOL * (mean.abs() + CONSTANT_CHANNEL_RTOL)
+    std = std.masked_fill(constant, 0.0)
+    series = dynamic_x.transpose(1, 2).masked_fill(constant.unsqueeze(-1), 0.0)
+    values = dynamic_x.new_zeros((batch, channels, max_phases * patch_len))
+    values[:, :, :steps * patch_len] = series.repeat_interleave(patch_len, dim=2)
+    time_mask = dynamic_x.new_zeros((batch, max_phases * patch_len))
+    time_mask[:, :steps * patch_len] = 1
     return values, time_mask, torch.cat((mean, std), dim=1)
 
 MOMENT_SPECS = {
@@ -228,6 +243,15 @@ class SharedPhasePatchTSTClassifier(nn.Module):
 
     def _encode_prefix(self, dynamic_x: torch.Tensor) -> torch.Tensor:
         """Encode exactly the supplied prefix, never a padded future phase."""
+        # Channel-independent PatchTST turns one batch into B x C short
+        # sequences.  On CUDA, the fused SDP kernels reject the resulting
+        # large effective batch (for CQ, 512 x 274 channels) with
+        # cudaErrorInvalidValue under deterministic algorithms.  Math-SDP is
+        # deterministic and valid for this tiny (<=3-token) attention shape.
+        if dynamic_x.is_cuda:
+            torch.backends.cuda.enable_flash_sdp(False)
+            torch.backends.cuda.enable_mem_efficient_sdp(False)
+            torch.backends.cuda.enable_math_sdp(True)
         batch, observed_steps, channels = dynamic_x.shape
         if channels != self.dynamic_dim:
             raise ValueError("PatchTST channel count differs from fitted shared feature tensor")

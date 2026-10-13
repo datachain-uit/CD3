@@ -16,6 +16,8 @@ import registries  # noqa: E402
 from metrics_core.evaluation import classification_metrics  # noqa: E402
 from release_core.contracts import RELEASE_SPECS  # noqa: E402
 
+from model.architectures import ARCHITECTURE_METADATA  # noqa: E402
+
 
 def test_label_and_split_identifiers_equal_release_specs():
     registries.validate_release_alignment()
@@ -43,3 +45,27 @@ def test_small_subgroup_flag_follows_registered_rule():
     assert classification_metrics(y_low_support, rng.dirichlet(np.ones(3), size=len(y_low_support)))["small_subgroup_flag"] is True
     y_few_rows = np.array([0] * 10 + [1] * 10 + [2] * 9)
     assert classification_metrics(y_few_rows, rng.dirichlet(np.ones(3), size=len(y_few_rows)))["small_subgroup_flag"] is True
+
+
+def test_model_registry_rows_match_architecture_metadata():
+    by_name = {row["model_name"]: row for row in registries.MODEL_REGISTRY}
+    for architecture, metadata in ARCHITECTURE_METADATA.items():
+        if architecture in {"rnn", "lstm", "gru", "bilstm"}:
+            continue
+        row = by_name[architecture.upper()]
+        assert row["model_revision"] == metadata["model_revision"], architecture
+        for key in ("input_encoding", "revin_statistics_fusion", "channel_mixing", "channel_aggregation", "attention_backend", "constant_channel_guard"):
+            if key in metadata:
+                assert row[key] == metadata[key], (architecture, key)
+        if architecture.startswith("moment"):
+            assert "RIGHT_ZERO" not in str(row.get("prefix_padding", "")), architecture
+
+
+def test_moment_exploratory_core_excludes_radius_and_keeps_sasmote():
+    policy = registries.TEMPORAL_FAMILY_POLICY["F3_MOMENT_SMALL"]
+    core = set(policy["pipelines"])
+    sensitivity = set(policy["sensitivity_pipeline_ids"])
+    assert len(core) == 13
+    assert {"V3", "V7", "V11", "V15"}.issubset(core)
+    assert {"V4", "V8", "V12", "V16"}.isdisjoint(core)
+    assert sensitivity == {"V4", "V8", "V12", "V16"}

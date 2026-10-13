@@ -8,6 +8,7 @@ from __future__ import annotations
 import torch
 
 from model.architectures import (
+    ARCHITECTURE_METADATA,
     MAX_PHASES,
     SharedPhasePatchTSTClassifier,
     build_shared_phase_model,
@@ -43,19 +44,67 @@ def test_phase_as_patch_inputs_expose_exactly_the_observed_phases() -> None:
         assert mask.shape == (3, MAX_PHASES * PATCH_LEN)
         view = patch_view(mask)
         assert view.tolist()[0] == [1] * steps + [0] * (MAX_PHASES - steps)
-        for phase in range(steps):
+        for phase in range(steps if steps > 1 else 0):   # at P1 every channel is constant -> zeros (guard)
             block = values[:, :, phase * PATCH_LEN:(phase + 1) * PATCH_LEN]
             assert torch.allclose(block, dynamic[:, phase, :].unsqueeze(-1).expand_as(block))
         assert torch.all(values[:, :, steps * PATCH_LEN:] == 0)
         assert torch.allclose(statistics[:, :5], dynamic[:, :steps].mean(1))
         expected_std = dynamic[:, :steps].std(1, unbiased=False) if steps > 1 else torch.zeros(3, 5)
         assert torch.allclose(statistics[:, 5:], expected_std)
+        if steps == 1:  # every channel is constant at P1: the encoder input is exactly zero
+            assert torch.all(values == 0)
 
     perturbed = dynamic.clone()
     perturbed[:, 2:] += 100
     v1, m1, s1 = moment_phase_patch_inputs(dynamic[:, :2], PATCH_LEN)
     v2, m2, s2 = moment_phase_patch_inputs(perturbed[:, :2], PATCH_LEN)
     assert torch.equal(v1, v2) and torch.equal(m1, m2) and torch.equal(s1, s2)
+
+
+def revin_normalise(values: torch.Tensor, mask: torch.Tensor, eps: float = 1e-5) -> torch.Tensor:
+    """momentfm 38f7310 RevIN._get_statistics/_normalize for affine=False (mean/std over masked positions)."""
+    observed = torch.where(mask.unsqueeze(1).bool(), values, torch.nan)
+    mean = torch.nanmean(observed, dim=-1, keepdim=True)
+    std = (observed - mean).square().nanmean(dim=-1, keepdim=True).sqrt() + eps
+    return (values - mean) / std
+
+
+def test_constant_channels_normalise_to_exactly_zero_under_momentfm_revin() -> None:
+    """RevIN divides by std + 1e-5; without the guard, float32 rounding of a constant channel's mean is
+    amplified into O(1e-2) pseudo-signal (O(1) for unscaled magnitudes).  Values whose 2..4-fold sum is not
+    exactly representable (e.g. 2.3, 7.1) trigger the rounding, so they are used here on purpose."""
+    torch.manual_seed(1)
+    batch, channels = 64, 6
+    for steps in range(1, MAX_PHASES + 1):
+        dynamic = 7.1 * torch.rand(batch, steps, channels) + 2.3
+        dynamic[:, :, :3] = dynamic[:, :1, :3]            # channels 0-2 constant over the prefix
+        values, mask, statistics = moment_phase_patch_inputs(dynamic, PATCH_LEN)
+        normalised = revin_normalise(values, mask)[:, :, :steps * PATCH_LEN]
+        assert torch.all(normalised[:, :3] == 0), f"k={steps}: constant channels leak rounding noise"
+        assert torch.all(statistics[:, channels:channels + 3] == 0)          # std reported as exactly 0
+        assert torch.allclose(statistics[:, :3], dynamic[:, 0, :3])          # level kept for the head
+        if steps > 1:                                                       # varying channels untouched
+            assert torch.allclose(values[:, 3:, :steps * PATCH_LEN],
+                                  dynamic[:, :, 3:].transpose(1, 2).repeat_interleave(PATCH_LEN, dim=2))
+            assert torch.all(normalised[:, 3:].abs().amax(dim=-1) > 0.5)
+    # the unguarded arithmetic is what the guard protects against
+    raw = (7.1 * torch.rand(batch, 1, channels) + 2.3).transpose(1, 2).repeat_interleave(PATCH_LEN, dim=2)
+    leaked = revin_normalise(raw, torch.ones(batch, PATCH_LEN)).abs().amax(dim=-1)
+    assert (leaked > 0).float().mean() > 0.3 and leaked.max() > 1e-3
+
+
+def test_task_contracts_follow_the_implemented_model_revision() -> None:
+    import runpy
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    for task in ("CQ", "LO"):
+        for folder in ("patchtst", "moment_small"):
+            contract = runpy.run_path(str(root / task / "model" / folder / "config.py"))["MODEL_CONTRACT"]
+            metadata = ARCHITECTURE_METADATA[contract["architecture"]]
+            assert contract["model_revision"] == metadata["model_revision"], (task, folder)
+            for key in ("input_encoding", "revin_statistics_fusion", "channel_mixing", "channel_aggregation", "attention_backend", "constant_channel_guard"):
+                if key in metadata:
+                    assert contract[key] == metadata[key], (task, folder, key)
 
 
 def test_patchtst_prefix_logits_do_not_depend_on_future_phases() -> None:

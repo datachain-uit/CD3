@@ -194,10 +194,13 @@ subset only after frozen embedding caching is available.
 .\modal_jobs\run_model_grid.ps1 `
   -Task CQ -Mode grid -Models PATCHTST -Seeds 42,43,44
 
-# F3 exploratory: 13 registered pipelines; requires frozen embedding cache.
+# F3 exploratory core: five imputers, CDSMOTE and SASMOTE (13 pipelines);
+# RadiusSMOTE is a separately-labelled sensitivity analysis because its
+# registered fallback rate exceeds the warning threshold. Requires frozen
+# embedding cache.
 .\modal_jobs\run_model_grid.ps1 `
   -Task CQ -Mode grid `
-  -Pipelines V0,V1,V5,V9,V13,V2,V6,V10,V14,V4,V8,V12,V16 `
+  -Pipelines V0,V1,V5,V9,V13,V2,V6,V10,V14,V3,V7,V11,V15 `
   -Models MOMENT_SMALL -Seeds 42,43,44
 ```
 
@@ -208,11 +211,40 @@ official `momentfm` embedding model at its pinned repository revision with the
 phase-as-patch encoding: each observed phase fills one pretrained patch
 (`patch_len` repeats) and future phases are masked, because momentfm counts a
 patch as observed only when every position is observed; the per-channel RevIN
-statistics of the prefix are fused into the task head. The encoder is frozen (`FROZEN_LINEAR_PROBE`), its
+statistics of the prefix are fused into the task head. A channel that is
+constant over the observed prefix (every channel at P1, any cumulative feature
+without later activity) is fed to the encoder as exact zeros
+(`constant_channel_guard`, revision `moment_frozen_linear_probe_v2_1_phase_patch`):
+momentfm's RevIN divides by `std + 1e-5`, so float32 rounding of the mean would
+otherwise enter the pretrained encoder as pseudo-signal of order 1e-2; the
+channel level still reaches the head through the RevIN statistics. The encoder is frozen (`FROZEN_LINEAR_PROBE`), its
 resolved snapshot is recorded in the run manifest, and only the shared task
 head is checkpointed. The initial snapshot download is cached under
 `/data/model_cache/huggingface`; do not treat a first-download wall time as
 measured model training time.
+
+### Portable VastAI runner (tools/vastai_train_shared.py)
+
+The portable runner trains one cell with the same `model.shared_phase`
+implementation, seeds and salted prediction ids as S3, but it is a second
+execution backend. Its outputs are comparable with Modal cells only under the
+same conditions, which the runner now enforces or records:
+
+- The registered S3 hardware is NVIDIA L4 (bf16 AMP). The runner refuses any
+  other GPU unless `--allow-gpu-mismatch` is passed, and records
+  `execution_backend`, `gpu`, `cuda_capability`, `torch_version`,
+  `cuda_version`, `cudnn_version` and `cublas_workspace_config` in
+  `run_manifest.json` and `metadata_contract.json`.
+- `CUBLAS_WORKSPACE_CONFIG=:4096:8` is set by the runner before CUDA starts;
+  strict determinism fails otherwise.
+- No NVML sampling exists in the runner (`energy_measurement = NOT_MEASURED`):
+  C3 energy facts come from the Modal L4 cells only, and wall-clock facts of
+  VastAI cells are not pooled with Modal facts.
+- The bundle must ship `release_core/` next to `model/`: the release
+  vocabulary is imported from `release_core.contracts.RELEASE_SPECS`, not
+  copied (a copy drifted on 2026-10-12 for the LO `label_threshold_set`).
+- Ingestion of VastAI cells into the L2 facts and the report export is not
+  implemented; until it is, VastAI cells are pilots, not grid results.
 
 ## LO V3.1: model-ready execution path
 
