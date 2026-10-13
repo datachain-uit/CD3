@@ -165,7 +165,7 @@ MODEL_REGISTRY = [
      'max_seq_len': 4, 'patch_len': 2, 'patch_stride': 1, 'transformer_layers': 2, 'attention_heads': 4, 'd_model': 128,
      'channel_mixing': False, 'channel_aggregation': 'flatten_after_shared_encoder',
      'model_revision': 'patchtst_channel_independent_v2_1_math_sdp',
-     'attention_backend': 'math_sdp__flash_and_mem_efficient_disabled_for_large_BxC',
+     'attention_backend': 'math_sdp__scoped_to_encoder_call__flash_and_mem_efficient_rejected_for_large_BxC',
      'implementation_note': 'each dynamic channel is patched and Transformer-encoded independently with shared weights; '
                             'the classification head receives concatenated post-encoder channel embeddings and static features'},
     {'model_name': 'MOMENT_SMALL', 'model_tier': 'F3_TS_FOUNDATION', 'model_family': 'MOMENT', 'variant_role': 'EXPLORATORY', 'is_pretrained': 1,
@@ -191,7 +191,7 @@ for _m in MODEL_REGISTRY:
                 'patch_len': 2, 'patch_stride': 1, 'transformer_layers': 2,
                 'attention_heads': 4, 'prefix_padding': 'RIGHT_ZERO_WITH_SEPARATE_PATCH_MASK',
                 'channel_mixing': False, 'channel_aggregation': 'flatten_after_shared_encoder',
-                'attention_backend': 'math_sdp__flash_and_mem_efficient_disabled_for_large_BxC',
+                'attention_backend': 'math_sdp__scoped_to_encoder_call__flash_and_mem_efficient_rejected_for_large_BxC',
             })
         elif _m['model_name'] in {'MOMENT_SMALL', 'MOMENT_BASE'}:
             _m.update({
@@ -591,7 +591,8 @@ PENDING_DECISIONS.extend([
                    'MOMENT_BASE is deferred from GĐ1.'},
     {'id': 12, 'topic': 'PatchTST implementation/identity', 'status': 'CLOSED 2026-10-12',
      'resolution': 'Use channel-independent PatchTST with shared patch projection/Transformer weights per dynamic channel and '
-                   'concatenate post-encoder channel embeddings only in the task head; revision patchtst_channel_independent_v2_prefixsafe.'},
+                   'concatenate post-encoder channel embeddings only in the task head; deterministic Math-SDP is scoped to the PatchTST encoder call; '
+                   'revision patchtst_channel_independent_v2_1_math_sdp.'},
 ])
 
 

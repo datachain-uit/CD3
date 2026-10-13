@@ -11,6 +11,7 @@ from pathlib import Path
 
 import torch
 from torch import nn
+from torch.nn.attention import SDPBackend, sdpa_kernel
 from torch.nn.utils.rnn import pack_padded_sequence
 
 
@@ -27,7 +28,7 @@ ARCHITECTURE_METADATA = {
     "patchtst": {"model_family": "F2_TS_TRANSFORMER", "model_revision": "patchtst_channel_independent_v2_1_math_sdp",
                  "channel_mixing": False, "channel_aggregation": "flatten_after_shared_encoder",
                  "patch_len": 2, "patch_stride": 1, "transformer_layers": 2, "attention_heads": 4,
-                 "attention_backend": "math_sdp__flash_and_mem_efficient_disabled_for_large_BxC"},
+                 "attention_backend": "math_sdp__scoped_to_encoder_call__flash_and_mem_efficient_rejected_for_large_BxC"},
     # v2: phase-as-patch input encoding.  v1 right-padded a k<=4 step prefix inside one 8-step patch, which
     # momentfm marks as unobserved (a patch is valid only when all patch_len positions are observed); the
     # encoder then saw the constant mask embedding and ``reduction="mean"`` divided by zero -> NaN.
@@ -248,10 +249,6 @@ class SharedPhasePatchTSTClassifier(nn.Module):
         # large effective batch (for CQ, 512 x 274 channels) with
         # cudaErrorInvalidValue under deterministic algorithms.  Math-SDP is
         # deterministic and valid for this tiny (<=3-token) attention shape.
-        if dynamic_x.is_cuda:
-            torch.backends.cuda.enable_flash_sdp(False)
-            torch.backends.cuda.enable_mem_efficient_sdp(False)
-            torch.backends.cuda.enable_math_sdp(True)
         batch, observed_steps, channels = dynamic_x.shape
         if channels != self.dynamic_dim:
             raise ValueError("PatchTST channel count differs from fitted shared feature tensor")
@@ -274,7 +271,17 @@ class SharedPhasePatchTSTClassifier(nn.Module):
         if tokens.size(1) > self.position.size(1):
             raise ValueError("PatchTST prefix has more patches than the registered P1-P4 contract")
         tokens = tokens + self.position[:, :tokens.size(1)]
-        encoded = self.encoder(tokens)
+        # Keep the deterministic math-SDP choice local to this encoder call.
+        # The old torch.backends.cuda.enable_* API changes process-global
+        # state, which could silently change a different backbone sharing the
+        # process.  Fused backends reject the large effective B x C batch on
+        # L4 under deterministic algorithms; Math SDP is appropriate for the
+        # registered <=3-token sequences.
+        if tokens.is_cuda:
+            with sdpa_kernel(SDPBackend.MATH):
+                encoded = self.encoder(tokens)
+        else:
+            encoded = self.encoder(tokens)
         channel_embeddings = self.norm(encoded.mean(dim=1)).reshape(batch, channels, -1)
         return channel_embeddings.flatten(start_dim=1)
 

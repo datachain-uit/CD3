@@ -1,8 +1,11 @@
 """Portable VastAI runner for the locked shared-checkpoint temporal protocol.
 
 This intentionally does not import Modal.  It consumes the compact tree made
-by ``download_*_vastai_inputs.ps1`` and trains one F1 recurrent architecture
-with the same prefix-safe ``model.shared_phase`` implementation as S3.
+by ``download_*_vastai_inputs.ps1`` and trains one registered architecture
+(F1 recurrent, F2 PatchTST or F3 MOMENT-Small) with the same prefix-safe
+``model.shared_phase`` implementation as S3.  The run manifest records the
+execution backend, GPU, library versions and the model revision so that a
+VastAI cell can be told apart from (and compared with) a Modal L4 cell.
 """
 from __future__ import annotations
 
@@ -14,6 +17,11 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+
+# ``model.shared_phase.seed_everything`` enables torch.use_deterministic_algorithms(True);
+# on CUDA that requires a fixed cuBLAS workspace, set before the first CUDA call.
+# The Modal image sets the same value (modal_jobs/model_app.py).
+os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
 
 import numpy as np
 import pandas as pd
@@ -32,6 +40,7 @@ if PROJECT_ROOT is None:
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from model.architectures import ARCHITECTURE_METADATA
 from model.data import fit_layout
 from model.shared_phase import evaluate_test_prefix, train_shared_checkpoint
 from vastai_metadata_contract import build_contract, write_contract
@@ -41,6 +50,12 @@ try:  # ``resource`` is available in the Linux VastAI container, not Windows.
 except ModuleNotFoundError:  # pragma: no cover - local CLI/help convenience.
     resource = None
 
+
+# Registered S3 hardware (Meta-Dataset-Report v1.8.1 Appendix D3: bf16 AMP on NVIDIA L4).  A rented
+# VastAI instance is only comparable with the Modal L4 cells when it exposes the same GPU model; any
+# other device must be an explicit, recorded exception.
+EXPECTED_GPU = "NVIDIA L4"
+HPARAMS = {"hidden_size": 128, "num_layers": 1, "dropout": 0.3, "learning_rate": 1e-3, "weight_decay": 1e-5}
 
 PARENTS = {"V2": "V1", "V3": "V1", "V4": "V1", "V6": "V5", "V7": "V5", "V8": "V5",
            "V10": "V9", "V11": "V9", "V12": "V9", "V14": "V13", "V15": "V13", "V16": "V13"}
@@ -85,7 +100,34 @@ def parse() -> argparse.Namespace:
     parser.add_argument("--patience", type=int, default=5,
                         help="Validation early-stopping patience; capped to max_epochs.")
     parser.add_argument("--prediction-salt", default=os.environ.get("TEMPO_PREDICTION_SALT", ""))
+    parser.add_argument("--expected-gpu", default=EXPECTED_GPU,
+                        help="GPU name that torch must report; the registered S3 hardware is NVIDIA L4.")
+    parser.add_argument("--allow-gpu-mismatch", action="store_true",
+                        help="Run on a different GPU anyway; the manifest records it and the cell is not "
+                             "comparable with L4 cells for time/energy facts.")
     return parser.parse_args()
+
+
+def execution_provenance(args: argparse.Namespace) -> dict:
+    cuda = torch.cuda.is_available()
+    properties = torch.cuda.get_device_properties(0) if cuda else None
+    gpu = torch.cuda.get_device_name(0) if cuda else None
+    if cuda and gpu != args.expected_gpu and not args.allow_gpu_mismatch:
+        raise RuntimeError(f"GPU {gpu!r} differs from the registered S3 hardware {args.expected_gpu!r}; "
+                           "pass --allow-gpu-mismatch to record an explicit exception.")
+    return {
+        "execution_backend": "vastai_portable_runner",
+        "gpu": gpu, "gpu_count": torch.cuda.device_count() if cuda else 0,
+        "gpu_total_memory_gb": round(properties.total_memory / 1024 ** 3, 2) if properties else None,
+        "cuda_capability": f"{properties.major}.{properties.minor}" if properties else None,
+        "gpu_matches_registered_hardware": (gpu == args.expected_gpu) if cuda else None,
+        "torch_version": torch.__version__, "cuda_version": torch.version.cuda,
+        "cudnn_version": torch.backends.cudnn.version() if cuda else None,
+        "cublas_workspace_config": os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
+        "deterministic_algorithms": True,
+        # No NVML sampling in this runner: C3 energy facts cannot be derived from VastAI cells.
+        "energy_measurement": "NOT_MEASURED",
+    }
 
 
 def main() -> None:
@@ -93,6 +135,7 @@ def main() -> None:
     if not args.prediction_salt:
         raise ValueError("Set TEMPO_PREDICTION_SALT once for all VastAI comparison runs, or pass --prediction-salt.")
     architecture = args.model_name.lower()
+    provenance = execution_provenance(args)
     moment_snapshot = None
     moment_cache_dir = None
     if architecture.startswith("moment_"):
@@ -127,7 +170,7 @@ def main() -> None:
         architecture=architecture, seed=model_seed, dataloader_seed=loader_seed,
         batch_size=args.batch_size, workers=args.workers, max_epochs=args.max_epochs,
         patience=min(args.patience, args.max_epochs),
-        hidden_size=128, num_layers=1, dropout=0.3, learning_rate=1e-3, weight_decay=1e-5,
+        **HPARAMS,
         moment_cache_dir=moment_cache_dir, moment_snapshot=(moment_snapshot or {}).get("snapshot"),
     )
     output = args.output_root / args.task / args.window / args.pipeline_id / args.model_name / f"seed={args.seed}"
@@ -160,6 +203,9 @@ def main() -> None:
         "runner": "tools/vastai_train_shared.py", "protocol": "shared_checkpoint_prefix_safe_v2_4",
         "task": args.task, "window_id": args.window, "pipeline_id": args.pipeline_id,
         "parent_pipeline": parent, "model_name": args.model_name, "architecture": architecture,
+        "model_revision": ARCHITECTURE_METADATA[architecture]["model_revision"],
+        "architecture_metadata": ARCHITECTURE_METADATA[architecture],
+        **HPARAMS,
         "seed": args.seed, "seed_model": model_seed, "seed_dataloader": loader_seed,
         "batch_size": args.batch_size, "max_epochs": args.max_epochs,
         "early_stopping_patience": min(args.patience, args.max_epochs),
@@ -172,7 +218,7 @@ def main() -> None:
         "elapsed_seconds": time.perf_counter() - started,
         "peak_ram_mb": (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
                         if resource is not None else None),
-        "gpu": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
+        **provenance,
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
     }
     (output / "run_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")

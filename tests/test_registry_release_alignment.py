@@ -1,6 +1,7 @@
 """Regression tests for registry/release identity and subgroup support rules."""
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -17,6 +18,9 @@ from metrics_core.evaluation import classification_metrics  # noqa: E402
 from release_core.contracts import RELEASE_SPECS  # noqa: E402
 
 from model.architectures import ARCHITECTURE_METADATA  # noqa: E402
+
+sys.path.insert(0, str(ROOT / "tools"))
+from vastai_metadata_contract import RELEASE_FIELDS  # noqa: E402
 
 
 def test_label_and_split_identifiers_equal_release_specs():
@@ -69,3 +73,16 @@ def test_moment_exploratory_core_excludes_radius_and_keeps_sasmote():
     assert {"V3", "V7", "V11", "V15"}.issubset(core)
     assert {"V4", "V8", "V12", "V16"}.isdisjoint(core)
     assert sensitivity == {"V4", "V8", "V12", "V16"}
+
+
+def test_portable_vastai_release_vocabulary_equals_release_specs():
+    """Portable runs must stamp exactly the identifiers locked in release contracts."""
+    for release_id, spec in RELEASE_SPECS.items():
+        fields = RELEASE_FIELDS[release_id]
+        for key in ("split_registry_id", "split_version", "phase_version", "label_rule_version", "label_threshold_set"):
+            assert fields[key] == spec[key], (release_id, key)
+        manifest_path = ROOT / "modal_jobs" / f"{release_id.lower()}_release_manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        for key, value in manifest.items():
+            if key in fields:
+                assert fields[key] == value, (release_id, key)

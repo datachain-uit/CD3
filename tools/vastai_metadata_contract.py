@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -12,20 +13,29 @@ PARENT_PIPELINES = {
     "V10": "V9", "V11": "V9", "V12": "V9", "V14": "V13", "V15": "V13", "V16": "V13",
 }
 
-# Kept here because the portable VastAI bundle intentionally has no dependency
-# on the Modal package tree. These are the same locked vocabularies as
-# release_core.contracts.RELEASE_SPECS.
+# The portable bundle ships ``release_core`` next to ``model`` (both are plain
+# Python without a Modal dependency), so the locked vocabulary is imported rather
+# than copied: a copy drifted on 2026-10-12 (LO ``label_threshold_set`` lost the
+# ``__EXCLUDE_NO_SCORED_SIGNAL`` suffix), which would have stamped a wrong
+# identifier into every LO sidecar or refused every LO run.
+_PROJECT_ROOT = next((c for c in (Path(__file__).resolve().parent, Path(__file__).resolve().parents[1])
+                      if (c / "release_core").is_dir()), None)
+if _PROJECT_ROOT is not None and str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+try:
+    from release_core import contracts as release_contracts  # noqa: E402
+    from release_core.contracts import RELEASE_SPECS  # noqa: E402
+except ImportError as exc:  # The bundle must ship release_core/ next to model/; do not paste the values here.
+    raise RuntimeError("portable VastAI bundle must include release_core/ (locked release vocabulary)") from exc
+
+_SHARED_RELEASE_KEYS = ("split_registry_id", "split_version", "phase_version", "label_rule_version", "label_threshold_set")
+_EXTRA_RELEASE_FIELDS = {
+    "CQ_V2_2": {"feature_dictionary_version": "schema_from_phase_views_v2_2", "scenario": "hybrid"},
+    "LO_V3_1": {"feature_dictionary_version": "schema_from_phase_views_v3_1", "scenario": "hybrid"},
+}
 RELEASE_FIELDS = {
-    "CQ_V2_2": {"split_registry_id": "split_registry_v2_2_overlap_audit_v1_r2",
-                  "split_version": "v2_2", "phase_version": "wide_prefix_v2_2",
-                  "feature_dictionary_version": "schema_from_phase_views_v2_2",
-                  "label_rule_version": "cq_vector_proximity_v1_zero_activity_policy",
-                  "label_threshold_set": "CQ_VECTOR_PROXIMITY_PRIMARY_V1", "scenario": "hybrid"},
-    "LO_V3_1": {"split_registry_id": "split_registry_v3_1_scored_signal_excluded_overlap_audit_v1",
-                  "split_version": "v3_1", "phase_version": "wide_prefix_v3_1",
-                  "feature_dictionary_version": "schema_from_phase_views_v3_1",
-                  "label_rule_version": "lo_final_score_catalog_normalized_v3_1",
-                  "label_threshold_set": "CATALOG_NORMALIZED_PRIMARY_V3_1", "scenario": "hybrid"},
+    release_id: {**{key: spec[key] for key in _SHARED_RELEASE_KEYS}, **_EXTRA_RELEASE_FIELDS[release_id]}
+    for release_id, spec in RELEASE_SPECS.items()
 }
 
 
@@ -35,6 +45,11 @@ def _sha256_bytes(value: bytes) -> str:
 
 def _sha256_file(path: Path) -> str:
     return _sha256_bytes(path.read_bytes())
+
+
+def _release_contract_sha256() -> str:
+    """Hash the imported locked vocabulary used to validate this portable run."""
+    return _sha256_file(Path(release_contracts.__file__))
 
 
 def _artifact_identity(remote_path: str | None) -> dict[str, str] | None:
@@ -93,9 +108,11 @@ def build_contract(*, task: str, data_root: Path, run_dir: Path, manifest: dict[
     immutable_key = {
         "release_id": download["release_id"], "data_release_id": download["data_release_id"],
         "task": task, "window_id": window, "pipeline_id": pipeline,
-        "model_name": manifest["model_name"], "seed": manifest["seed"],
+        "model_name": manifest["model_name"], "model_revision": manifest.get("model_revision"),
+        "seed": manifest["seed"],
         "input_download_manifest_sha256": download_hash, "sources": sources,
         "runner_sha256": _sha256_file(runner_path),
+        "release_contract_sha256": _release_contract_sha256(),
     }
     return {
         "metadata_schema_version": "vastai_model_metadata_contract_v1",
@@ -104,12 +121,19 @@ def build_contract(*, task: str, data_root: Path, run_dir: Path, manifest: dict[
             "task", "release_id", "data_release_id", "split_registry_id", "split_version", "phase_version",
             "feature_dictionary_version", "label_rule_version", "label_threshold_set", "scenario")},
         "model_identity": {key: manifest.get(key) for key in (
-            "task", "window_id", "pipeline_id", "parent_pipeline", "model_name", "architecture", "seed",
-            "protocol", "precision_policy", "batch_size", "max_epochs", "early_stopping_patience", "best_epoch")},
+            "task", "window_id", "pipeline_id", "parent_pipeline", "model_name", "architecture", "model_revision",
+            "architecture_metadata", "seed", "protocol", "precision_policy", "batch_size", "max_epochs",
+            "early_stopping_patience", "hidden_size", "num_layers", "dropout", "learning_rate", "weight_decay",
+            "best_epoch")},
+        "execution": {key: manifest.get(key) for key in (
+            "execution_backend", "gpu", "gpu_count", "gpu_total_memory_gb", "cuda_capability", "torch_version",
+            "cuda_version", "cudnn_version", "cublas_workspace_config", "deterministic_algorithms",
+            "energy_measurement")},
         "seed_bundle": {"master_seed": manifest.get("seed"), "seed_model": manifest.get("seed_model"),
                         "seed_dataloader": manifest.get("seed_dataloader"), "seed_preprocess": 20260922,
                         "seed_augmentation": seed_augmentation},
         "lineage": {"input_download_manifest_sha256": download_hash, "runner_sha256": _sha256_file(runner_path),
+                    "release_contract_sha256": _release_contract_sha256(),
                     "run_manifest_sha256": _sha256_file(run_dir / "run_manifest.json"),
                     "input_sources": sources, "parent_imputation": sources["validation"],
                     "augmentation": augmentation},

@@ -10,6 +10,6 @@ MODEL_CONTRACT = {
     "shared_implementation": "model.architectures.SharedPhasePatchTSTClassifier",
     "channel_mixing": False,
     "channel_aggregation": "flatten_after_shared_encoder",
-    "attention_backend": "math_sdp__flash_and_mem_efficient_disabled_for_large_BxC",
+    "attention_backend": "math_sdp__scoped_to_encoder_call__flash_and_mem_efficient_rejected_for_large_BxC",
     "protocol": "shared_checkpoint_prefix_safe_v2_4",
 }
