@@ -25,6 +25,10 @@ PHASE_MASK_BASES = (
 )
 IDENTITY_OR_PROVENANCE = {
     "enrollment_id", "offering_id", "window", "split", "synthetic_id",
+    # Release bookkeeping is never a predictive feature.  It happened to be
+    # constant in the LO V3.1 release, but excluding it prevents a future
+    # multi-release input from encoding its split/release identity.
+    "split_rule_version",
     "course_id", "user_id", "teacher_id", "school_id",
     "user_id_code", "course_id_code", "teacher_id_code", "school_id_code",
 }

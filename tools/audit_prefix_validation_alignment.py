@@ -34,6 +34,23 @@ from sklearn.metrics import balanced_accuracy_score, f1_score
 PHASES = ("P1", "P2", "P3", "P4")
 LABEL_COLUMN = "LO_performance_label_3"
 CLASS_TOKEN_TO_LABEL = {"c0": "I/D", "c1": "G", "c2": "E"}
+STATIC_FIELD_CONTRACT = {
+    "ex_counts": ("Number of exercise resources in the course catalog.", "catalog available at enrollment", "RETAIN"),
+    "gender": ("Enrollment-profile demographic code.", "available in enrollment profile", "RETAIN"),
+    "resource_count": ("Number of distinct course resources in the course catalog.", "catalog available at enrollment", "RETAIN"),
+    "teacher_count": ("Distinct teachers linked to the course.", "catalog available at enrollment", "RETAIN"),
+    "teacher_bio_coverage": ("Share of linked teachers with a biography.", "catalog available at enrollment", "RETAIN"),
+    "teacher_avg_bio_length_chars": ("Mean biography length of linked teachers.", "catalog available at enrollment", "RETAIN"),
+    "teacher_org_count": ("Distinct teacher organisations linked to the course.", "catalog available at enrollment", "RETAIN"),
+    "school_count": ("Distinct schools linked to the course.", "catalog available at enrollment", "RETAIN"),
+    "school_bio_coverage": ("Share of linked schools with a biography.", "catalog available at enrollment", "RETAIN"),
+    "school_avg_bio_length_chars": ("Mean biography length of linked schools.", "catalog available at enrollment", "RETAIN"),
+    "school_motto_coverage": ("Share of linked schools with a motto.", "catalog available at enrollment", "RETAIN"),
+    "school_avg_motto_length_chars": ("Mean motto length of linked schools.", "catalog available at enrollment", "RETAIN"),
+    "timeline_source": ("Provenance of the schedule/timeline used for the offering.", "known when its timeline is selected", "RETAIN_AS_CONTEXT"),
+    "window_duration_seconds": ("Enrollment-to-locked-window-end duration derived from the chosen schedule.", "known only under the recorded schedule/timeline source", "RETAIN_AS_CONTEXT"),
+    "split_rule_version": ("Release bookkeeping identifier for the split algorithm.", "not a predictor", "EXCLUDE"),
+}
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -153,11 +170,11 @@ def _static_prefix_parity(prefix_root: Path, static_columns: list[str]) -> pd.Da
     return pd.DataFrame(rows)
 
 
-def _course_cohort_audit(phase_root: Path, prefix_root: Path) -> pd.DataFrame:
+def _course_cohort_audit(phase_root: Path, prefix_root: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     phase_files = _parquet_files(phase_root)
     train_courses: set[str] = set()
     validation_summary: Counter[tuple[str, str]] = Counter()
-    selected = ["window", "split", "course_id", LABEL_COLUMN]
+    selected = ["window", "split", "course_id", LABEL_COLUMN, "temporal_strict_P1"]
     for batch in _iter_selected_rows(phase_files, selected):
         batch = batch.loc[batch["window"].eq("W1")]
         train = batch.loc[batch["split"].eq("train")]
@@ -176,14 +193,14 @@ def _course_cohort_audit(phase_root: Path, prefix_root: Path) -> pd.DataFrame:
     grouped["n_total_cohort"] = grouped.groupby("course_cohort")["n_rows"].transform("sum")
     grouped["share_within_cohort"] = grouped["n_rows"] / grouped["n_total_cohort"]
     grouped["n_train_courses"] = len(train_courses)
-    return grouped
+    return grouped, test
 
 
 def _prediction_tables(model_root: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     class_rows: list[dict[str, Any]] = []
     overall_rows: list[dict[str, Any]] = []
     for path in sorted(model_root.rglob("predictions/*.parquet")):
-        if path.name not in {"test_P1.parquet", "validation_P1.parquet"}:
+        if "W1" not in path.parts or path.name not in {"test_P1.parquet", "validation_P1.parquet"}:
             continue
         required = {"window_id", "pipeline_id", "model_name", "eval_split", "phase_id", "y_true", "y_pred"}
         schema_names = set(pq.ParquetFile(path).schema_arrow.names)
@@ -224,6 +241,69 @@ def _prediction_tables(model_root: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     return pd.DataFrame(class_rows), pd.DataFrame(overall_rows)
 
 
+def _all_phase_prediction_summary(model_root: Path) -> pd.DataFrame:
+    """Return the requested W1 VALIDATION/TEST P1--P4 table by model cell."""
+    rows: list[dict[str, Any]] = []
+    required = {"window_id", "pipeline_id", "model_name", "eval_split", "phase_id", "y_true", "y_pred"}
+    for path in sorted(model_root.rglob("predictions/*.parquet")):
+        if "W1" not in path.parts or path.name not in {f"{split}_{phase}.parquet" for split in ("test", "validation") for phase in PHASES}:
+            continue
+        if not required.issubset(pq.ParquetFile(path).schema_arrow.names):
+            continue
+        frame = pd.read_parquet(path, columns=sorted(required))
+        if frame.empty or not frame["window_id"].eq("W1").all():
+            continue
+        meta = frame.iloc[0]
+        true, pred = frame["y_true"].astype(str), frame["y_pred"].astype(str)
+        rows.append({
+            "source_file": str(path), "model_name": meta["model_name"],
+            "pipeline_id": meta["pipeline_id"], "eval_split": meta["eval_split"],
+            "phase_id": meta["phase_id"], "n_rows": len(frame),
+            "macro_f1": f1_score(true, pred, average="macro", zero_division=0),
+            "balanced_accuracy": balanced_accuracy_score(true, pred),
+        })
+    return pd.DataFrame(rows)
+
+
+def _w1_p1_slice_metrics(model_root: Path, context: pd.DataFrame) -> pd.DataFrame:
+    """Score W1/P1 predictions by course novelty and STRICT/OVERLAP.
+
+    The shared runner preserves parquet row order.  Every prediction file is
+    checked against the raw label token before positional context is attached;
+    therefore this does not silently join separately salted identifiers.
+    """
+    expected = context[LABEL_COLUMN].map({"I/D": "c0", "G": "c1", "E": "c2"}).astype(str).to_numpy()
+    context = context.copy()
+    context["temporal_slice"] = np.where(pd.to_numeric(context["temporal_strict_P1"], errors="coerce").fillna(0).eq(1), "STRICT", "OVERLAP")
+    rows: list[dict[str, Any]] = []
+    for path in sorted(model_root.rglob("predictions/test_P1.parquet")):
+        if "W1" not in path.parts:
+            continue
+        frame = pd.read_parquet(path, columns=["window_id", "pipeline_id", "model_name", "eval_split", "phase_id", "y_true", "y_pred"])
+        frame = frame.loc[frame["window_id"].eq("W1")]
+        if frame.empty:
+            continue
+        if len(frame) != len(context) or not np.array_equal(frame["y_true"].astype(str).to_numpy(), expected):
+            raise ValueError(f"Cannot attach W1/P1 context: ordered label mismatch in {path}")
+        frame = frame.assign(
+            course_cohort=context["course_cohort"].to_numpy(),
+            temporal_slice=context["temporal_slice"].to_numpy(),
+        )
+        metadata = frame.iloc[0]
+        for axis in ("course_cohort", "temporal_slice"):
+            for group, subset in frame.groupby(axis, dropna=False):
+                true, pred = subset["y_true"].astype(str), subset["y_pred"].astype(str)
+                rows.append({
+                    "source_file": str(path), "model_name": metadata["model_name"],
+                    "pipeline_id": metadata["pipeline_id"], "axis": axis,
+                    "slice": str(group), "n_rows": len(subset),
+                    "macro_f1": f1_score(true, pred, average="macro", zero_division=0),
+                    "balanced_accuracy": balanced_accuracy_score(true, pred),
+                    "row_alignment": "ordered_raw_label_match",
+                })
+    return pd.DataFrame(rows)
+
+
 def _layouts(model_root: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     signatures: Counter[str] = Counter()
     columns: dict[str, dict[str, Any]] = {}
@@ -240,6 +320,9 @@ def _layouts(model_root: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
                 "column": name, "semantic_role": role,
                 "manual_review_required": review, "review_rationale": rationale,
                 "layout_count": 0, "mask_column_present": False,
+                "definition": STATIC_FIELD_CONTRACT.get(name, ("Undocumented static field.", "manual review", "REVIEW"))[0],
+                "availability_contract": STATIC_FIELD_CONTRACT.get(name, ("Undocumented static field.", "manual review", "REVIEW"))[1],
+                "protocol_disposition": STATIC_FIELD_CONTRACT.get(name, ("Undocumented static field.", "manual review", "REVIEW"))[2],
             })
             record["layout_count"] += 1
             record["mask_column_present"] = record["mask_column_present"] or f"missing__{name}" in masks
@@ -268,8 +351,10 @@ def main() -> None:
     static_columns, signatures = _layouts(args.model_root)
     prefix_audit = pd.DataFrame(_prefix_schema_audit(prefix_root))
     static_parity = _static_prefix_parity(prefix_root, static_columns["column"].tolist())
-    cohort = _course_cohort_audit(phase_root, prefix_root)
+    cohort, test_context = _course_cohort_audit(phase_root, prefix_root)
     per_class, overall = _prediction_tables(args.model_root)
+    all_phase_summary = _all_phase_prediction_summary(args.model_root)
+    p1_slices = _w1_p1_slice_metrics(args.model_root, test_context)
 
     _write_csv(static_columns, args.output_root / "static_columns.csv")
     _write_csv(signatures, args.output_root / "layout_signatures.csv")
@@ -278,6 +363,8 @@ def main() -> None:
     _write_csv(cohort, args.output_root / "w1_p1_course_cohort_label_support.csv")
     _write_csv(per_class, args.output_root / "w1_p1_per_class_predictions.csv")
     _write_csv(overall, args.output_root / "w1_p1_prediction_summary.csv")
+    _write_csv(all_phase_summary, args.output_root / "w1_validation_test_p1_p4_summary.csv")
+    _write_csv(p1_slices, args.output_root / "w1_p1_seen_unseen_strict_overlap_metrics.csv")
     summary = {
         "audit": "local_read_only_prefix_validation_alignment_v1",
         "phase_view_root": str(phase_root),
@@ -290,6 +377,8 @@ def main() -> None:
         "prefix_future_mask_all_samples_ok": bool(prefix_audit["future_mask_ok_sample"].all()),
         "test_static_prefix_parity_ok": bool(static_parity["values_identical"].all()),
         "w1_p1_prediction_cells": int(len(overall)),
+        "w1_p1_slice_metric_cells": int(len(p1_slices)),
+        "w1_validation_test_p1_p4_cells": int(len(all_phase_summary)),
         "notes": [
             "The audit does not infer causal leakage from a column name.",
             "Validation is transformed phase-wise by the model layout; this audit verifies source prefix masking and reports the static branch for explicit protocol review.",

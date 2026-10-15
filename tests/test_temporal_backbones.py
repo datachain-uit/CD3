@@ -201,3 +201,20 @@ def test_patchtst_gradient_accumulation_preserves_registered_update() -> None:
         if name.endswith("self_attn.in_proj_bias"):
             continue  # zero-gradient key-bias is AdamW rounding-sensitive
         assert torch.allclose(tensor, other, atol=5e-5, rtol=1e-4), name
+
+
+def test_split_rule_version_is_never_a_static_predictor() -> None:
+    """Release bookkeeping must not become a feature in a future mixed release."""
+    from model.data import fit_layout
+
+    frame = pd.DataFrame({
+        "enrollment_id": ["e1", "e2", "e3"],
+        "CQ_label_final": ["warning", "average", "good"],
+        "split_rule_version": [1.0, 2.0, 1.0],
+        "static_allowed": [0.1, 0.2, 0.3],
+        **{f"phase_available_P{phase}": np.ones(3, dtype="float32") for phase in range(1, 5)},
+        **{f"video_count_P{phase}": np.arange(3, dtype="float32") for phase in range(1, 5)},
+    })
+    layout = fit_layout(frame, task="CQ", phase_id="P4", use_masks=False)
+    assert "static_allowed" in layout.static_columns
+    assert "split_rule_version" not in layout.static_columns
