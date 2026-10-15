@@ -251,7 +251,7 @@ same conditions, which the runner now enforces or records:
   copied (a copy drifted on 2026-10-12 for the LO `label_threshold_set`).
 - Audited VastAI facts can be ingested without copying model tensors into the
   Modal Volume.  `ingest_lo_vastai_facts_app.py` validates 204 metadata
-  contracts and imports the six post-hoc fact families into L2 under
+  contracts, model metrics, resource rows, and the six post-hoc fact families into L2 under
   `execution_backend=vastai_portable_runner`, with an immutable L0 receipt.
   They use the explicit compact external layout (family × window partitions;
   run, phase, and split remain columns) and therefore cannot collide with
@@ -261,7 +261,11 @@ same conditions, which the runner now enforces or records:
   ```powershell
   python -X utf8 -m modal run .\modal_jobs\ingest_lo_vastai_facts_app.py --mode ingest
   python -X utf8 -m modal run .\modal_jobs\ingest_lo_vastai_facts_app.py --mode status
+  python -X utf8 -m modal run .\modal_jobs\export_lo_vastai_facts.py
   ```
+  The exporter reads only those immutable L2 partitions and writes the normal
+  report bundle under `L2_facts/report_exports/task=LO/`; it does not retrain,
+  recompute predictions, or read a local VastAI output tree.
 - The registered optimisation batch is 2048 rows for every family. The
   channel-independent PatchTST does not fit that batch with the 274 CQ
   channels on a 24 GB L4, so it is run with gradient accumulation

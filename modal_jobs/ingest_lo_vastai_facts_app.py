@@ -46,8 +46,10 @@ if not ARTIFACT_LOCAL_ROOT.is_dir():
 
 
 def _metadata_only(path: Path) -> bool:
-    """Ignore all large external artifacts except metadata contracts."""
-    return path.is_file() and path.name not in {"metadata_contract.json", "run_manifest.json"}
+    """Ignore large external artifacts; import only contracts and metrics facts."""
+    return path.is_file() and path.name not in {
+        "metadata_contract.json", "run_manifest.json", "metrics_overall.parquet"
+    }
 
 
 app = modal.App(APP_NAME)
@@ -99,7 +101,7 @@ def _load_contract_index(root: Path) -> dict[tuple[str, str, str], dict]:
 def _fact_path(base: Path, fact_name: str, row: dict) -> Path:
     common = base / fact_name / f"task={TASK}" / f"feature_regime={REGIME}"
     if fact_name in {"sanity_components", "metrics_per_class", "bootstrap_metrics_per_class",
-                     "checkpoint_selection", "evaluation_slices"}:
+                     "checkpoint_selection", "evaluation_slices", "metrics_overall", "resource_usage"}:
         # VastAI did not create L1 model roots on this Volume.  Keep the
         # complete run/phase/split keys as columns, while partitioning this
         # imported external evidence by backend, family and window.  This is
@@ -112,6 +114,56 @@ def _fact_path(base: Path, fact_name: str, row: dict) -> Path:
         return (common / "execution_backend=vastai_portable_runner" /
                 f"seed={SEED}" / f"window_id={row['window_id']}" / "part-00000.parquet")
     raise ValueError(f"Unsupported fact {fact_name}")
+
+
+def _external_model_facts(contracts: dict[tuple[str, str, str], dict]):
+    """Read small model metrics and resource facts directly from each contract.
+
+    The external runner has no Modal L1 root.  Its contract is therefore the
+    provenance selector: never discover a metrics file by a broad directory
+    scan that could accidentally ingest a retry or an unrelated experiment.
+    """
+    import pandas as pd
+
+    metric_frames, resource_rows = [], []
+    for (family, window, pipeline), item in sorted(contracts.items()):
+        contract, contract_path = item["contract"], item["path"]
+        metrics_path = contract_path.parent / "metrics_overall.parquet"
+        if not metrics_path.is_file():
+            raise FileNotFoundError(f"Missing contract-declared metrics: {metrics_path}")
+        metrics = pd.read_parquet(metrics_path)
+        if len(metrics) != 8:
+            raise ValueError(f"{metrics_path}: expected 8 validation/test phase rows, got {len(metrics)}")
+        if set(metrics.get("model_name", pd.Series(dtype=str)).astype(str)) != {family}:
+            raise ValueError(f"{metrics_path}: model identity mismatch")
+        metrics = metrics.copy()
+        metrics["run_id"] = item["portable_run_id"]
+        metrics["attempt_id"] = "vastai_f2_seed42_clean_20261013"
+        metrics["execution_backend"] = "vastai_portable_runner"
+        metrics["fact_source"] = "vastai_metadata_contract_metrics_v1"
+        metrics["l2_ingest_layout"] = "external_vastai_compact_v1"
+        metrics["external_metadata_contract_sha256"] = _sha256(contract_path)
+        metric_frames.append(metrics)
+
+        resources = contract.get("resources", {})
+        resource_rows.append({
+            "task": TASK, "feature_regime": REGIME, "window_id": window,
+            "pipeline_id": pipeline, "model_name": family, "seed": SEED,
+            "run_id": item["portable_run_id"], "attempt_id": "vastai_f2_seed42_clean_20261013",
+            "execution_backend": "vastai_portable_runner", "resource_source": "metadata_contract",
+            "elapsed_seconds": resources.get("elapsed_seconds"),
+            "peak_ram_mb": resources.get("peak_ram_mb"), "gpu": resources.get("gpu"),
+            "gpu_memory_total_mb": resources.get("gpu_memory_total_mb"),
+            "energy_measurement_type": resources.get("energy_measurement_type"),
+            "energy_gpu_estimated_kwh": resources.get("energy_gpu_estimated_kwh"),
+            "energy_sample_count": resources.get("energy_sample_count"),
+            "energy_sample_interval_s": resources.get("energy_sample_interval_s"),
+            "energy_sample_missing_rate": resources.get("energy_sample_missing_rate"),
+        })
+    metrics_all = pd.concat(metric_frames, ignore_index=True)
+    if len(metrics_all) != 204 * 8:
+        raise RuntimeError(f"Expected 1,632 external metrics rows, got {len(metrics_all)}")
+    return {"metrics_overall": metrics_all, "resource_usage": pd.DataFrame(resource_rows)}
 
 
 def _write_idempotent(frame, path: Path) -> str:
@@ -210,6 +262,16 @@ def ingest_lo_vastai_facts() -> str:
         result = _write_idempotent(one.reset_index(drop=True), _fact_path(facts_base, "canonical_s_leak", one.iloc[0].to_dict()))
         counts[result] += 1
 
+    # Metrics and resource facts are small, contract-declared external output
+    # files.  Ingest them alongside the audit tables so a downstream report
+    # exporter can work entirely from L2 and never needs a local VastAI tree.
+    for fact_name, frame in _external_model_facts(contracts).items():
+        for _, part in frame.groupby(["model_name", "window_id"], dropna=False, sort=True):
+            result = _write_idempotent(
+                part.reset_index(drop=True), _fact_path(facts_base, fact_name, part.iloc[0].to_dict())
+            )
+            counts[result] += 1
+
     receipt = {
         "ingest_id": "vastai_f2_seed42_clean_20261013",
         "task": TASK,
@@ -221,6 +283,8 @@ def ingest_lo_vastai_facts() -> str:
         "source_artifact_root": str(ARTIFACT_LOCAL_ROOT),
         "source_audit_tree_sha256": _sha256(Path("/audit_source") / TASK / "RNN" / f"seed={SEED}" / TASK / "RNN" / f"seed={SEED}" / "sanity_components.parquet"),
         "contract_count": len(contracts),
+        "metrics_rows": 204 * 8,
+        "resource_rows": 204,
         "families": family_rows,
         "partitions": counts,
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -247,6 +311,8 @@ def ingest_status() -> str:
                       "bootstrap_metrics_per_class": 4 * 3,
                       "checkpoint_selection": 4 * 3,
                       "evaluation_slices": 4 * 3,
+                      "metrics_overall": 4 * 3,
+                      "resource_usage": 4 * 3,
                       "canonical_s_leak": 3}
     actual: dict[str, int] = {}
     for fact_name in expected_files:
