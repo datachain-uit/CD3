@@ -7,7 +7,11 @@ cd /workspace/CD3
 
 task=CQ
 model=PATCHTST
-data_root=data/CQ_V2_2_clean_grain_seed42
+# MATCH_MASTER_SEED: every master seed consumes the S2 artifacts of its own seed, so each seed has its own
+# compact input tree (built by build_cq_vastai_download_manifest.py for that seed).  A seed whose tree is
+# absent is skipped with a message instead of being trained on the seed-42 artifacts; the runner would
+# refuse such a balanced cell anyway (MATCH_MASTER_SEED check), but V0/V1/V5/V9/V13 would not be caught.
+data_root_for_seed() { printf 'data/CQ_V2_2_clean_grain_seed%s' "$1"; }
 run_root=runs/patchtst_channel_independent_v2_1_math_sdp
 log_root=runs/logs
 salt_file=.tempo_prediction_salt
@@ -16,6 +20,11 @@ export TEMPO_PREDICTION_SALT="$(cat "$salt_file")"
 mkdir -p "$run_root" "$log_root"
 
 for seed in 42 43 44; do
+  data_root="$(data_root_for_seed "$seed")"
+  if ! test -s "$data_root/download_manifest.json"; then
+    echo "[$(date -Is)] SKIP seed=$seed: no input tree at $data_root (materialize S2 seed $seed and build its manifest first)"
+    continue
+  fi
   for window in W1 W2 W3; do
     for index in $(seq 0 16); do
       pipeline="V${index}"

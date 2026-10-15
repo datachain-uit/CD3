@@ -25,6 +25,7 @@ META_RELEASE = "imputation-v1"
 TASK, REGIME, RELEASE_ID = "LO", "LO_FULL_EARLY", "LO_V3_1"
 SEED = 42
 EXTERNAL_STAGE = "S3_MODEL_EXTERNAL_VASTAI"
+INGEST_ID = "vastai_f2_seed42_clean_20261015_r2"
 FAMILIES = ("RNN", "LSTM", "GRU", "BILSTM")
 EXPECTED_PER_FAMILY = {
     "canonical_s_leak": 120,
@@ -107,17 +108,76 @@ def _fact_path(base: Path, fact_name: str, row: dict) -> Path:
         # imported external evidence by backend, family and window.  This is
         # both queryable and prevents accidental collision with S3_MODEL
         # partitions written by Modal-native runs.
-        return (common / f"execution_backend=vastai_portable_runner" /
+        return (common / f"execution_backend=vastai_portable_runner" / f"ingest_id={INGEST_ID}" /
                 f"model_name={row['model_name']}" / f"seed={SEED}" /
                 f"window_id={row['window_id']}" / "part-00000.parquet")
     if fact_name == "canonical_s_leak":
-        return (common / "execution_backend=vastai_portable_runner" /
+        return (common / "execution_backend=vastai_portable_runner" / f"ingest_id={INGEST_ID}" /
                 f"seed={SEED}" / f"window_id={row['window_id']}" / "part-00000.parquet")
     raise ValueError(f"Unsupported fact {fact_name}")
 
 
+RESOURCE_FIELDS = ("elapsed_seconds", "peak_ram_mb", "gpu", "gpu_total_memory_gb", "cuda_capability", "torch_version",
+                   "cuda_version", "cudnn_version", "batch_size", "micro_batch_size", "accumulation_steps", "best_epoch",
+                   "model_revision", "energy_measurement", "energy_measurement_type", "energy_gpu_estimated_kwh",
+                   "energy_gpu_run_kwh", "energy_sample_count", "energy_sampling_interval_seconds",
+                   "energy_missing_sample_rate", "energy_sampling_duration_s", "energy_null_reason")
+
+
+def run_resources(contract: dict, contract_path: Path) -> dict:
+    """Resource and configuration facts of one portable run, read from its hash-verified run_manifest.json.
+
+    The metadata contract carries no ``resources`` section; elapsed time, peak RAM, GPU, library versions,
+    batch configuration and the energy estimate live in ``run_manifest.json`` next to it.  The contract's
+    ``lineage.run_manifest_sha256`` ties the two files together, so a manifest edited after the sidecar was
+    written is refused instead of silently ingested.  ``train_seconds`` is summed from ``train_history`` when
+    the runner persisted it (265415d and later); older runs keep it null rather than approximated.
+    """
+    import pandas as pd
+
+    manifest_path = contract_path.parent / "run_manifest.json"
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"Missing contract-declared run manifest: {manifest_path}")
+    expected = str(contract.get("lineage", {}).get("run_manifest_sha256", ""))
+    actual = _sha256(manifest_path)
+    if expected and expected != actual:
+        raise ValueError(f"run_manifest.json differs from the sidecar hash: {manifest_path}")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    resources = {field: manifest.get(field) for field in RESOURCE_FIELDS}
+    history_path = contract_path.parent / "train_history.parquet"
+    train_seconds = None
+    if history_path.is_file():
+        history = pd.read_parquet(history_path)
+        if "train_seconds" in history.columns:
+            train_seconds = float(history["train_seconds"].astype(float).sum())
+    resources["train_seconds"] = train_seconds
+    resources["epochs_run"] = int(len(history)) if history_path.is_file() else None
+    resources["run_manifest_sha256"] = actual
+    resources["runner_sha256"] = contract.get("lineage", {}).get("runner_sha256")
+    resources["release_contract_sha256"] = contract.get("lineage", {}).get("release_contract_sha256")
+    return resources
+
+
+def assert_uniform_execution(contracts: dict[tuple[str, str, str], dict], *, expected_gpu: str = "NVIDIA L4") -> dict:
+    """One code revision and one GPU model across the whole ingested grid.
+
+    A grid whose cells were produced by different runner revisions or on different GPUs is not one
+    experiment; the receipt records the unique values so that the ingest can be audited later.
+    """
+    runner = {str(item["contract"].get("lineage", {}).get("runner_sha256")) for item in contracts.values()}
+    release_contract = {str(item["contract"].get("lineage", {}).get("release_contract_sha256")) for item in contracts.values()}
+    gpus = {str(item["contract"].get("execution", {}).get("gpu")) for item in contracts.values()}
+    if len(runner) != 1:
+        raise ValueError(f"Ingest spans {len(runner)} runner revisions: {sorted(runner)[:4]}")
+    known_gpus = gpus - {"None"}
+    if known_gpus and known_gpus != {expected_gpu}:
+        raise ValueError(f"Ingest spans GPUs other than the registered {expected_gpu}: {sorted(known_gpus)}")
+    return {"runner_sha256": next(iter(runner)), "release_contract_sha256": sorted(release_contract),
+            "gpu": sorted(known_gpus) or ["UNRECORDED (contracts older than b5f55fe)"]}
+
+
 def _external_model_facts(contracts: dict[tuple[str, str, str], dict]):
-    """Read small model metrics and resource facts directly from each contract.
+    """Read small model metrics and resource facts for every contract-declared run.
 
     The external runner has no Modal L1 root.  Its contract is therefore the
     provenance selector: never discover a metrics file by a broad directory
@@ -138,27 +198,20 @@ def _external_model_facts(contracts: dict[tuple[str, str, str], dict]):
             raise ValueError(f"{metrics_path}: model identity mismatch")
         metrics = metrics.copy()
         metrics["run_id"] = item["portable_run_id"]
-        metrics["attempt_id"] = "vastai_f2_seed42_clean_20261013"
+        metrics["attempt_id"] = INGEST_ID
         metrics["execution_backend"] = "vastai_portable_runner"
         metrics["fact_source"] = "vastai_metadata_contract_metrics_v1"
         metrics["l2_ingest_layout"] = "external_vastai_compact_v1"
         metrics["external_metadata_contract_sha256"] = _sha256(contract_path)
         metric_frames.append(metrics)
 
-        resources = contract.get("resources", {})
         resource_rows.append({
             "task": TASK, "feature_regime": REGIME, "window_id": window,
             "pipeline_id": pipeline, "model_name": family, "seed": SEED,
-            "run_id": item["portable_run_id"], "attempt_id": "vastai_f2_seed42_clean_20261013",
-            "execution_backend": "vastai_portable_runner", "resource_source": "metadata_contract",
-            "elapsed_seconds": resources.get("elapsed_seconds"),
-            "peak_ram_mb": resources.get("peak_ram_mb"), "gpu": resources.get("gpu"),
-            "gpu_memory_total_mb": resources.get("gpu_memory_total_mb"),
-            "energy_measurement_type": resources.get("energy_measurement_type"),
-            "energy_gpu_estimated_kwh": resources.get("energy_gpu_estimated_kwh"),
-            "energy_sample_count": resources.get("energy_sample_count"),
-            "energy_sample_interval_s": resources.get("energy_sample_interval_s"),
-            "energy_sample_missing_rate": resources.get("energy_sample_missing_rate"),
+            "run_id": item["portable_run_id"], "attempt_id": INGEST_ID,
+            "execution_backend": "vastai_portable_runner",
+            "resource_source": "run_manifest_json_verified_by_contract_sha256",
+            **run_resources(contract, contract_path),
         })
     metrics_all = pd.concat(metric_frames, ignore_index=True)
     if len(metrics_all) != 204 * 8:
@@ -201,7 +254,7 @@ def _load_family_facts(audit_root: Path, family: str, contract_index: dict) -> d
         if missing:
             raise ValueError(f"{family}/{name}: no metadata contract for {sorted(missing)[:3]}")
         frame["run_id"] = [contract_index[key]["portable_run_id"] for key in keys]
-        frame["attempt_id"] = "vastai_f2_seed42_clean_20261013"
+        frame["attempt_id"] = INGEST_ID
         frame["execution_backend"] = "vastai_portable_runner"
         frame["fact_source"] = "vastai_posthoc_audit_shared_v1"
         frame["l2_ingest_layout"] = "external_vastai_compact_v1"
@@ -220,8 +273,9 @@ def ingest_lo_vastai_facts() -> str:
     contracts = _load_contract_index(artifact_root)
     base = Path(MOUNT) / f"meta_release={META_RELEASE}"
     facts_base = base / "L2_facts"
-    receipt_root = base / "L0_registry" / "external_fact_ingests" / "task=LO" / "ingest_id=vastai_f2_seed42_clean_20261013"
+    receipt_root = base / "L0_registry" / "external_fact_ingests" / "task=LO" / f"ingest_id={INGEST_ID}"
     receipt_root.mkdir(parents=True, exist_ok=True)
+    uniform_execution = assert_uniform_execution(contracts)
     counts: dict[str, int] = {"written": 0, "already_present": 0}
     family_rows: dict[str, dict[str, int]] = {}
     canonical_frames = []
@@ -273,12 +327,12 @@ def ingest_lo_vastai_facts() -> str:
             counts[result] += 1
 
     receipt = {
-        "ingest_id": "vastai_f2_seed42_clean_20261013",
+        "ingest_id": INGEST_ID,
         "task": TASK,
         "release_id": RELEASE_ID,
         "feature_regime": REGIME,
         "seed": SEED,
-        "execution_backend": "vastai_portable_runner",
+        "execution_backend": "vastai_portable_runner", "uniform_execution": uniform_execution,
         "source_audit_root": str(AUDIT_LOCAL_ROOT),
         "source_artifact_root": str(ARTIFACT_LOCAL_ROOT),
         "source_audit_tree_sha256": _sha256(Path("/audit_source") / TASK / "RNN" / f"seed={SEED}" / TASK / "RNN" / f"seed={SEED}" / "sanity_components.parquet"),
@@ -303,7 +357,7 @@ def ingest_status() -> str:
     import pandas as pd
 
     base = Path(MOUNT) / f"meta_release={META_RELEASE}"
-    receipt = base / "L0_registry" / "external_fact_ingests" / "task=LO" / "ingest_id=vastai_f2_seed42_clean_20261013" / "receipt.json"
+    receipt = base / "L0_registry" / "external_fact_ingests" / "task=LO" / f"ingest_id={INGEST_ID}" / "receipt.json"
     # Compact external layout: one fact partition per recurrent family and
     # window; canonical S_leak is shared across families.
     expected_files = {"sanity_components": 4 * 3,
@@ -317,7 +371,8 @@ def ingest_status() -> str:
     actual: dict[str, int] = {}
     for fact_name in expected_files:
         root = (base / "L2_facts" / fact_name / "task=LO" /
-                f"feature_regime={REGIME}" / "execution_backend=vastai_portable_runner")
+                f"feature_regime={REGIME}" / "execution_backend=vastai_portable_runner" /
+                f"ingest_id={INGEST_ID}")
         actual[fact_name] = len(list(root.rglob("*.parquet"))) if root.is_dir() else 0
     return json.dumps({
         "receipt_exists": receipt.is_file(),

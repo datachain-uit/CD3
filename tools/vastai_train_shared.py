@@ -170,14 +170,16 @@ def main() -> None:
     if missing:
         raise FileNotFoundError(f"Missing downloaded VastAI inputs: {missing}")
 
-    energy_sampler = None
-    if args.energy_sampling_interval_seconds > 0:
-        # Sampling NVML power is observational only. It cannot alter RNG state,
-        # model tensors, data order or deterministic-kernel selection.
-        energy_sampler = GpuPowerSampler(interval_seconds=args.energy_sampling_interval_seconds).start()
     started = time.perf_counter()
     train, validation = pd.read_parquet(train_path), pd.read_parquet(validation_path)
     tests = {phase: pd.read_parquet(path) for phase, path in test_paths.items()}
+    energy_sampler = None
+    if args.energy_sampling_interval_seconds > 0:
+        # Sampling NVML power is observational only. It cannot alter RNG state,
+        # model tensors, data order or deterministic-kernel selection.  The
+        # window starts after the parquet reads, like the Modal GpuEnergyMeter
+        # (training, selection and all prefix inference; no idle loading time).
+        energy_sampler = GpuPowerSampler(interval_seconds=args.energy_sampling_interval_seconds).start()
     classes = CLASSES[args.task]
     label = "CQ_label_final" if args.task == "CQ" else "LO_performance_label_3"
     unseen = set(train[label].astype(str).unique()).difference(classes)

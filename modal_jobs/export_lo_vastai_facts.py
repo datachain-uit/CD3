@@ -17,7 +17,8 @@ import modal
 APP_NAME, VOLUME_NAME, MOUNT = "tempo-export-lo-vastai-facts-v1", "tempo-data-v1", "/data"
 META_RELEASE, TASK, REGIME, SEED = "imputation-v1", "LO", "LO_FULL_EARLY", 42
 BACKEND = "vastai_portable_runner"
-DEFAULT_REPORT_ID = "F1_seed42_v3_1_vastai_ingested_r1"
+INGEST_ID = "vastai_f2_seed42_clean_20261015_r2"
+DEFAULT_REPORT_ID = "F1_seed42_v3_1_vastai_ingested_r2"
 FAMILIES = ("RNN", "LSTM", "GRU", "BILSTM")
 EXPECTED = {
     "metrics_overall": 1632,
@@ -41,7 +42,7 @@ def _read_compact(facts: Path, fact_name: str):
     import pandas as pd
 
     root = (facts / fact_name / "task=LO" / f"feature_regime={REGIME}" /
-            f"execution_backend={BACKEND}")
+            f"execution_backend={BACKEND}" / f"ingest_id={INGEST_ID}")
     paths = sorted(root.rglob("*.parquet")) if root.is_dir() else []
     if not paths:
         raise FileNotFoundError(f"No imported {fact_name} partitions under {root}")
@@ -65,8 +66,16 @@ def _write_idempotent(frame, path: Path) -> None:
 
 
 def _summary(frame, fields: tuple[str, ...]):
+    """Mean over P1-P4 per pipeline x window x family.
+
+    The family dimension is kept on purpose: the registered reading rule forbids pooling recurrent families,
+    and a per-cell composite averaged over phases is not the composite of averaged components (the report
+    tables state this).  The output carries ``averaging_rule`` so that no consumer mistakes it for a cell fact.
+    """
     selected = [field for field in fields if field in frame.columns]
-    return frame.groupby(["pipeline_id", "window_id"], as_index=False)[selected].mean()
+    out = frame.groupby(["pipeline_id", "window_id", "model_name"], as_index=False)[selected].mean()
+    out["averaging_rule"] = "mean_of_per_cell_values_over_P1_P4"
+    return out
 
 
 @app.function(image=image, volumes={MOUNT: volume}, cpu=2, memory=4096, timeout=30 * 60)
@@ -131,7 +140,8 @@ def export_lo_vastai_facts(report_id: str = DEFAULT_REPORT_ID) -> dict:
         _write_idempotent(frame.reset_index(drop=True), output / name)
     metadata = {
         "task": TASK, "report_id": report_id, "release_id": "LO_V3_1", "seed": SEED,
-        "execution_backend": BACKEND, "exporter_revision": "external_vastai_l2_r1",
+        "ingest_id": INGEST_ID,
+        "execution_backend": BACKEND, "exporter_revision": "external_vastai_l2_r2_family_summaries",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "expected_rows": EXPECTED,
         "actual_rows": {name: len(frame) for name, frame in loaded.items()},
