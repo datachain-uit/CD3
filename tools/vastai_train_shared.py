@@ -42,6 +42,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from model.architectures import ARCHITECTURE_METADATA
 from model.data import fit_layout
+from model.energy import GpuPowerSampler
 from model.shared_phase import evaluate_test_prefix, train_shared_checkpoint
 from vastai_metadata_contract import (augmentation_source_seed, build_contract, load_download_manifest,
                                       train_relative_candidates, write_contract)
@@ -111,6 +112,8 @@ def parse() -> argparse.Namespace:
     parser.add_argument("--allow-gpu-mismatch", action="store_true",
                         help="Run on a different GPU anyway; the manifest records it and the cell is not "
                              "comparable with L4 cells for time/energy facts.")
+    parser.add_argument("--energy-sampling-interval-seconds", type=float, default=1.0,
+                        help="NVML GPU-power sampling period for an energy estimate; <=0 disables sampling.")
     return parser.parse_args()
 
 
@@ -131,8 +134,6 @@ def execution_provenance(args: argparse.Namespace) -> dict:
         "cudnn_version": torch.backends.cudnn.version() if cuda else None,
         "cublas_workspace_config": os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
         "deterministic_algorithms": True,
-        # No NVML sampling in this runner: C3 energy facts cannot be derived from VastAI cells.
-        "energy_measurement": "NOT_MEASURED",
     }
 
 
@@ -169,6 +170,11 @@ def main() -> None:
     if missing:
         raise FileNotFoundError(f"Missing downloaded VastAI inputs: {missing}")
 
+    energy_sampler = None
+    if args.energy_sampling_interval_seconds > 0:
+        # Sampling NVML power is observational only. It cannot alter RNG state,
+        # model tensors, data order or deterministic-kernel selection.
+        energy_sampler = GpuPowerSampler(interval_seconds=args.energy_sampling_interval_seconds).start()
     started = time.perf_counter()
     train, validation = pd.read_parquet(train_path), pd.read_parquet(validation_path)
     tests = {phase: pd.read_parquet(path) for phase, path in test_paths.items()}
@@ -216,6 +222,14 @@ def main() -> None:
         )
         metrics.append({**common, **metric})
     pd.DataFrame(metrics).to_parquet(output / "metrics_overall.parquet", index=False)
+    energy = (energy_sampler.stop() if energy_sampler is not None else {
+        "energy_boundary": "GPU_ONLY", "energy_measurement": "NOT_MEASURED",
+        "energy_measurement_type": "DISABLED", "energy_gpu_estimated_kwh": None,
+        "energy_gpu_run_kwh": None, "energy_sampling_interval_seconds": None,
+        "energy_sample_count": 0, "energy_sample_attempt_count": 0,
+        "energy_missing_sample_rate": 1.0, "energy_sampling_duration_s": None,
+        "energy_null_reason": "SAMPLING_DISABLED", "nvml_gpu_name": None,
+    })
     manifest = {
         "runner": "tools/vastai_train_shared.py", "protocol": "shared_checkpoint_prefix_safe_v2_4",
         "task": args.task, "window_id": args.window, "pipeline_id": args.pipeline_id,
@@ -237,7 +251,7 @@ def main() -> None:
         "elapsed_seconds": time.perf_counter() - started,
         "peak_ram_mb": (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
                         if resource is not None else None),
-        **provenance,
+        **provenance, **energy,
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
     }
     (output / "run_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")

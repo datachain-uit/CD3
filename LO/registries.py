@@ -43,7 +43,7 @@ try:
 except ImportError:  # Supports ``python LO/registries.py`` as documented.
     from seeds import sha256_of, SEED_PREPROCESS
 
-REGISTRY_REVISION = 'registries_rev_2026-10-12_r5'
+REGISTRY_REVISION = 'registries_rev_2026-10-14_r1'
 
 # ---------------------------------------------------------------------------------------------
 # Pipeline registry V0–V16 (PLAN Table 7 / Table 14)
@@ -192,6 +192,13 @@ for _m in MODEL_REGISTRY:
                 'attention_heads': 4, 'prefix_padding': 'RIGHT_ZERO_WITH_SEPARATE_PATCH_MASK',
                 'channel_mixing': False, 'channel_aggregation': 'flatten_after_shared_encoder',
                 'attention_backend': 'math_sdp__scoped_to_encoder_call__flash_and_mem_efficient_rejected_for_large_BxC',
+                # The registered 2,048-row optimisation batch is split into
+                # four 512-row micro-batches on a 24 GB L4; gradients are
+                # accumulated before one optimiser step.  These fields are
+                # part of the manifest-validation contract.
+                'optimisation_batch_size': COMMON_HPARAMS['batch_size'],
+                'micro_batch_size': 512,
+                'accumulation_steps': 4,
             })
         elif _m['model_name'] in {'MOMENT_SMALL', 'MOMENT_BASE'}:
             _m.update({

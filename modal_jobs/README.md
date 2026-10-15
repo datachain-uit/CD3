@@ -187,11 +187,15 @@ exploratory subset then requires frozen embedding caching.
 # Determinism acceptance: run this command twice and compare prediction/probability
 # checksums, metrics, best_epoch, and manifest identity.
 .\modal_jobs\run_model_grid.ps1 `
-  -Task CQ -Mode pilot -Windows W1 -Pipelines V0 -Models PATCHTST -Seeds 42
+  -Task CQ -Mode pilot -Windows W1 -Pipelines V0 -Models PATCHTST -Seeds 42 `
+  -AccumulationSteps 4
 
-# F2 primary: full grid, after PatchTST determinism acceptance.
+# F2 primary: full grid, after PatchTST determinism acceptance.  The registered
+# configuration is 2,048 = 4 x 512; a single 2,048-row PatchTST pass does not
+# fit a 24 GB L4.
 .\modal_jobs\run_model_grid.ps1 `
-  -Task CQ -Mode grid -Models PATCHTST -Seeds 42,43,44
+  -Task CQ -Mode grid -Models PATCHTST -Seeds 42,43,44 `
+  -AccumulationSteps 4
 
 # F3 exploratory core, only after F2 is complete: five imputers, CDSMOTE and
 # SASMOTE (13 pipelines). RadiusSMOTE is a separately-labelled sensitivity
@@ -236,9 +240,12 @@ same conditions, which the runner now enforces or records:
   `run_manifest.json` and `metadata_contract.json`.
 - `CUBLAS_WORKSPACE_CONFIG=:4096:8` is set by the runner before CUDA starts;
   strict determinism fails otherwise.
-- No NVML sampling exists in the runner (`energy_measurement = NOT_MEASURED`):
-  C3 energy facts come from the Modal L4 cells only, and wall-clock facts of
-  VastAI cells are not pooled with Modal facts.
+- The portable runner attempts 1-second NVML power sampling when `pynvml` is
+  available.  Its output is explicitly an estimate
+  (`NVML_POWER_SAMPLING_ESTIMATE`), not a hardware total-energy counter.  If
+  telemetry is unavailable, it persists `NOT_MEASURED`; neither kWh nor CO2e
+  is inferred from wall-clock, RAM, or VRAM.  Do not pool estimated VastAI
+  energy with counter-measured Modal energy in a single ranking.
 - The bundle must ship `release_core/` next to `model/`: the release
   vocabulary is imported from `release_core.contracts.RELEASE_SPECS`, not
   copied (a copy drifted on 2026-10-12 for the LO `label_threshold_set`).

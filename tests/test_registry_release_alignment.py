@@ -99,3 +99,10 @@ def test_portable_tree_resolves_one_s2_artifact_per_master_seed():
     remote = "meta_release=imputation-v1/L1_runs/task=CQ/stage=S2/window_id=W1/pipeline_id=V2/seed=43/run_id=x/attempt_id=1/balanced_train.parquet"
     assert augmentation_source_seed(remote) == 43
     assert augmentation_source_seed("meta_release=imputation-v1/L1_runs/task=CQ/stage=S1/window_id=W1/pipeline_id=V1/run_id=x/train.parquet") is None
+
+
+def test_patchtst_registry_declares_the_accumulated_registered_batch():
+    row = next(row for row in registries.MODEL_REGISTRY if row["model_name"] == "PATCHTST")
+    assert row["batch_size"] == 2048 == row["optimisation_batch_size"]
+    assert row["micro_batch_size"] * row["accumulation_steps"] == row["batch_size"]
+    assert row["accumulation_steps"] == 4 and row["micro_batch_size"] == 512
