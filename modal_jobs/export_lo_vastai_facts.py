@@ -102,8 +102,10 @@ def export_lo_vastai_facts(report_id: str = DEFAULT_REPORT_ID) -> dict:
     if sanity["s_leak_canonical"].isna().any():
         raise RuntimeError("Imported sanity row has no canonical parent S_leak")
     sanity["s_leak"] = sanity.pop("s_leak_canonical")
-    sanity["s_leak_probe_fit_rows"] = sanity.pop("probe_fit_rows")
-    sanity["s_leak_probe_n_eval"] = sanity.pop("s_leak_probe_n_eval")
+    # Audit rows retain their own probe metadata, so pandas suffixes both
+    # source columns.  The canonical parent-real-row probe is authoritative.
+    sanity["s_leak_probe_fit_rows"] = sanity.pop("probe_fit_rows_canonical")
+    sanity["s_leak_probe_n_eval"] = sanity.pop("s_leak_probe_n_eval_canonical")
     sanity["s_leak_probe_fit_once"] = True
     sanity["s_leak_definition_version"] = "parent_imputation_real_rows_canonical_v1"
     components = ["s_nan", "s_maj_jsd", "s_ent", "s_drift", "s_eff", "s_leak"]
