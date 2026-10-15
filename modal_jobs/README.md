@@ -249,8 +249,19 @@ same conditions, which the runner now enforces or records:
 - The bundle must ship `release_core/` next to `model/`: the release
   vocabulary is imported from `release_core.contracts.RELEASE_SPECS`, not
   copied (a copy drifted on 2026-10-12 for the LO `label_threshold_set`).
-- Ingestion of VastAI cells into the L2 facts and the report export is not
-  implemented; until it is, VastAI cells are pilots, not grid results.
+- Audited VastAI facts can be ingested without copying model tensors into the
+  Modal Volume.  `ingest_lo_vastai_facts_app.py` validates 204 metadata
+  contracts and imports the six post-hoc fact families into L2 under
+  `execution_backend=vastai_portable_runner`, with an immutable L0 receipt.
+  They use the explicit compact external layout (family × window partitions;
+  run, phase, and split remain columns) and therefore cannot collide with
+  Modal-native `S3_MODEL` partitions.  The audit bundle must be complete
+  before this command is run:
+
+  ```powershell
+  python -X utf8 -m modal run .\modal_jobs\ingest_lo_vastai_facts_app.py --mode ingest
+  python -X utf8 -m modal run .\modal_jobs\ingest_lo_vastai_facts_app.py --mode status
+  ```
 - The registered optimisation batch is 2048 rows for every family. The
   channel-independent PatchTST does not fit that batch with the 274 CQ
   channels on a 24 GB L4, so it is run with gradient accumulation
