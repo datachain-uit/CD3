@@ -49,7 +49,7 @@ if not ARTIFACT_LOCAL_ROOT.is_dir():
 def _metadata_only(path: Path) -> bool:
     """Ignore large external artifacts; import only contracts and metrics facts."""
     return path.is_file() and path.name not in {
-        "metadata_contract.json", "run_manifest.json", "metrics_overall.parquet"
+        "metadata_contract.json", "run_manifest.json", "metrics_overall.parquet", "train_history.parquet"
     }
 
 
