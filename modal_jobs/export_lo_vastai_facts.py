@@ -32,29 +32,38 @@ DEFAULT_REPORT_ID = os.environ.get(
     "VASTAI_REPORT_ID",
     f"F1_seed42_{'v2_2' if TASK == 'CQ' else 'v3_1'}_vastai_ingested_r1",
 )
-FAMILIES = ("RNN", "LSTM", "GRU", "BILSTM")
+DEFAULT_FAMILIES = "LSTM,GRU,BILSTM" if TASK == "CQ" else "RNN,LSTM,GRU,BILSTM"
+FAMILIES = tuple(item.strip().upper() for item in os.environ.get("VASTAI_FAMILIES", DEFAULT_FAMILIES).split(",") if item.strip())
+if not FAMILIES or any(item not in {"RNN", "LSTM", "GRU", "BILSTM"} for item in FAMILIES):
+    raise ValueError("VASTAI_FAMILIES must be a non-empty comma-separated subset of RNN,LSTM,GRU,BILSTM")
+FAMILY_COUNT = len(FAMILIES)
 EXPECTED = {
-    "metrics_overall": 1632,
-    "sanity_components": 1632,
-    "metrics_per_class": 4896,
-    "bootstrap_metrics_per_class": 14688,
-    "evaluation_slices": 4896,
-    "checkpoint_selection": 204,
+    "metrics_overall": FAMILY_COUNT * 51 * 8,
+    "sanity_components": FAMILY_COUNT * 51 * 8,
+    "metrics_per_class": FAMILY_COUNT * 51 * 8 * 3,
+    "bootstrap_metrics_per_class": FAMILY_COUNT * 51 * 8 * 3 * 3,
+    "evaluation_slices": FAMILY_COUNT * 51 * 8 * 3,
+    "checkpoint_selection": FAMILY_COUNT * 51,
     "canonical_s_leak": 120,
-    "resource_usage": 204,
+    "resource_usage": FAMILY_COUNT * 51,
 }
 
 app = modal.App(APP_NAME)
 volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=False)
-image = modal.Image.debian_slim(python_version="3.12").pip_install(
-    "numpy>=1.26", "pandas>=2.2", "pyarrow>=16"
-)
+image = (modal.Image.debian_slim(python_version="3.12")
+         .pip_install("numpy>=1.26", "pandas>=2.2", "pyarrow>=16")
+         # Modal workers must receive the same task scope as the local caller.
+         .env({
+             "VASTAI_TASK": TASK,
+             "VASTAI_FAMILIES": ",".join(FAMILIES),
+             "VASTAI_INGEST_ID": INGEST_ID,
+         }))
 
 
 def _read_compact(facts: Path, fact_name: str):
     import pandas as pd
 
-    root = (facts / fact_name / "task=LO" / f"feature_regime={REGIME}" /
+    root = (facts / fact_name / f"task={TASK}" / f"feature_regime={REGIME}" /
             f"execution_backend={BACKEND}" / f"ingest_id={INGEST_ID}")
     paths = sorted(root.rglob("*.parquet")) if root.is_dir() else []
     if not paths:
@@ -131,11 +140,11 @@ def export_lo_vastai_facts(report_id: str = DEFAULT_REPORT_ID) -> dict:
     validation = metrics[metrics["eval_split"] == "VALIDATION"].reset_index(drop=True)
     sanity_test = sanity[sanity["eval_split"] == "TEST"].reset_index(drop=True)
     sanity_validation = sanity[sanity["eval_split"] == "VALIDATION"].reset_index(drop=True)
-    expected_split_rows = 51 * 4
+    expected_split_rows = FAMILY_COUNT * 51
     if any(len(frame) != expected_split_rows for frame in (test, validation, sanity_test, sanity_validation)):
         raise RuntimeError("Expected 204 TEST and 204 VALIDATION metric/sanity facts")
 
-    output = facts / "report_exports" / "task=LO" / f"report_id={report_id}"
+    output = facts / "report_exports" / f"task={TASK}" / f"report_id={report_id}"
     payloads = {
         "metrics_test_long.parquet": test,
         "metrics_validation_long.parquet": validation,

@@ -27,8 +27,8 @@ VOLUME_NAME, MOUNT = "tempo-data-v1", "/data"
 META_RELEASE = "imputation-v1"
 TASK = os.environ.get("VASTAI_TASK", "LO").strip().upper()
 TASK_SPECS = {
-    "CQ": {"regime": "CQ_RAW_EARLY", "release": "CQ_V2_2", "bundle": "vastai_f1_batch2048_seed42"},
-    "LO": {"regime": "LO_FULL_EARLY", "release": "LO_V3_1", "bundle": "vastai_f2_batch2048_seed42_20261013"},
+    "CQ": {"regime": "CQ_RAW_EARLY", "release": "CQ_V2_2", "dictionary": "schema_from_phase_views_v2_2", "bundle": "vastai_f1_batch2048_seed42"},
+    "LO": {"regime": "LO_FULL_EARLY", "release": "LO_V3_1", "dictionary": "schema_from_phase_views_v3_1", "bundle": "vastai_f2_batch2048_seed42_20261013"},
 }
 if TASK not in TASK_SPECS:
     raise ValueError("VASTAI_TASK must be CQ or LO")
@@ -40,7 +40,10 @@ INGEST_ID = os.environ.get(
     "VASTAI_INGEST_ID",
     "vastai_f1_seed42_clean_20261016_r1" if TASK == "CQ" else "vastai_f2_seed42_clean_20261015_r2",
 )
-FAMILIES = ("RNN", "LSTM", "GRU", "BILSTM")
+DEFAULT_FAMILIES = "LSTM,GRU,BILSTM" if TASK == "CQ" else "RNN,LSTM,GRU,BILSTM"
+FAMILIES = tuple(item.strip().upper() for item in os.environ.get("VASTAI_FAMILIES", DEFAULT_FAMILIES).split(",") if item.strip())
+if not FAMILIES or any(item not in {"RNN", "LSTM", "GRU", "BILSTM"} for item in FAMILIES):
+    raise ValueError("VASTAI_FAMILIES must be a non-empty comma-separated subset of RNN,LSTM,GRU,BILSTM")
 EXPECTED_PER_FAMILY = {
     "canonical_s_leak": 120,
     "sanity_components": 408,
@@ -71,6 +74,16 @@ app = modal.App(APP_NAME)
 volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=False)
 image = (modal.Image.debian_slim(python_version="3.12")
          .pip_install("pandas>=2.2", "pyarrow>=16")
+         # Modal workers do not inherit the invoking PowerShell environment.
+         # Freeze the client-selected task/release and use container mount paths
+         # when this module is imported remotely.
+         .env({
+             "VASTAI_TASK": TASK,
+             "VASTAI_FAMILIES": ",".join(FAMILIES),
+             "VASTAI_INGEST_ID": INGEST_ID,
+             f"{TASK}_VASTAI_AUDIT_ROOT": "/audit_source",
+             f"{TASK}_VASTAI_ARTIFACT_ROOT": "/artifact_source",
+         })
          .add_local_dir(AUDIT_LOCAL_ROOT, remote_path="/audit_source")
          .add_local_dir(ARTIFACT_LOCAL_ROOT, remote_path="/artifact_source", ignore=_metadata_only))
 
@@ -100,8 +113,9 @@ def _load_contract_index(root: Path) -> dict[tuple[str, str, str], dict]:
             continue
         if identity.get("task") != TASK or int(identity.get("seed", -1)) != SEED:
             raise ValueError(f"Unexpected identity in {path}: {identity}")
-        if release.get("release_id") != RELEASE_ID or release.get("feature_dictionary_version") != "schema_from_phase_views_v3_1":
-            raise ValueError(f"Wrong LO release in {path}: {release}")
+        if (release.get("release_id") != RELEASE_ID
+                or release.get("feature_dictionary_version") != TASK_SPECS[TASK]["dictionary"]):
+            raise ValueError(f"Wrong {TASK} release in {path}: {release}")
         if key in index:
             raise ValueError(f"Duplicate metadata contract for {key}")
         index[key] = {"contract": contract, "path": path, "portable_run_id": _portable_id(contract)}
@@ -109,7 +123,10 @@ def _load_contract_index(root: Path) -> dict[tuple[str, str, str], dict]:
                 for family in FAMILIES for window in range(1, 4) for pipeline in range(17)}
     if set(index) != expected:
         missing, extra = sorted(expected.difference(index)), sorted(set(index).difference(expected))
-        raise ValueError(f"Expected 204 LO metadata contracts; missing={missing[:3]}, extra={extra[:3]}")
+        raise ValueError(
+            f"Expected {len(FAMILIES) * 51} {TASK} metadata contracts; "
+            f"missing={missing[:3]}, extra={extra[:3]}"
+        )
     return index
 
 
@@ -228,8 +245,10 @@ def _external_model_facts(contracts: dict[tuple[str, str, str], dict]):
             **run_resources(contract, contract_path),
         })
     metrics_all = pd.concat(metric_frames, ignore_index=True)
-    if len(metrics_all) != 204 * 8:
-        raise RuntimeError(f"Expected 1,632 external metrics rows, got {len(metrics_all)}")
+    if len(metrics_all) != len(FAMILIES) * 51 * 8:
+        raise RuntimeError(
+            f"Expected {len(FAMILIES) * 51 * 8} external metrics rows, got {len(metrics_all)}"
+        )
     return {"metrics_overall": metrics_all, "resource_usage": pd.DataFrame(resource_rows)}
 
 
@@ -247,9 +266,21 @@ def _write_idempotent(frame, path: Path) -> str:
     return "written"
 
 
+def _family_audit_root(audit_root: Path, family: str) -> Path:
+    # The shared VastAI auditor writes one compact family bundle directly at
+    # ``<audit_root>/<task>/<family>/seed=<seed>``.  Older local downloads
+    # sometimes retained an extra copied task/family prefix; accept that
+    # archival layout only as a fallback.
+    root = audit_root / TASK / family / f"seed={SEED}"
+    if not root.is_dir():
+        root = root / TASK / family / f"seed={SEED}"
+    return root
+
+
 def _load_family_facts(audit_root: Path, family: str, contract_index: dict) -> dict[str, object]:
     import pandas as pd
-    root = audit_root / TASK / family / f"seed={SEED}" / TASK / family / f"seed={SEED}"
+
+    root = _family_audit_root(audit_root, family)
     if not root.is_dir():
         raise FileNotFoundError(f"Missing audit root: {root}")
     loaded = {name: pd.read_parquet(root / f"{name}.parquet") for name in EXPECTED_PER_FAMILY}
@@ -287,7 +318,7 @@ def ingest_lo_vastai_facts() -> str:
     contracts = _load_contract_index(artifact_root)
     base = Path(MOUNT) / f"meta_release={META_RELEASE}"
     facts_base = base / "L2_facts"
-    receipt_root = base / "L0_registry" / "external_fact_ingests" / "task=LO" / f"ingest_id={INGEST_ID}"
+    receipt_root = base / "L0_registry" / "external_fact_ingests" / f"task={TASK}" / f"ingest_id={INGEST_ID}"
     receipt_root.mkdir(parents=True, exist_ok=True)
     uniform_execution = assert_uniform_execution(contracts)
     counts: dict[str, int] = {"written": 0, "already_present": 0}
@@ -349,10 +380,12 @@ def ingest_lo_vastai_facts() -> str:
         "execution_backend": "vastai_portable_runner", "uniform_execution": uniform_execution,
         "source_audit_root": str(AUDIT_LOCAL_ROOT),
         "source_artifact_root": str(ARTIFACT_LOCAL_ROOT),
-        "source_audit_tree_sha256": _sha256(Path("/audit_source") / TASK / "RNN" / f"seed={SEED}" / TASK / "RNN" / f"seed={SEED}" / "sanity_components.parquet"),
+        "source_audit_tree_sha256": _sha256(
+            _family_audit_root(Path("/audit_source"), FAMILIES[0]) / "sanity_components.parquet"
+        ),
         "contract_count": len(contracts),
-        "metrics_rows": 204 * 8,
-        "resource_rows": 204,
+        "metrics_rows": len(FAMILIES) * 51 * 8,
+        "resource_rows": len(FAMILIES) * 51,
         "families": family_rows,
         "partitions": counts,
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -371,20 +404,20 @@ def ingest_status() -> str:
     import pandas as pd
 
     base = Path(MOUNT) / f"meta_release={META_RELEASE}"
-    receipt = base / "L0_registry" / "external_fact_ingests" / "task=LO" / f"ingest_id={INGEST_ID}" / "receipt.json"
+    receipt = base / "L0_registry" / "external_fact_ingests" / f"task={TASK}" / f"ingest_id={INGEST_ID}" / "receipt.json"
     # Compact external layout: one fact partition per recurrent family and
     # window; canonical S_leak is shared across families.
-    expected_files = {"sanity_components": 4 * 3,
-                      "metrics_per_class": 4 * 3,
-                      "bootstrap_metrics_per_class": 4 * 3,
-                      "checkpoint_selection": 4 * 3,
-                      "evaluation_slices": 4 * 3,
-                      "metrics_overall": 4 * 3,
-                      "resource_usage": 4 * 3,
+    expected_files = {"sanity_components": len(FAMILIES) * 3,
+                      "metrics_per_class": len(FAMILIES) * 3,
+                      "bootstrap_metrics_per_class": len(FAMILIES) * 3,
+                      "checkpoint_selection": len(FAMILIES) * 3,
+                      "evaluation_slices": len(FAMILIES) * 3,
+                      "metrics_overall": len(FAMILIES) * 3,
+                      "resource_usage": len(FAMILIES) * 3,
                       "canonical_s_leak": 3}
     actual: dict[str, int] = {}
     for fact_name in expected_files:
-        root = (base / "L2_facts" / fact_name / "task=LO" /
+        root = (base / "L2_facts" / fact_name / f"task={TASK}" /
                 f"feature_regime={REGIME}" / "execution_backend=vastai_portable_runner" /
                 f"ingest_id={INGEST_ID}")
         actual[fact_name] = len(list(root.rglob("*.parquet"))) if root.is_dir() else 0
