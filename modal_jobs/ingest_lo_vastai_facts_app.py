@@ -1,4 +1,4 @@
-"""Ingest audited LO VastAI facts into the immutable L2 fact store.
+"""Ingest audited CQ/LO VastAI facts into the immutable L2 fact store.
 
 The job imports *facts only*: it never uploads or rewrites training inputs,
 checkpoints, or prediction matrices.  Every imported row receives the
@@ -6,8 +6,11 @@ portable run identity from its ``metadata_contract.json`` and is labelled as
 an external VastAI execution.  A compact receipt is stored in L0 so that an
 L2 fact can be traced to the exact local audit bundle that supplied it.
 
-Set ``LO_VASTAI_AUDIT_ROOT`` and ``LO_VASTAI_ARTIFACT_ROOT`` before invoking
-this Modal app when the local bundle is not at the documented default path.
+Set ``VASTAI_TASK`` to ``CQ`` or ``LO`` before invoking this Modal app.  Set
+``<TASK>_VASTAI_AUDIT_ROOT`` and ``<TASK>_VASTAI_ARTIFACT_ROOT`` when the
+local bundle is not at the documented default path.  The task is deliberately
+chosen at image-build time: an ingest image may mount evidence for one locked
+task/release only, never a mixed CQ/LO bundle.
 """
 from __future__ import annotations
 
@@ -20,12 +23,23 @@ from pathlib import Path
 import modal
 
 
-APP_NAME, VOLUME_NAME, MOUNT = "tempo-ingest-lo-vastai-facts-v1", "tempo-data-v1", "/data"
+VOLUME_NAME, MOUNT = "tempo-data-v1", "/data"
 META_RELEASE = "imputation-v1"
-TASK, REGIME, RELEASE_ID = "LO", "LO_FULL_EARLY", "LO_V3_1"
+TASK = os.environ.get("VASTAI_TASK", "LO").strip().upper()
+TASK_SPECS = {
+    "CQ": {"regime": "CQ_RAW_EARLY", "release": "CQ_V2_2", "bundle": "vastai_f1_batch2048_seed42"},
+    "LO": {"regime": "LO_FULL_EARLY", "release": "LO_V3_1", "bundle": "vastai_f2_batch2048_seed42_20261013"},
+}
+if TASK not in TASK_SPECS:
+    raise ValueError("VASTAI_TASK must be CQ or LO")
+REGIME, RELEASE_ID = TASK_SPECS[TASK]["regime"], TASK_SPECS[TASK]["release"]
+APP_NAME = f"tempo-ingest-{TASK.lower()}-vastai-facts-v1"
 SEED = 42
 EXTERNAL_STAGE = "S3_MODEL_EXTERNAL_VASTAI"
-INGEST_ID = "vastai_f2_seed42_clean_20261015_r2"
+INGEST_ID = os.environ.get(
+    "VASTAI_INGEST_ID",
+    "vastai_f1_seed42_clean_20261016_r1" if TASK == "CQ" else "vastai_f2_seed42_clean_20261015_r2",
+)
 FAMILIES = ("RNN", "LSTM", "GRU", "BILSTM")
 EXPECTED_PER_FAMILY = {
     "canonical_s_leak": 120,
@@ -37,13 +51,13 @@ EXPECTED_PER_FAMILY = {
 }
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_BUNDLE = PROJECT_ROOT / "LO" / "resuilt" / "vastai_f2_batch2048_seed42_20261013"
-AUDIT_LOCAL_ROOT = Path(os.environ.get("LO_VASTAI_AUDIT_ROOT", DEFAULT_BUNDLE / "audits")).resolve()
-ARTIFACT_LOCAL_ROOT = Path(os.environ.get("LO_VASTAI_ARTIFACT_ROOT", DEFAULT_BUNDLE)).resolve()
+DEFAULT_BUNDLE = PROJECT_ROOT / TASK / "resuilt" / TASK_SPECS[TASK]["bundle"]
+AUDIT_LOCAL_ROOT = Path(os.environ.get(f"{TASK}_VASTAI_AUDIT_ROOT", DEFAULT_BUNDLE / "audits")).resolve()
+ARTIFACT_LOCAL_ROOT = Path(os.environ.get(f"{TASK}_VASTAI_ARTIFACT_ROOT", DEFAULT_BUNDLE)).resolve()
 if not AUDIT_LOCAL_ROOT.is_dir():
-    raise FileNotFoundError(f"LO_VASTAI_AUDIT_ROOT does not exist: {AUDIT_LOCAL_ROOT}")
+    raise FileNotFoundError(f"{TASK}_VASTAI_AUDIT_ROOT does not exist: {AUDIT_LOCAL_ROOT}")
 if not ARTIFACT_LOCAL_ROOT.is_dir():
-    raise FileNotFoundError(f"LO_VASTAI_ARTIFACT_ROOT does not exist: {ARTIFACT_LOCAL_ROOT}")
+    raise FileNotFoundError(f"{TASK}_VASTAI_ARTIFACT_ROOT does not exist: {ARTIFACT_LOCAL_ROOT}")
 
 
 def _metadata_only(path: Path) -> bool:
@@ -266,7 +280,7 @@ def _load_family_facts(audit_root: Path, family: str, contract_index: dict) -> d
 
 @app.function(image=image, volumes={MOUNT: volume}, cpu=4, memory=16384, timeout=60 * 60)
 def ingest_lo_vastai_facts() -> str:
-    """Validate and append the complete LO F1/seed42 fact bundle to L2."""
+    """Validate and append one locked CQ/LO F1 seed-42 fact bundle to L2."""
     import pandas as pd
 
     audit_root, artifact_root = Path("/audit_source"), Path("/artifact_source")
@@ -353,7 +367,7 @@ def ingest_lo_vastai_facts() -> str:
 
 @app.function(image=image, volumes={MOUNT: volume}, cpu=1, memory=2048, timeout=20 * 60)
 def ingest_status() -> str:
-    """Read-only completeness check for the external LO F1 fact ingest."""
+    """Read-only completeness check for one external CQ/LO F1 fact ingest."""
     import pandas as pd
 
     base = Path(MOUNT) / f"meta_release={META_RELEASE}"

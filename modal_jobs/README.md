@@ -325,3 +325,53 @@ python -X utf8 -m modal run .\modal_jobs\model_bootstrap_app.py `
   --task LO --window W2 --pipeline-id V1 --reference-pipeline-id V0 `
   --model-name RNN --seed 42 --repetitions 2000
 ```
+
+## Ingesting audited VastAI F1 facts
+
+Portable VastAI output is not a substitute for an L2 fact export.  Before it
+can appear in a CQ or LO report, retain the compact artifact bundle locally:
+every `run_manifest.json`, `metadata_contract.json`, `train_history.parquet`,
+`metrics_overall.parquet`, and the post-hoc `audits/` tree.  Do not upload
+model checkpoints or model inputs for this step.
+
+The same importer serves one task per invocation.  It verifies all 204
+contracts (four recurrent families x three windows x 17 pipelines), preserves
+the portable run ID, checks that each `run_manifest.json` matches the SHA-256
+recorded in its contract, requires one runner revision and NVIDIA L4 across
+the grid, then writes immutable backend-partitioned L2 facts and an L0 receipt.
+
+```powershell
+# CQ: set the local bundle roots after downloading the VastAI outputs.
+$env:VASTAI_TASK = "CQ"
+$env:VASTAI_INGEST_ID = "vastai_f1_seed42_clean_20261016_r1"
+$env:CQ_VASTAI_ARTIFACT_ROOT = ".\CQ\resuilt\vastai_f1_batch2048_seed42"
+$env:CQ_VASTAI_AUDIT_ROOT = ".\CQ\resuilt\vastai_f1_batch2048_seed42\audits"
+python -X utf8 -m modal run .\modal_jobs\ingest_lo_vastai_facts_app.py --mode ingest
+python -X utf8 -m modal run .\modal_jobs\ingest_lo_vastai_facts_app.py --mode status
+python -X utf8 -m modal run .\modal_jobs\export_lo_vastai_facts.py
+
+# LO uses the same application; its existing r2 bundle is the default.
+$env:VASTAI_TASK = "LO"
+$env:VASTAI_INGEST_ID = "vastai_f2_seed42_clean_20261015_r2"
+python -X utf8 -m modal run .\modal_jobs\ingest_lo_vastai_facts_app.py --mode status
+```
+
+The importer imports facts only: it neither reruns training nor rewrites L1
+artifacts. Historical runs with `energy_measurement=NOT_MEASURED` retain that
+status. Only runs that actually contain NVML sampling metadata are exported as
+`NVML_POWER_SAMPLING_ESTIMATE`.
+
+For a completed CQ recurrent grid on VastAI, create the required audit bundle
+before downloading it. The command is post-hoc and CPU-only relative to the
+saved predictions; it needs all 51 completed cells for each family:
+
+```bash
+cd /workspace/CD3
+bash code/vastai_run_cq_f1_audit.sh
+```
+
+It creates, for each of RNN/LSTM/GRU/BiLSTM, canonical parent-real-row
+`S_leak`, sanity components, per-class support/recall, bootstrap CI
+(`B=2000`), STRICT/OVERLAP metrics, and checkpoint-selection facts. Download
+those `runs/audits_seed42/CQ/` files together with the compact run metadata
+before invoking the Modal importer.

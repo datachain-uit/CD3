@@ -67,10 +67,11 @@ if ($LASTEXITCODE -ne 0) { throw "Code upload failed: model/" }
 if ($LASTEXITCODE -ne 0) { throw "Code upload failed: metrics_core/" }
 & scp @scp -r -- (Join-Path $ProjectRoot "release_core") "${target}:$RemoteRoot/code/"
 if ($LASTEXITCODE -ne 0) { throw "Code upload failed: release_core/" }
-foreach ($script in "vastai_train_shared.py", "vastai_audit_shared.py", "vastai_metadata_contract.py", "vastai_audit_w1.py") {
+foreach ($script in "vastai_train_shared.py", "vastai_audit_shared.py", "vastai_metadata_contract.py", "vastai_audit_w1.py", "vastai_run_cq_f1_audit.sh") {
     & scp @scp -- (Join-Path $ProjectRoot "tools\$script") "${target}:$RemoteRoot/code/$script"
     if ($LASTEXITCODE -ne 0) { throw "Code upload failed: $script" }
 }
+Invoke-Remote "chmod 700 $RemoteRoot/code/vastai_run_cq_f1_audit.sh"
 & scp @scp -- $manifestPath "${target}:$RemoteRoot/data/CQ_V2_2_clean_grain_seed42/download_manifest.json"
 if ($LASTEXITCODE -ne 0) { throw "Manifest upload failed" }
 

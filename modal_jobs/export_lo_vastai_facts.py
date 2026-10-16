@@ -1,4 +1,4 @@
-"""Export LO F1 seed-42 VastAI facts already ingested into the L2 Volume.
+"""Export CQ/LO F1 seed-42 VastAI facts already ingested into the L2 Volume.
 
 This exporter is deliberately read-only for L1 model artifacts.  It consumes
 only the compact ``execution_backend=vastai_portable_runner`` L2 partitions
@@ -8,17 +8,30 @@ bundle under ``L2_facts/report_exports``.
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
 import modal
 
 
-APP_NAME, VOLUME_NAME, MOUNT = "tempo-export-lo-vastai-facts-v1", "tempo-data-v1", "/data"
-META_RELEASE, TASK, REGIME, SEED = "imputation-v1", "LO", "LO_FULL_EARLY", 42
+VOLUME_NAME, MOUNT = "tempo-data-v1", "/data"
+META_RELEASE, SEED = "imputation-v1", 42
+TASK = os.environ.get("VASTAI_TASK", "LO").strip().upper()
+TASK_SPECS = {
+    "CQ": {"regime": "CQ_RAW_EARLY", "release": "CQ_V2_2", "ingest": "vastai_f1_seed42_clean_20261016_r1"},
+    "LO": {"regime": "LO_FULL_EARLY", "release": "LO_V3_1", "ingest": "vastai_f2_seed42_clean_20261015_r2"},
+}
+if TASK not in TASK_SPECS:
+    raise ValueError("VASTAI_TASK must be CQ or LO")
+REGIME = TASK_SPECS[TASK]["regime"]
+APP_NAME = f"tempo-export-{TASK.lower()}-vastai-facts-v1"
 BACKEND = "vastai_portable_runner"
-INGEST_ID = "vastai_f2_seed42_clean_20261015_r2"
-DEFAULT_REPORT_ID = "F1_seed42_v3_1_vastai_ingested_r2"
+INGEST_ID = os.environ.get("VASTAI_INGEST_ID", TASK_SPECS[TASK]["ingest"])
+DEFAULT_REPORT_ID = os.environ.get(
+    "VASTAI_REPORT_ID",
+    f"F1_seed42_{'v2_2' if TASK == 'CQ' else 'v3_1'}_vastai_ingested_r1",
+)
 FAMILIES = ("RNN", "LSTM", "GRU", "BILSTM")
 EXPECTED = {
     "metrics_overall": 1632,
@@ -80,7 +93,7 @@ def _summary(frame, fields: tuple[str, ...]):
 
 @app.function(image=image, volumes={MOUNT: volume}, cpu=2, memory=4096, timeout=30 * 60)
 def export_lo_vastai_facts(report_id: str = DEFAULT_REPORT_ID) -> dict:
-    """Create a verified report export from the immutable external LO L2 facts."""
+    """Create a verified report export from immutable external CQ/LO L2 facts."""
     import numpy as np
     import pandas as pd
 
@@ -141,7 +154,7 @@ def export_lo_vastai_facts(report_id: str = DEFAULT_REPORT_ID) -> dict:
     for name, frame in payloads.items():
         _write_idempotent(frame.reset_index(drop=True), output / name)
     metadata = {
-        "task": TASK, "report_id": report_id, "release_id": "LO_V3_1", "seed": SEED,
+        "task": TASK, "report_id": report_id, "release_id": TASK_SPECS[TASK]["release"], "seed": SEED,
         "ingest_id": INGEST_ID,
         "execution_backend": BACKEND, "exporter_revision": "external_vastai_l2_r2_family_summaries",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
