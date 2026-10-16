@@ -271,10 +271,18 @@ def _family_audit_root(audit_root: Path, family: str) -> Path:
     # ``<audit_root>/<task>/<family>/seed=<seed>``.  Older local downloads
     # sometimes retained an extra copied task/family prefix; accept that
     # archival layout only as a fallback.
-    root = audit_root / TASK / family / f"seed={SEED}"
-    if not root.is_dir():
-        root = root / TASK / family / f"seed={SEED}"
-    return root
+    compact = audit_root / TASK / family / f"seed={SEED}"
+    archival = compact / TASK / family / f"seed={SEED}"
+    # ``compact`` may itself exist in a downloaded archive while the actual
+    # parquet bundle is nested one more time below it.  Test a required fact,
+    # rather than merely testing whether the intermediate directory exists.
+    for candidate in (compact, archival):
+        if (candidate / "canonical_s_leak.parquet").is_file():
+            return candidate
+    raise FileNotFoundError(
+        "Missing VastAI audit bundle for "
+        f"task={TASK}, family={family}, seed={SEED}; checked {compact} and {archival}"
+    )
 
 
 def _load_family_facts(audit_root: Path, family: str, contract_index: dict) -> dict[str, object]:
