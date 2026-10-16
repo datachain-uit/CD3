@@ -140,9 +140,12 @@ def export_lo_vastai_facts(report_id: str = DEFAULT_REPORT_ID) -> dict:
     validation = metrics[metrics["eval_split"] == "VALIDATION"].reset_index(drop=True)
     sanity_test = sanity[sanity["eval_split"] == "TEST"].reset_index(drop=True)
     sanity_validation = sanity[sanity["eval_split"] == "VALIDATION"].reset_index(drop=True)
-    expected_split_rows = FAMILY_COUNT * 51
+    # Each completed model cell contributes P1--P4 to each evaluation split.
+    expected_split_rows = FAMILY_COUNT * 51 * 4
     if any(len(frame) != expected_split_rows for frame in (test, validation, sanity_test, sanity_validation)):
-        raise RuntimeError("Expected 204 TEST and 204 VALIDATION metric/sanity facts")
+        raise RuntimeError(
+            f"Expected {expected_split_rows} TEST and VALIDATION metric/sanity facts"
+        )
 
     output = facts / "report_exports" / f"task={TASK}" / f"report_id={report_id}"
     payloads = {
