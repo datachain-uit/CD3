@@ -292,6 +292,20 @@ def _load_family_facts(audit_root: Path, family: str, contract_index: dict) -> d
     if not root.is_dir():
         raise FileNotFoundError(f"Missing audit root: {root}")
     loaded = {name: pd.read_parquet(root / f"{name}.parquet") for name in EXPECTED_PER_FAMILY}
+    audit_manifest_path = root / "audit_manifest.json"
+    audit_manifest = json.loads(audit_manifest_path.read_text(encoding="utf-8"))
+    audit_schema = str(audit_manifest.get("audit_schema_version", ""))
+    if audit_schema == "vastai_posthoc_audit_v2_slice_parent_contract":
+        import numpy as np
+        keys = ["window_id", "pipeline_id", "eval_split", "phase_id"]
+        all_slices = loaded["evaluation_slices"]
+        all_slices = all_slices[all_slices["slice"].eq("ALL")]
+        paired = loaded["sanity_components"].merge(all_slices, on=keys, suffixes=("_sanity", "_slice"), validate="one_to_one")
+        if len(paired) != EXPECTED_PER_FAMILY["sanity_components"]:
+            raise ValueError(f"{family}: incomplete ALL/sanity coverage")
+        for column in ("macro_f1", "balanced_acc", "s_perf", "s_nan", "s_maj_jsd", "s_ent", "s_drift", "s_eff", "s_leak", "s_san_plus", "acctempo_m3"):
+            if not np.allclose(paired[f"{column}_sanity"], paired[f"{column}_slice"], rtol=1e-9, atol=1e-9, equal_nan=False):
+                raise ValueError(f"{family}: ALL/sanity mismatch for {column}")
     for name, frame in loaded.items():
         if len(frame) != EXPECTED_PER_FAMILY[name]:
             raise ValueError(f"{family}/{name}: expected {EXPECTED_PER_FAMILY[name]} rows, got {len(frame)}")
@@ -309,7 +323,8 @@ def _load_family_facts(audit_root: Path, family: str, contract_index: dict) -> d
         frame["run_id"] = [contract_index[key]["portable_run_id"] for key in keys]
         frame["attempt_id"] = INGEST_ID
         frame["execution_backend"] = "vastai_portable_runner"
-        frame["fact_source"] = "vastai_posthoc_audit_shared_v1"
+        frame["fact_source"] = audit_schema or "vastai_posthoc_audit_shared_v1"
+        frame["source_audit_manifest_sha256"] = _sha256(audit_manifest_path)
         frame["l2_ingest_layout"] = "external_vastai_compact_v1"
         frame["external_metadata_contract_sha256"] = [
             _sha256(contract_index[key]["path"]) for key in keys

@@ -29,6 +29,9 @@ def _load_ingest_module(tmp_path: Path):
         def pip_install(self, *_, **__):
             return self
 
+        def env(self, *_, **__):  # c519737 freezes the task scope into the image
+            return self
+
         def add_local_dir(self, *_, **__):
             return self
 

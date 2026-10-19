@@ -44,7 +44,7 @@ from model.architectures import ARCHITECTURE_METADATA
 from model.data import fit_layout
 from model.energy import GpuPowerSampler
 from model.shared_phase import evaluate_test_prefix, train_shared_checkpoint
-from vastai_metadata_contract import (augmentation_source_seed, build_contract, load_download_manifest,
+from vastai_metadata_contract import (augmentation_source_seed, build_contract, detect_runner_git_commit, load_download_manifest,
                                       train_relative_candidates, write_contract)
 
 try:  # ``resource`` is available in the Linux VastAI container, not Windows.
@@ -234,6 +234,7 @@ def main() -> None:
     })
     manifest = {
         "runner": "tools/vastai_train_shared.py", "protocol": "shared_checkpoint_prefix_safe_v2_4",
+        "runner_git_commit": detect_runner_git_commit(SCRIPT_PATH),
         "task": args.task, "window_id": args.window, "pipeline_id": args.pipeline_id,
         "parent_pipeline": parent, "model_name": args.model_name, "architecture": architecture,
         "model_revision": ARCHITECTURE_METADATA[architecture]["model_revision"],

@@ -375,3 +375,24 @@ It creates, for each of RNN/LSTM/GRU/BiLSTM, canonical parent-real-row
 (`B=2000`), STRICT/OVERLAP metrics, and checkpoint-selection facts. Download
 those `runs/audits_seed42/CQ/` files together with the compact run metadata
 before invoking the Modal importer.
+
+## LO W1 diagnostics (read-only, no training)
+
+Order of evidence for the W1 VALIDATION-vs-TEST question (review 2026-10-17):
+
+```bash
+# 1. the static branch as the trainer sees it, scored for constancy, course/offering grain, label association and shift
+python tools/audit_static_columns.py --task LO --train <W1 V0 train.parquet> \
+    --eval VALIDATION=<W1 V0 validation.parquet> --eval TEST_P1=<W1 TEST P1 prefix view> \
+    --allowlist-from-registry --strict --out audit_static_W1_V0.json
+# 2. how much of the label the static branch alone carries on B versus C (course fingerprint vs the rest)
+python tools/probe_static_only.py --task LO --train <W1 V0 train.parquet> \
+    --validation <W1 V0 validation.parquet> --test <W1 TEST P1 prefix view> --out probe_static_only_W1.json
+# 3. prefix parity, cohorts and the W1 P1-P4 table from completed predictions; --full-scan for the evidence level of the CQ appendix
+python tools/audit_prefix_validation_alignment.py --feature-root <release root> --model-root <runs root> \
+    --output-root audits/w1_alignment --full-scan
+```
+
+`LO/registries.py::STATIC_FEATURE_CONTRACT` is the single description of the 15 static fields (definition,
+availability, grain, disposition); the alignment audit reads it instead of a private copy.  Every macro-F1 in
+these outputs is reported under both conventions (fixed K = 3 as in `metrics_core`, and present classes).

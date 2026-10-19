@@ -21,6 +21,8 @@ import argparse
 import csv
 import hashlib
 import json
+import os
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Iterable
@@ -28,29 +30,41 @@ from typing import Any, Iterable
 import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
+import pyarrow.compute as pc
 from sklearn.metrics import balanced_accuracy_score, f1_score
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from LO.registries import STATIC_FEATURE_CONTRACT  # noqa: E402
 
 PHASES = ("P1", "P2", "P3", "P4")
-LABEL_COLUMN = "LO_performance_label_3"
-CLASS_TOKEN_TO_LABEL = {"c0": "I/D", "c1": "G", "c2": "E"}
-STATIC_FIELD_CONTRACT = {
-    "ex_counts": ("Number of exercise resources in the course catalog.", "catalog available at enrollment", "RETAIN"),
-    "gender": ("Enrollment-profile demographic code.", "available in enrollment profile", "RETAIN"),
-    "resource_count": ("Number of distinct course resources in the course catalog.", "catalog available at enrollment", "RETAIN"),
-    "teacher_count": ("Distinct teachers linked to the course.", "catalog available at enrollment", "RETAIN"),
-    "teacher_bio_coverage": ("Share of linked teachers with a biography.", "catalog available at enrollment", "RETAIN"),
-    "teacher_avg_bio_length_chars": ("Mean biography length of linked teachers.", "catalog available at enrollment", "RETAIN"),
-    "teacher_org_count": ("Distinct teacher organisations linked to the course.", "catalog available at enrollment", "RETAIN"),
-    "school_count": ("Distinct schools linked to the course.", "catalog available at enrollment", "RETAIN"),
-    "school_bio_coverage": ("Share of linked schools with a biography.", "catalog available at enrollment", "RETAIN"),
-    "school_avg_bio_length_chars": ("Mean biography length of linked schools.", "catalog available at enrollment", "RETAIN"),
-    "school_motto_coverage": ("Share of linked schools with a motto.", "catalog available at enrollment", "RETAIN"),
-    "school_avg_motto_length_chars": ("Mean motto length of linked schools.", "catalog available at enrollment", "RETAIN"),
-    "timeline_source": ("Provenance of the schedule/timeline used for the offering.", "known when its timeline is selected", "RETAIN_AS_CONTEXT"),
-    "window_duration_seconds": ("Enrollment-to-locked-window-end duration derived from the chosen schedule.", "known only under the recorded schedule/timeline source", "RETAIN_AS_CONTEXT"),
-    "split_rule_version": ("Release bookkeeping identifier for the split algorithm.", "not a predictor", "EXCLUDE"),
+TASK_SPECS = {
+    "LO": {
+        "label_column": "LO_performance_label_3",
+        "class_token_to_label": {"c0": "I/D", "c1": "G", "c2": "E"},
+        "phase_view_dir": "phase_views_v3_1_scored_signal_excluded",
+        "test_prefix_dir": "test_prefix_views_v3_1_scored_signal_excluded",
+    },
+    "CQ": {
+        "label_column": "CQ_label_final",
+        "class_token_to_label": {"c0": "warning", "c1": "average", "c2": "good"},
+        "phase_view_dir": "phase_views_v2_2",
+        "test_prefix_dir": "test_prefix_views_v2_2",
+    },
 }
+STATIC_FIELD_CONTRACT = {name: (field["definition"], field["available"], field["disposition"])
+                         for name, field in STATIC_FEATURE_CONTRACT["fields"].items()}
+
+
+def _macro_scores(true: pd.Series, pred: pd.Series) -> dict[str, Any]:
+    present = sorted(set(true).union(pred))
+    return {
+        "macro_f1": f1_score(true, pred, labels=["c0", "c1", "c2"], average="macro", zero_division=0),
+        "macro_f1_present_classes": f1_score(true, pred, labels=present, average="macro", zero_division=0),
+        "n_classes_present_true": int(true.nunique()),
+        "n_classes_present_pred": int(pred.nunique()),
+        "macro_f1_convention": "fixed_k3_zero_division_0 | present_classes",
+        "balanced_accuracy": balanced_accuracy_score(true, pred),
+    }
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -107,11 +121,12 @@ def _phase_suffix(column: str) -> str | None:
     return None
 
 
-def _prefix_schema_audit(prefix_root: Path) -> list[dict[str, Any]]:
+def _prefix_schema_audit(prefix_root: Path, *, full_scan: bool = False) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for phase_index, phase in enumerate(PHASES, start=1):
         phase_dir = _find_single_dir(prefix_root / phase, phase)
-        first = _parquet_files(phase_dir)[0]
+        files = _parquet_files(phase_dir)
+        first = files[0]
         parquet = pq.ParquetFile(first)
         columns = parquet.schema_arrow.names
         future_dynamic = [
@@ -122,14 +137,27 @@ def _prefix_schema_audit(prefix_root: Path) -> list[dict[str, Any]]:
         ]
         # Only a small, deterministic sample is needed for this structural
         # assertion; missing future dynamic fields should be all null.
-        sampled = parquet.read_row_group(0, columns=future_dynamic).to_pandas() if future_dynamic else pd.DataFrame()
-        non_null_future = int(sampled.notna().sum().sum()) if not sampled.empty else 0
+        non_null_future = rows_checked = cells_checked = 0
+        for path in (files if full_scan else files[:1]):
+            source = pq.ParquetFile(path)
+            if source.schema_arrow.names != columns:
+                raise ValueError(f"Inconsistent prefix schema: {path}")
+            groups = range(source.num_row_groups) if full_scan else range(min(1, source.num_row_groups))
+            for row_group in groups:
+                rows_checked += source.metadata.row_group(row_group).num_rows
+                cells_checked += source.metadata.row_group(row_group).num_rows * len(future_dynamic)
+                if future_dynamic:
+                    for batch in source.iter_batches(batch_size=8192, row_groups=[row_group], columns=future_dynamic):
+                        non_null_future += sum(len(col) - int(pc.sum(pc.is_null(col, nan_is_null=True)).as_py()) for col in batch.columns)
         rows.append({
             "phase_id": phase,
             "source_file": str(first),
             "n_columns": len(columns),
             "future_phase_columns": len(future_dynamic),
-            "sample_rows_checked": len(sampled),
+            "sample_rows_checked": rows_checked,
+            "files_checked": len(files) if full_scan else 1,
+            "scan_scope": "all_files_all_row_groups" if full_scan else "first_file_row_group_0",
+            "future_phase_cells_checked": cells_checked,
             "future_phase_non_null_cells_sample": non_null_future,
             "future_mask_ok_sample": non_null_future == 0,
         })
@@ -170,17 +198,17 @@ def _static_prefix_parity(prefix_root: Path, static_columns: list[str]) -> pd.Da
     return pd.DataFrame(rows)
 
 
-def _course_cohort_audit(phase_root: Path, prefix_root: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
+def _course_cohort_audit(phase_root: Path, prefix_root: Path, label_column: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     phase_files = _parquet_files(phase_root)
     train_courses: set[str] = set()
     validation_summary: Counter[tuple[str, str]] = Counter()
-    selected = ["window", "split", "course_id", LABEL_COLUMN, "temporal_strict_P1"]
+    selected = ["window", "split", "course_id", "enrollment_id", label_column, "temporal_strict_P1"]
     for batch in _iter_selected_rows(phase_files, selected):
         batch = batch.loc[batch["window"].eq("W1")]
         train = batch.loc[batch["split"].eq("train")]
         train_courses.update(train["course_id"].dropna().astype(str))
         validation = batch.loc[batch["split"].eq("validation")]
-        validation_summary.update(("VALIDATION", str(label)) for label in validation[LABEL_COLUMN].fillna("<NULL>"))
+        validation_summary.update(("VALIDATION", str(label)) for label in validation[label_column].fillna("<NULL>"))
 
     p1_dir = _find_single_dir(prefix_root / "P1", "P1")
     test_batches = []
@@ -188,7 +216,7 @@ def _course_cohort_audit(phase_root: Path, prefix_root: Path) -> tuple[pd.DataFr
         test_batches.append(batch.loc[(batch["window"].eq("W1")) & (batch["split"].eq("test"))])
     test = pd.concat(test_batches, ignore_index=True)
     test["course_cohort"] = np.where(test["course_id"].astype(str).isin(train_courses), "SEEN_COURSE", "UNSEEN_COURSE")
-    grouped = (test.groupby(["course_cohort", LABEL_COLUMN], dropna=False).size()
+    grouped = (test.groupby(["course_cohort", label_column], dropna=False).size()
         .rename("n_rows").reset_index())
     grouped["n_total_cohort"] = grouped.groupby("course_cohort")["n_rows"].transform("sum")
     grouped["share_within_cohort"] = grouped["n_rows"] / grouped["n_total_cohort"]
@@ -196,7 +224,7 @@ def _course_cohort_audit(phase_root: Path, prefix_root: Path) -> tuple[pd.DataFr
     return grouped, test
 
 
-def _prediction_tables(model_root: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
+def _prediction_tables(model_root: Path, class_token_to_label: dict[str, str]) -> tuple[pd.DataFrame, pd.DataFrame]:
     class_rows: list[dict[str, Any]] = []
     overall_rows: list[dict[str, Any]] = []
     for path in sorted(model_root.rglob("predictions/*.parquet")):
@@ -224,8 +252,7 @@ def _prediction_tables(model_root: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
             "eval_split": metadata["eval_split"],
             "phase_id": metadata["phase_id"],
             "n_rows": len(frame),
-            "macro_f1": f1_score(true, pred, average="macro", zero_division=0),
-            "balanced_accuracy": balanced_accuracy_score(true, pred),
+            **_macro_scores(true, pred),
         }
         overall_rows.append(base)
         for label in sorted(set(true).union(set(pred))):
@@ -233,7 +260,7 @@ def _prediction_tables(model_root: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
             class_rows.append({
                 **base,
                 "class_index": str(label),
-                "class_label": CLASS_TOKEN_TO_LABEL.get(str(label), str(label)),
+                "class_label": class_token_to_label.get(str(label), str(label)),
                 "support": support,
                 "predicted_count": int((pred == label).sum()),
                 "recall": float(((true == label) & (pred == label)).sum() / support) if support else np.nan,
@@ -259,35 +286,49 @@ def _all_phase_prediction_summary(model_root: Path) -> pd.DataFrame:
             "source_file": str(path), "model_name": meta["model_name"],
             "pipeline_id": meta["pipeline_id"], "eval_split": meta["eval_split"],
             "phase_id": meta["phase_id"], "n_rows": len(frame),
-            "macro_f1": f1_score(true, pred, average="macro", zero_division=0),
-            "balanced_accuracy": balanced_accuracy_score(true, pred),
+            **_macro_scores(true, pred),
         })
     return pd.DataFrame(rows)
 
 
-def _w1_p1_slice_metrics(model_root: Path, context: pd.DataFrame) -> pd.DataFrame:
+def _w1_p1_slice_metrics(model_root: Path, context: pd.DataFrame, label_column: str,
+                          class_token_to_label: dict[str, str]) -> pd.DataFrame:
     """Score W1/P1 predictions by course novelty and STRICT/OVERLAP.
 
-    The shared runner preserves parquet row order.  Every prediction file is
-    checked against the raw label token before positional context is attached;
-    therefore this does not silently join separately salted identifiers.
+    Join by the same salted enrollment hash used by the VastAI runner.
+    Equal ordered labels alone cannot establish enrollment-level alignment.
     """
-    expected = context[LABEL_COLUMN].map({"I/D": "c0", "G": "c1", "E": "c2"}).astype(str).to_numpy()
+    label_to_token = {label: token for token, label in class_token_to_label.items()}
+    salt = os.environ.get("TEMPO_PREDICTION_SALT")
+    if not salt:
+        raise ValueError("Set TEMPO_PREDICTION_SALT to the original VastAI prediction salt for verified enrollment alignment.")
     context = context.copy()
+    context["enrollment_id_hash"] = context["enrollment_id"].astype("string").map(
+        lambda value: hashlib.sha256(f"{salt}|{value}".encode()).hexdigest()
+    )
+    if context["enrollment_id_hash"].duplicated().any():
+        raise ValueError("Duplicate enrollment hashes in W1/P1 context.")
+    context = context.set_index("enrollment_id_hash")
     context["temporal_slice"] = np.where(pd.to_numeric(context["temporal_strict_P1"], errors="coerce").fillna(0).eq(1), "STRICT", "OVERLAP")
     rows: list[dict[str, Any]] = []
     for path in sorted(model_root.rglob("predictions/test_P1.parquet")):
         if "W1" not in path.parts:
             continue
-        frame = pd.read_parquet(path, columns=["window_id", "pipeline_id", "model_name", "eval_split", "phase_id", "y_true", "y_pred"])
+        frame = pd.read_parquet(path, columns=["enrollment_id_hash", "window_id", "pipeline_id", "model_name", "eval_split", "phase_id", "y_true", "y_pred"])
         frame = frame.loc[frame["window_id"].eq("W1")]
         if frame.empty:
             continue
-        if len(frame) != len(context) or not np.array_equal(frame["y_true"].astype(str).to_numpy(), expected):
-            raise ValueError(f"Cannot attach W1/P1 context: ordered label mismatch in {path}")
+        if frame["enrollment_id_hash"].duplicated().any() or len(frame) != len(context):
+            raise ValueError(f"Cannot attach W1/P1 context: duplicate hashes or row count mismatch in {path}")
+        aligned = context.reindex(frame["enrollment_id_hash"])
+        if aligned[label_column].isna().any():
+            raise ValueError(f"Cannot attach W1/P1 context: unmatched enrollment hash in {path}")
+        expected = aligned[label_column].map(label_to_token).astype(str).to_numpy()
+        if not np.array_equal(frame["y_true"].astype(str).to_numpy(), expected):
+            raise ValueError(f"Cannot attach W1/P1 context: matched enrollment label mismatch in {path}")
         frame = frame.assign(
-            course_cohort=context["course_cohort"].to_numpy(),
-            temporal_slice=context["temporal_slice"].to_numpy(),
+            course_cohort=aligned["course_cohort"].to_numpy(),
+            temporal_slice=aligned["temporal_slice"].to_numpy(),
         )
         metadata = frame.iloc[0]
         for axis in ("course_cohort", "temporal_slice"):
@@ -297,14 +338,19 @@ def _w1_p1_slice_metrics(model_root: Path, context: pd.DataFrame) -> pd.DataFram
                     "source_file": str(path), "model_name": metadata["model_name"],
                     "pipeline_id": metadata["pipeline_id"], "axis": axis,
                     "slice": str(group), "n_rows": len(subset),
-                    "macro_f1": f1_score(true, pred, average="macro", zero_division=0),
-                    "balanced_accuracy": balanced_accuracy_score(true, pred),
-                    "row_alignment": "ordered_raw_label_match",
+                    **_macro_scores(true, pred),
+                    "row_alignment": "salted_enrollment_hash_and_label_match",
                 })
     return pd.DataFrame(rows)
 
 
-def _layouts(model_root: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
+def _layouts(model_root: Path, *, task: str = "LO") -> tuple[pd.DataFrame, pd.DataFrame]:
+    if task == "CQ":
+        from CQ.registries import STATIC_FEATURE_CONTRACT as cq_contract
+        field_contract = {name: (field["definition"], field["available"], field["disposition"])
+                          for name, field in cq_contract["fields"].items()}
+    else:
+        field_contract = STATIC_FIELD_CONTRACT
     signatures: Counter[str] = Counter()
     columns: dict[str, dict[str, Any]] = {}
     for path in sorted(model_root.rglob("feature_layout.json")):
@@ -320,9 +366,9 @@ def _layouts(model_root: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
                 "column": name, "semantic_role": role,
                 "manual_review_required": review, "review_rationale": rationale,
                 "layout_count": 0, "mask_column_present": False,
-                "definition": STATIC_FIELD_CONTRACT.get(name, ("Undocumented static field.", "manual review", "REVIEW"))[0],
-                "availability_contract": STATIC_FIELD_CONTRACT.get(name, ("Undocumented static field.", "manual review", "REVIEW"))[1],
-                "protocol_disposition": STATIC_FIELD_CONTRACT.get(name, ("Undocumented static field.", "manual review", "REVIEW"))[2],
+                "definition": field_contract.get(name, ("Undocumented static field.", "manual review", "REVIEW"))[0],
+                "availability_contract": field_contract.get(name, ("Undocumented static field.", "manual review", "REVIEW"))[1],
+                "protocol_disposition": field_contract.get(name, ("Undocumented static field.", "manual review", "REVIEW"))[2],
             })
             record["layout_count"] += 1
             record["mask_column_present"] = record["mask_column_present"] or f"missing__{name}" in masks
@@ -342,19 +388,25 @@ def main() -> None:
     parser.add_argument("--model-root", type=Path, required=True,
                         help="Downloaded VastAI/Modal model-result tree with feature_layout and predictions.")
     parser.add_argument("--output-root", type=Path, required=True)
+    parser.add_argument("--task", choices=sorted(TASK_SPECS), default="LO",
+                        help="Locked task contract that determines label and view-release names.")
+    parser.add_argument("--full-scan", action="store_true", help="Scan all TEST prefix files and row groups.")
     args = parser.parse_args()
 
     args.output_root.mkdir(parents=True, exist_ok=True)
-    phase_root = _find_single_dir(args.feature_root, "phase_views_v3_1_scored_signal_excluded")
-    prefix_root = _find_single_dir(args.feature_root, "test_prefix_views_v3_1_scored_signal_excluded")
+    spec = TASK_SPECS[args.task]
+    phase_root = _find_single_dir(args.feature_root, spec["phase_view_dir"])
+    prefix_root = _find_single_dir(args.feature_root, spec["test_prefix_dir"])
 
-    static_columns, signatures = _layouts(args.model_root)
-    prefix_audit = pd.DataFrame(_prefix_schema_audit(prefix_root))
+    static_columns, signatures = _layouts(args.model_root, task=args.task)
+    prefix_audit = pd.DataFrame(_prefix_schema_audit(prefix_root, full_scan=args.full_scan))
     static_parity = _static_prefix_parity(prefix_root, static_columns["column"].tolist())
-    cohort, test_context = _course_cohort_audit(phase_root, prefix_root)
-    per_class, overall = _prediction_tables(args.model_root)
+    cohort, test_context = _course_cohort_audit(phase_root, prefix_root, spec["label_column"])
+    per_class, overall = _prediction_tables(args.model_root, spec["class_token_to_label"])
     all_phase_summary = _all_phase_prediction_summary(args.model_root)
-    p1_slices = _w1_p1_slice_metrics(args.model_root, test_context)
+    p1_slices = _w1_p1_slice_metrics(
+        args.model_root, test_context, spec["label_column"], spec["class_token_to_label"]
+    )
 
     _write_csv(static_columns, args.output_root / "static_columns.csv")
     _write_csv(signatures, args.output_root / "layout_signatures.csv")
@@ -367,6 +419,7 @@ def main() -> None:
     _write_csv(p1_slices, args.output_root / "w1_p1_seen_unseen_strict_overlap_metrics.csv")
     summary = {
         "audit": "local_read_only_prefix_validation_alignment_v1",
+        "task": args.task,
         "phase_view_root": str(phase_root),
         "test_prefix_root": str(prefix_root),
         "model_root": str(args.model_root),
@@ -375,6 +428,8 @@ def main() -> None:
         "static_column_count": int(len(static_columns)),
         "static_columns_requiring_manual_review": int(static_columns["manual_review_required"].sum()) if not static_columns.empty else 0,
         "prefix_future_mask_all_samples_ok": bool(prefix_audit["future_mask_ok_sample"].all()),
+        "prefix_scan_scope": "all_files_all_row_groups" if args.full_scan else "first_file_row_group_0",
+        "macro_f1_convention": "fixed_k3_zero_division_0 with present-class macro reported beside it",
         "test_static_prefix_parity_ok": bool(static_parity["values_identical"].all()),
         "w1_p1_prediction_cells": int(len(overall)),
         "w1_p1_slice_metric_cells": int(len(p1_slices)),

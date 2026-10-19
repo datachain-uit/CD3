@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,26 @@ PARENT_PIPELINES = {
     "V2": "V1", "V3": "V1", "V4": "V1", "V6": "V5", "V7": "V5", "V8": "V5",
     "V10": "V9", "V11": "V9", "V12": "V9", "V14": "V13", "V15": "V13", "V16": "V13",
 }
+
+
+def detect_runner_git_commit(runner_path: Path) -> str | None:
+    """Return HEAD only if the runner bytes exactly match its tracked blob.
+
+    Portable deployments often have no Git checkout; never guess historical
+    provenance from the checkout used later to backfill metadata.
+    """
+    try:
+        root = subprocess.run(["git", "-C", str(runner_path.parent), "rev-parse", "--show-toplevel"],
+                              check=True, capture_output=True, text=True, timeout=5).stdout.strip()
+        relative = runner_path.resolve().relative_to(Path(root).resolve()).as_posix()
+        blob = subprocess.run(["git", "-C", root, "show", f"HEAD:{relative}"],
+                              check=True, capture_output=True, timeout=5).stdout
+        if blob != runner_path.read_bytes():
+            return None
+        return subprocess.run(["git", "-C", root, "rev-parse", "HEAD"],
+                              check=True, capture_output=True, text=True, timeout=5).stdout.strip()
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
 
 # The portable bundle ships ``release_core`` next to ``model`` (both are plain
 # Python without a Modal dependency), so the locked vocabulary is imported rather
@@ -150,6 +171,7 @@ def build_contract(*, task: str, data_root: Path, run_dir: Path, manifest: dict[
                         "seed_augmentation": seed_augmentation,
                         "augmentation_seed_policy": manifest.get("augmentation_seed_policy")},
         "lineage": {"input_download_manifest_sha256": download_hash, "runner_sha256": _sha256_file(runner_path),
+                    **({"runner_git_commit": manifest["runner_git_commit"]} if manifest.get("runner_git_commit") else {}),
                     "release_contract_sha256": _release_contract_sha256(),
                     "run_manifest_sha256": _sha256_file(run_dir / "run_manifest.json"),
                     "input_sources": sources, "parent_imputation": sources["validation"],

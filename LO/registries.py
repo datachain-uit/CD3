@@ -148,6 +148,59 @@ def validate_pipeline_registry(rows: List[Dict]) -> None:
 # Model registry (PLAN Table 8, §2.4; v1.6: selection metric, mandatory channels)
 # ---------------------------------------------------------------------------------------------
 INPUT_CHANNELS = ['X', 'M_missing', 'M_available', 'delta_t', 'phase_id', 'observed_length']
+# Static branch contract (review 2026-10-17).  model.data.fit_layout selects static inputs by exclusion, so the
+# registry must say which numeric non-phase columns are allowed to reach the tensor, what they mean, when they are
+# known, and at which grain they vary.  ``grain`` = COURSE means the column is constant inside a course and the set
+# of such columns is a course fingerprint; SEEN/UNSEEN course slices measure how much of the model's signal is that
+# fingerprint.  Dispositions: IN_TENSOR (allowed input), CONTEXT_ONLY (report column, never an input; rename to
+# context__<name> in the views), EXCLUDE (never an input).  ``timeline_source`` and ``window_duration_seconds`` are
+# still IN_TENSOR in every completed run; changing them to CONTEXT_ONLY is PENDING (author) and would require a rerun.
+STATIC_FEATURE_CONTRACT = {
+    'contract_id': 'static_feature_contract_lo_v1',
+    'enforcement': 'tools/audit_static_columns.py --strict (allowlist = IN_TENSOR fields); fit_layout enforcement pending',
+    'fields': {
+        'ex_counts': {'definition': 'Number of exercise resources in the course catalog.', 'available': 'catalog, at enrollment',
+                      'grain': 'COURSE', 'disposition': 'IN_TENSOR'},
+        'gender': {'definition': 'Enrollment-profile demographic code.', 'available': 'enrollment profile',
+                   'grain': 'USER', 'disposition': 'IN_TENSOR'},
+        'resource_count': {'definition': 'Number of distinct course resources in the catalog.', 'available': 'catalog, at enrollment',
+                           'grain': 'COURSE', 'disposition': 'IN_TENSOR'},
+        'teacher_count': {'definition': 'Distinct teachers linked to the course.', 'available': 'catalog, at enrollment',
+                          'grain': 'COURSE', 'disposition': 'IN_TENSOR'},
+        'teacher_bio_coverage': {'definition': 'Share of linked teachers with a biography.', 'available': 'catalog, at enrollment',
+                                 'grain': 'COURSE', 'disposition': 'IN_TENSOR'},
+        'teacher_avg_bio_length_chars': {'definition': 'Mean biography length of linked teachers.', 'available': 'catalog, at enrollment',
+                                         'grain': 'COURSE', 'disposition': 'IN_TENSOR'},
+        'teacher_org_count': {'definition': 'Distinct teacher organisations linked to the course.', 'available': 'catalog, at enrollment',
+                              'grain': 'COURSE', 'disposition': 'IN_TENSOR'},
+        'school_count': {'definition': 'Distinct schools linked to the course.', 'available': 'catalog, at enrollment',
+                         'grain': 'COURSE', 'disposition': 'IN_TENSOR'},
+        'school_bio_coverage': {'definition': 'Share of linked schools with a biography.', 'available': 'catalog, at enrollment',
+                                'grain': 'COURSE', 'disposition': 'IN_TENSOR'},
+        'school_avg_bio_length_chars': {'definition': 'Mean biography length of linked schools.', 'available': 'catalog, at enrollment',
+                                        'grain': 'COURSE', 'disposition': 'IN_TENSOR'},
+        'school_motto_coverage': {'definition': 'Share of linked schools with a motto.', 'available': 'catalog, at enrollment',
+                                  'grain': 'COURSE', 'disposition': 'IN_TENSOR'},
+        'school_avg_motto_length_chars': {'definition': 'Mean motto length of linked schools.', 'available': 'catalog, at enrollment',
+                                          'grain': 'COURSE', 'disposition': 'IN_TENSOR'},
+        'timeline_source': {'definition': 'Provenance of the schedule used for the offering (course timeline, global template, '
+                                          'enrollment-anchored proxy); a materialisation choice, not a learner attribute.',
+                            'available': 'when the timeline is selected', 'grain': 'OFFERING',
+                            'disposition': 'IN_TENSOR', 'proposed': 'CONTEXT_ONLY (PENDING author decision)'},
+        'window_duration_seconds': {'definition': 'offering_end_date minus enrollment time under the recorded schedule '
+                                                  '(the same quantity that defines the P1-P4 cutoffs).',
+                                    'available': 'at enrollment, schedule-derived', 'grain': 'ENROLLMENT',
+                                    'disposition': 'IN_TENSOR', 'note': 'enrollment-timing feature; state it in the paper'},
+        'split_rule_version': {'definition': 'Release bookkeeping identifier of the split algorithm.', 'available': 'n/a',
+                               'grain': 'RELEASE', 'disposition': 'EXCLUDE', 'status': 'excluded by model.data since e17ae6e'},
+    },
+    'course_fingerprint_fields': ['ex_counts', 'resource_count', 'teacher_count', 'teacher_bio_coverage',
+                                  'teacher_avg_bio_length_chars', 'teacher_org_count', 'school_count', 'school_bio_coverage',
+                                  'school_avg_bio_length_chars', 'school_motto_coverage', 'school_avg_motto_length_chars'],
+    'note': 'The COURSE-grain fields may encode a course fingerprint. Their point-in-time availability and actual '
+            'constancy require verification; the static-only probe and SEEN/UNSEEN slices are diagnostics, not '
+            'proof of causality or of the absence of leakage.',
+}
 COMMON_HPARAMS = {'hparam_config_id': 'HP_RNN_FAMILY_v1', 'loss_name': 'cross_entropy', 'class_weighting': 'NONE',
                   'lr': RUNTIME_MODEL['learning_rate'], 'batch_size': RUNTIME_MODEL['batch_size'],
                   'max_epochs': RUNTIME_MODEL['max_epochs'], 'early_stopping_patience': RUNTIME_MODEL['patience'],
@@ -283,8 +336,12 @@ METRIC_DEF = {
                                     'for every cell with small_support_flag = 1'},
     'checkpoint_selection': {'metric': 'MEAN_PHASE_MACRO_F1', 'split': 'VALIDATION', 'tiebreak': 'MEAN_PHASE_CROSS_ENTROPY_MIN',
                              'log': ['selection_margin', 'selected_epoch', 'n_checkpoints_within_margin'],
-                             'note': 'LO W1 VALIDATION minority classes come from a single offering (E 1,000 of 1,000; G 525) '
-                                     '[V3 §6, §8]; read selection_margin before interpreting LO W1'},
+                             'note': 'LO W1 TEST class E comes from a single offering (1,000 of 1,000 E; G 525 in TEST, '
+                                     'E 252 / G 532 in VALIDATION per SPLIT_REGISTRY block_classes) [V3 §6, §8]; read '
+                                     'selection_margin before interpreting LO W1',
+                             'margin_note': 'selection_margin = best - second-best epoch score (model_app); the derived '
+                                            'n_checkpoints_within_margin is therefore 2 by construction and carries no '
+                                            'information; report the margin value itself'},
     'prediction_level_context_columns': ['timeline_source', 'duration_days', 'long_offering_flag', 'label_threshold_set',
                                          'n_offerings_with_class'],
     'long_offering_flag': {'rule': 'offering duration > 270 days', 'source': '[CL §8], [V3 §8]',
@@ -628,7 +685,7 @@ def all_registries() -> Dict[str, object]:
             's_san_formula': S_SAN_FORMULA, 'acctempo_def': ACCTEMPO_DEF, 'rec_rule': REC_RULE,
             'label_artifacts': LABEL_ARTIFACTS, 'split_registry': SPLIT_REGISTRY, 'sampling_strategy': SAMPLING_STRATEGY,
             'experiment_seeds': EXPERIMENT_SEEDS, 'temporal_family_policy': TEMPORAL_FAMILY_POLICY,
-            'pending_decisions': PENDING_DECISIONS}
+            'static_feature_contract': STATIC_FEATURE_CONTRACT, 'pending_decisions': PENDING_DECISIONS}
 
 
 def write_registries(outdir: str) -> Dict[str, str]:

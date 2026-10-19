@@ -35,7 +35,12 @@ if PROJECT_ROOT is None:
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from vastai_metadata_contract import PARENT_PIPELINES, load_download_manifest
+try:
+    from vastai_metadata_contract import PARENT_PIPELINES, load_download_manifest
+except ModuleNotFoundError as exc:
+    if exc.name != "vastai_metadata_contract":
+        raise
+    from tools.vastai_metadata_contract import PARENT_PIPELINES, load_download_manifest
 
 
 CLASSES = {"CQ": ("warning", "average", "good"), "LO": ("I/D", "G", "E")}
@@ -188,8 +193,9 @@ def _canonical_s_leak(args: argparse.Namespace, selected: dict[tuple[str, str], 
 
 
 def _slice_rows(frame: pd.DataFrame, *, task: str, window: str, pipeline: str, model: str,
-                seed: int, split: str, phase: str) -> list[dict]:
-    from metrics_core.evaluation import classification_metrics
+                seed: int, split: str, phase: str, train_class_counts: np.ndarray,
+                s_eff: float, s_leak: float) -> list[dict]:
+    from metrics_core.evaluation import COMPOSITE_EPS, classification_metrics
 
     strict_col = f"temporal_strict_{phase}"
     if strict_col not in frame:
@@ -201,7 +207,13 @@ def _slice_rows(frame: pd.DataFrame, *, task: str, window: str, pipeline: str, m
         if subset.empty:
             continue
         probabilities = subset[["prob_c0", "prob_c1", "prob_c2"]].to_numpy(dtype=float)
-        values = classification_metrics(_class_ids(subset["y_true"], task), probabilities)
+        values = classification_metrics(_class_ids(subset["y_true"], task), probabilities,
+                                        train_class_counts=train_class_counts, s_eff=s_eff, s_leak=s_leak)
+        values["s_cal"] = max(0.0, 1.0 - float(values["ece"]))
+        values["s_san_plus_v2"] = float(np.prod(np.clip([
+            values["s_nan"], values["s_maj_jsd"], values["s_cal"], values["s_drift"],
+            values["s_eff"], values["s_leak"]
+        ], COMPOSITE_EPS, 1.0)) ** (1 / 6))
         rows.append({"task": task, "feature_regime": REGIMES[task], "window_id": window, "pipeline_id": pipeline,
                      "model_name": model, "seed": seed, "eval_split": split, "phase_id": phase,
                      "slice": name, **values})
@@ -266,7 +278,8 @@ def _run_facts(args: argparse.Namespace, selected: dict[tuple[str, str], Path], 
                                                               repetitions=args.bootstrap_repetitions, seed=args.seed):
                     bootstrap.append({**common, **row})
                 slices.extend(_slice_rows(prediction, task=args.task, window=window, pipeline=pipeline,
-                                          model=args.model_name, seed=args.seed, split=split, phase=phase))
+                                          model=args.model_name, seed=args.seed, split=split, phase=phase,
+                                          train_class_counts=train_counts, s_eff=s_eff, s_leak=leak.s_leak))
     return (pd.DataFrame(sanity), pd.DataFrame(slices), pd.DataFrame(per_class),
             pd.DataFrame(bootstrap), pd.DataFrame(selection))
 
