@@ -15,6 +15,7 @@ import json
 import os
 import sys
 import time
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -107,6 +108,10 @@ def parse() -> argparse.Namespace:
     parser.add_argument("--patience", type=int, default=5,
                         help="Validation early-stopping patience; capped to max_epochs.")
     parser.add_argument("--prediction-salt", default=os.environ.get("TEMPO_PREDICTION_SALT", ""))
+    parser.add_argument("--static-ablation", choices=("none", "no_static", "gender_duration"), default="none",
+                        help="Exploratory LO ablation; never merge these runs into the primary grid.")
+    parser.add_argument("--reference-layout", type=Path, default=None,
+                        help="Historical layout JSON for matched static ablation.")
     parser.add_argument("--expected-gpu", default=EXPECTED_GPU,
                         help="GPU name that torch must report; the registered S3 hardware is NVIDIA L4.")
     parser.add_argument("--allow-gpu-mismatch", action="store_true",
@@ -141,6 +146,9 @@ def main() -> None:
     args = parse()
     if not args.prediction_salt:
         raise ValueError("Set TEMPO_PREDICTION_SALT once for all VastAI comparison runs, or pass --prediction-salt.")
+    output = args.output_root / args.task / args.window / args.pipeline_id / args.model_name / f"seed={args.seed}"
+    if (output / 'run_manifest.json').exists():
+        raise FileExistsError(f"Refusing to overwrite run: {output}")
     architecture = args.model_name.lower()
     provenance = execution_provenance(args)
     moment_snapshot = None
@@ -186,6 +194,19 @@ def main() -> None:
     if unseen:
         raise ValueError(f"Unexpected labels in TRAIN: {sorted(unseen)}")
     layout = fit_layout(train, task=args.task, phase_id="P4", use_masks=True)
+    if args.static_ablation != "none":
+        if args.task != "LO" or args.reference_layout is None:
+            raise ValueError("Static ablation requires LO and --reference-layout")
+        reference = json.loads(args.reference_layout.read_text(encoding="utf-8"))
+        for name in ("dynamic_bases", "mask_dynamic_columns", "mask_phase_bases"):
+            if tuple(reference.get(name, [])) != getattr(layout, name):
+                raise ValueError(f"Historical layout differs in {name}; ablation cannot isolate static inputs")
+        selected = () if args.static_ablation == 'no_static' else ('gender', 'window_duration_seconds')
+        missing = set(selected).difference(reference['static_columns'])
+        if missing:
+            raise ValueError(f"Reference static layout missing {sorted(missing)}")
+        masks = tuple(c for c in reference['mask_static_columns'] if c.removeprefix('missing__') in selected)
+        layout = replace(layout, static_columns=selected, mask_static_columns=masks)
     model_seed = role_seed(args.seed, "model", task=args.task, window=args.window,
                            pipeline=args.pipeline_id, model=args.model_name)
     loader_seed = role_seed(args.seed, "dataloader", task=args.task, window=args.window,
@@ -198,7 +219,6 @@ def main() -> None:
         **HPARAMS,
         moment_cache_dir=moment_cache_dir, moment_snapshot=(moment_snapshot or {}).get("snapshot"),
     )
-    output = args.output_root / args.task / args.window / args.pipeline_id / args.model_name / f"seed={args.seed}"
     output.mkdir(parents=True, exist_ok=True)
     torch.save(trained["checkpoint"], output / "model.pt")
     pd.DataFrame(trained["history"]).to_parquet(output / "train_history.parquet", index=False)
@@ -234,6 +254,9 @@ def main() -> None:
     })
     manifest = {
         "runner": "tools/vastai_train_shared.py", "protocol": "shared_checkpoint_prefix_safe_v2_4",
+        "static_ablation": args.static_ablation,
+        "reference_layout_sha256": ('sha256:' + hashlib.sha256(args.reference_layout.read_bytes()).hexdigest()) if args.reference_layout else None,
+        "run_purpose": "EXPLORATORY_STATIC_ABLATION" if args.static_ablation != 'none' else "PRIMARY_GRID",
         "runner_git_commit": detect_runner_git_commit(SCRIPT_PATH),
         "task": args.task, "window_id": args.window, "pipeline_id": args.pipeline_id,
         "parent_pipeline": parent, "model_name": args.model_name, "architecture": architecture,
@@ -260,9 +283,13 @@ def main() -> None:
     (output / "run_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     # A separate, deterministic sidecar preserves complete release lineage without
     # making the execution manifest depend on a local download layout.
-    write_contract(build_contract(task=args.task, data_root=args.data_root, run_dir=output,
-                                  manifest=manifest, runner_path=SCRIPT_PATH, train_relative=train_relative),
-                   output / "metadata_contract.json")
+    if args.static_ablation == 'none':
+        write_contract(build_contract(task=args.task, data_root=args.data_root, run_dir=output,
+                                      manifest=manifest, runner_path=SCRIPT_PATH, train_relative=train_relative),
+                       output / "metadata_contract.json")
+    else:
+        manifest['input_download_manifest_sha256'] = 'sha256:' + hashlib.sha256((args.data_root / 'download_manifest.json').read_bytes()).hexdigest()
+        (output / 'run_manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
     print(json.dumps(manifest, indent=2), flush=True)
 
 

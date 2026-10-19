@@ -396,3 +396,15 @@ python tools/audit_prefix_validation_alignment.py --feature-root <release root> 
 `LO/registries.py::STATIC_FEATURE_CONTRACT` is the single description of the 15 static fields (definition,
 availability, grain, disposition); the alignment audit reads it instead of a private copy.  Every macro-F1 in
 these outputs is reported under both conventions (fixed K = 3 as in `metrics_core`, and present classes).
+
+## Window x phase tables from an export (registered table grain)
+
+```bash
+python tools/export_window_phase_tables.py --metrics <report_exports/.../metrics_test_long.parquet> \
+    --sanity <.../sanity_test_long.parquet> --out tables/CQ_TEST
+```
+
+One CSV per family x split x metric with pipelines as rows and W1/P1 ... W3/P4 as columns; `GROUP_*` (imputer-only vs
+balanced, per family x window x phase) and `TREND_*` (P4 minus P1 per family x window x pipeline) are the only aggregates
+and carry their averaging rule.  The STRICT/OVERLAP slice facts now assert that the two slices partition ALL (their
+confusion matrices add up to ALL's), next to the ingest check that ALL equals the sanity facts.

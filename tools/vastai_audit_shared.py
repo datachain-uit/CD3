@@ -200,10 +200,18 @@ def _slice_rows(frame: pd.DataFrame, *, task: str, window: str, pipeline: str, m
     strict_col = f"temporal_strict_{phase}"
     if strict_col not in frame:
         raise ValueError(f"Prediction lacks {strict_col}; cannot produce STRICT/OVERLAP facts")
+    flags = pd.to_numeric(frame[strict_col], errors="coerce")
+    if flags.isna().any() or not flags.isin([0, 1]).all():
+        raise ValueError(f"Prediction has null or invalid {strict_col}; cannot assign a temporal slice")
+    for key in ("enrollment_id_hash", "enrollment_hash", "enrollment_id"):
+        if key in frame:
+            if frame[key].isna().any() or frame[key].duplicated().any():
+                raise ValueError(f"Prediction has null or duplicate {key}")
+            break
     rows = []
     for name, subset in (("ALL", frame),
-                         ("STRICT", frame[pd.to_numeric(frame[strict_col], errors="coerce").fillna(0).astype(int) == 1]),
-                         ("OVERLAP", frame[pd.to_numeric(frame[strict_col], errors="coerce").fillna(0).astype(int) == 0])):
+                         ("STRICT", frame[flags == 1]),
+                         ("OVERLAP", frame[flags == 0])):
         if subset.empty:
             continue
         probabilities = subset[["prob_c0", "prob_c1", "prob_c2"]].to_numpy(dtype=float)
@@ -217,7 +225,27 @@ def _slice_rows(frame: pd.DataFrame, *, task: str, window: str, pipeline: str, m
         rows.append({"task": task, "feature_regime": REGIMES[task], "window_id": window, "pipeline_id": pipeline,
                      "model_name": model, "seed": seed, "eval_split": split, "phase_id": phase,
                      "slice": name, **values})
+    _assert_slice_partition(rows)
     return rows
+
+
+def _assert_slice_partition(rows: list[dict]) -> None:
+    """STRICT and OVERLAP partition ALL: their confusion matrices must add up to ALL's, cell by cell.
+
+    The ALL row is checked against the sanity facts by the ingest; this is the complementary invariant for the
+    two slices. This does not by itself detect duplicated predictions or null flags; those require separate
+    input checks. Means of per-slice macro-F1 or balanced
+    accuracy are not additive, so they cannot serve as this check.
+    """
+    by_name = {row["slice"]: np.asarray(row["confusion_matrix"], dtype=np.int64) for row in rows}
+    if "ALL" not in by_name:
+        raise ValueError("slice facts without an ALL row")
+    parts = [by_name[name] for name in ("STRICT", "OVERLAP") if name in by_name]
+    if not parts:
+        return
+    total = np.sum(parts, axis=0)
+    if total.shape != by_name["ALL"].shape or not np.array_equal(total, by_name["ALL"]):
+        raise ValueError("STRICT + OVERLAP confusion matrices do not add up to ALL: slices are not a partition")
 
 
 def _run_facts(args: argparse.Namespace, selected: dict[tuple[str, str], Path], canonical: pd.DataFrame):
