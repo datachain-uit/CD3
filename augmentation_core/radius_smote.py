@@ -40,6 +40,10 @@ class RadiusSMOTE:
         }
         batches: list[SyntheticBatch] = []
         fallback_total = generated_total = 0
+        # Keep the audit at the class level: the release contract treats a
+        # >0.50 nearest-neighbour fallback rate in any minority class as a
+        # radius warning, not merely an aggregate warning.
+        fallback_by_class: dict[str, dict[str, int | float]] = {}
         for label, count in counts.items():
             n_generate = to_generate[label]
             if label == majority or n_generate <= 0:
@@ -55,6 +59,7 @@ class RadiusSMOTE:
             fallback = NearestNeighbors(n_neighbors=2, algorithm="ball_tree").fit(local_values).kneighbors(local_values, return_distance=False)[:, 1]
             local_a = rng.integers(0, len(group), size=n_generate)
             local_b = np.empty(len(local_a), dtype=int)
+            class_fallback = 0
             for i, source in enumerate(local_a):
                 candidates = within[source][within[source] != source]
                 if len(candidates):
@@ -62,7 +67,13 @@ class RadiusSMOTE:
                 else:
                     local_b[i] = fallback[source]
                     fallback_total += 1
+                    class_fallback += 1
                 generated_total += 1
+            fallback_by_class[str(label)] = {
+                "generated_rows": int(n_generate),
+                "fallback_nearest_neighbour_rows": int(class_fallback),
+                "fallback_nearest_neighbour_rate": float(class_fallback / n_generate),
+            }
             a, b = group[local_a], group[local_b]
             alpha = rng.random(len(a), dtype=np.float32)
             batches.append(SyntheticBatch(values=values[a] + alpha[:, None] * (values[b] - values[a]),
@@ -73,5 +84,6 @@ class RadiusSMOTE:
             "radius_space": "scaled_numeric_model_input",
             "fallback_nearest_neighbour_rows": fallback_total,
             "fallback_nearest_neighbour_rate": fallback_total / generated_total if generated_total else 0.0,
+            "fallback_by_class": fallback_by_class,
         }
         return _merge(batches, values.shape[1], labels.dtype, self.method)

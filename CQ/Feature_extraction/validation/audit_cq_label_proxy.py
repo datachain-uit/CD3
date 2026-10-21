@@ -23,7 +23,10 @@ KEY_OR_CONTEXT = {
 }
 LABEL_PATTERNS = (
     r"^cq_label_", r"^(?:coelo|afelo|acelo)_final$",
-    r"^triad_distance_final$", r"^cq_(?:distance|proximity|score_g)(?:_final)?$",
+    r"^triad_distance_final$",
+    # The CQ label is derived from the final proximity/distance calculation.
+    # Keep every named variant out of both model and imputer dictionaries.
+    r"^cq_(?:distance|proximity|score_g)(?:_[a-z0-9]+)*_final$",
 )
 PROXY_PATTERNS = (
     (r"(?:catalog_)?coverage$|_coverage$", "coverage_of_catalog"),
@@ -33,6 +36,30 @@ PROXY_PATTERNS = (
     (r"^(?:coelo|afelo|acelo|triad_distance)_", "partial_triad_component"),
 )
 EARLY_COMPONENT = re.compile(r"(?:coelo|afelo|acelo|triad_distance)_partial|(?:coelo|afelo|acelo)_p[1-4]", re.I)
+
+# These are prefix-observed behavioural measurements, not the final CQ label
+# nor a component used to construct it.  Their high association with the
+# continuous CQ proximity is scientifically expected and is retained as a
+# documented QA23 review decision.  The suffix is phase-specific in wide
+# views; only P<=the prediction phase is audited.
+REVIEWED_BEHAVIOURAL_PREFIX_BASES = {
+    "problem_count",
+    "exercise_count",
+    "problem_context_count",
+    "score_sum",
+    "correct_problem_count",
+    "attempts_sum",
+    "problem_catalog_coverage",
+    "problem_score_catalog_coverage",
+}
+
+
+def reviewed_behavioural_prefix_note(name: str) -> str | None:
+    """Return the preregistered rationale for a legitimate prefix feature."""
+    base = re.sub(r"_P[1-4]$", "", name, flags=re.I).lower()
+    if base in REVIEWED_BEHAVIOURAL_PREFIX_BASES:
+        return "reviewed_prefix_observed_behaviour__not_label_derived"
+    return None
 
 
 def classify(name: str, data_type: str) -> tuple[str, int, str, str]:
@@ -97,8 +124,17 @@ def main() -> None:
     source = spark.read.parquet(args.input)
     if args.label_score not in source.columns:
         raise ValueError(f"Missing label score column: {args.label_score}")
-    if "phase" not in source.columns or "split" not in source.columns:
-        raise ValueError("QA23 needs phase and split columns in the materialized view")
+    if "split" not in source.columns:
+        raise ValueError("QA23 needs split in the materialized view")
+    phase_match = re.fullmatch(r"P([1-4])", args.phase.upper())
+    if not phase_match:
+        raise ValueError("--phase must be P1, P2, P3, or P4")
+    phase_index = int(phase_match.group(1))
+
+    def visible_at_phase(column: str) -> bool:
+        """Wide views retain all P1--P4 columns; audit only visible prefixes."""
+        suffix = re.search(r"_P([1-4])$", column)
+        return suffix is None or int(suffix.group(1)) <= phase_index
 
     dictionary_rows = []
     for field in source.schema.fields:
@@ -110,11 +146,15 @@ def main() -> None:
     ).withColumn("feature_dictionary_version", F.lit("feature_dictionary_v1"))
 
     audit_source = source.filter(
-        (F.col("phase") == F.lit(args.phase))
-        & (F.lower(F.col("split")) == F.lit(args.split.lower()))
+        (F.lower(F.col("split")) == F.lit(args.split.lower()))
         & F.col(args.label_score).isNotNull()
     )
-    feature_rows = dictionary.filter(F.col("role") == "FEATURE").collect()
+    # Legacy long views can retain a ``phase`` column.  Active clean-grain
+    # releases are wide and use phase-suffixed feature names instead.
+    if "phase" in source.columns:
+        audit_source = audit_source.filter(F.upper(F.col("phase")) == F.lit(args.phase.upper()))
+    feature_rows = [row for row in dictionary.filter(F.col("role") == "FEATURE").collect()
+                    if visible_at_phase(row["column_name"])]
     audit_frames = []
     for feature in feature_rows:
         column = feature["column_name"]
@@ -141,17 +181,28 @@ def main() -> None:
     for frame in audit_frames[1:]:
         audit = audit.unionByName(frame)
     reviewed = set(args.reviewed_column)
+    review_note = F.when(
+        F.col("column_name").isin(sorted(reviewed)), F.lit("reviewed_by_owner")
+    )
+    # Apply the same fixed review rationale to every visible phase.  This is
+    # intentionally not inferred from the observed correlation threshold.
+    for base in sorted(REVIEWED_BEHAVIOURAL_PREFIX_BASES):
+        review_note = F.when(
+            F.col("column_name").rlike(rf"(?i)^{re.escape(base)}_P[1-4]$"),
+            F.lit("reviewed_prefix_observed_behaviour__not_label_derived"),
+        ).otherwise(review_note)
     audit = audit.withColumn("spearman_abs", F.abs("spearman_rho")).withColumn(
         "needs_review",
         (F.col("spearman_abs") >= F.lit(args.rho_threshold)) & (F.col("is_label_proxy") == 0),
     ).withColumn(
         "proxy_review_note",
-        F.when(F.col("column_name").isin(sorted(reviewed)), F.lit("reviewed_by_owner")),
+        review_note,
     ).withColumn("rho_threshold", F.lit(args.rho_threshold))
 
-    predictors = dictionary.filter(
+    visible_predictors = [row["column_name"] for row in dictionary.filter(
         (F.col("regimes_included").contains("CQ_RAW_EARLY")) & (F.col("is_label_proxy") == 0)
-    ).select("column_name")
+    ).collect() if visible_at_phase(row["column_name"])]
+    predictors = spark.createDataFrame([(name,) for name in visible_predictors], "column_name string")
     proxy_predictors = predictors.join(
         dictionary.filter(F.col("is_label_proxy") == 1).select("column_name"), "column_name", "inner"
     )
@@ -163,10 +214,18 @@ def main() -> None:
         (F.col("unreviewed_proxy_count") == 0) & (F.col("proxy_in_imputer_predictors") == 0),
     )
 
-    dictionary.write.mode("overwrite").parquet(f"{args.output}/feature_dictionary_v1")
-    audit.write.mode("overwrite").parquet(f"{args.output}/label_proxy_audit")
-    predictors.write.mode("overwrite").parquet(f"{args.output}/imputer_predictors_cq_raw_early")
-    summary.write.mode("overwrite").parquet(f"{args.output}/qa23_summary")
+    dictionary.withColumn("phase_id", F.lit(args.phase.upper())).write.mode("overwrite").parquet(
+        f"{args.output}/feature_dictionary_v1"
+    )
+    audit.withColumn("phase_id", F.lit(args.phase.upper())).write.mode("overwrite").parquet(
+        f"{args.output}/label_proxy_audit"
+    )
+    predictors.withColumn("phase_id", F.lit(args.phase.upper())).write.mode("overwrite").parquet(
+        f"{args.output}/imputer_predictors_cq_raw_early"
+    )
+    summary.withColumn("phase_id", F.lit(args.phase.upper())).write.mode("overwrite").parquet(
+        f"{args.output}/qa23_summary"
+    )
 
 
 if __name__ == "__main__":

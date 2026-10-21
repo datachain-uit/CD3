@@ -151,6 +151,11 @@ def build_contract(*, task: str, data_root: Path, run_dir: Path, manifest: dict[
         "runner_sha256": _sha256_file(runner_path),
         "release_contract_sha256": _release_contract_sha256(),
     }
+    # The historical layout mode is an explicit matched replication and must
+    # never collide with a run using the current feature contract.
+    if manifest.get("static_layout_policy", "current") != "current":
+        immutable_key["static_layout_policy"] = manifest.get("static_layout_policy")
+        immutable_key["reference_layout_sha256"] = manifest.get("reference_layout_sha256")
     return {
         "metadata_schema_version": "vastai_model_metadata_contract_v1",
         "portable_run_id": _sha256_bytes(json.dumps(immutable_key, sort_keys=True, separators=(",", ":")).encode()),
@@ -161,7 +166,8 @@ def build_contract(*, task: str, data_root: Path, run_dir: Path, manifest: dict[
             "task", "window_id", "pipeline_id", "parent_pipeline", "model_name", "architecture", "model_revision",
             "architecture_metadata", "seed", "protocol", "precision_policy", "batch_size", "micro_batch_size",
             "accumulation_steps", "max_epochs", "early_stopping_patience", "hidden_size", "num_layers", "dropout",
-            "learning_rate", "weight_decay", "best_epoch")},
+            "learning_rate", "weight_decay", "best_epoch", "static_layout_policy",
+            "reference_layout_sha256")},
         "execution": {key: manifest.get(key) for key in (
             "execution_backend", "gpu", "gpu_count", "gpu_total_memory_gb", "cuda_capability", "torch_version",
             "cuda_version", "cudnn_version", "cublas_workspace_config", "deterministic_algorithms",

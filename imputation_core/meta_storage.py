@@ -461,12 +461,23 @@ def feature_key(column: str) -> str:
 
 
 def release_inventory(input_root: Path, *, task: str) -> dict[str, Any]:
-    """A stable, inexpensive file inventory used as the frozen input identity."""
+    """A stable inventory used as the frozen predictive-input identity.
+
+    ``materialization_lineage_*`` is audited provenance about a release, not
+    a predictor/label/split payload.  It is intentionally excluded from the
+    content identity so attaching a missing lineage sidecar cannot silently
+    invalidate an otherwise identical locked release and its immutable runs.
+    The sidecar directory is still enumerated and exposed below for explicit
+    acceptance checks.
+    """
     entries = []
     for path in sorted(input_root.rglob("*")):
         if path.is_file() and not path.name.startswith("."):
+            relative = path.relative_to(input_root)
+            if any(part.startswith("materialization_lineage_") for part in relative.parts):
+                continue
             status = path.stat()
-            entries.append({"path": str(path.relative_to(input_root)), "bytes": status.st_size})
+            entries.append({"path": str(relative), "bytes": status.st_size})
     payload = {"task": task, "root": str(input_root), "files": entries}
     # Every active release must declare its own immutable provenance.  Do not
     # synthesize V1 defaults: that makes an accidental legacy upload appear

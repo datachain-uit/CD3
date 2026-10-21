@@ -110,6 +110,9 @@ def parse() -> argparse.Namespace:
     parser.add_argument("--prediction-salt", default=os.environ.get("TEMPO_PREDICTION_SALT", ""))
     parser.add_argument("--static-ablation", choices=("none", "no_static", "gender_duration"), default="none",
                         help="Exploratory LO ablation; never merge these runs into the primary grid.")
+    parser.add_argument("--static-layout-policy", choices=("current", "historical_reference"), default="current",
+                        help="Use the current locked static contract, or a supplied historical layout for an explicitly "
+                             "matched cross-family replication.")
     parser.add_argument("--reference-layout", type=Path, default=None,
                         help="Historical layout JSON for matched static ablation.")
     parser.add_argument("--expected-gpu", default=EXPECTED_GPU,
@@ -207,6 +210,23 @@ def main() -> None:
             raise ValueError(f"Reference static layout missing {sorted(missing)}")
         masks = tuple(c for c in reference['mask_static_columns'] if c.removeprefix('missing__') in selected)
         layout = replace(layout, static_columns=selected, mask_static_columns=masks)
+    elif args.static_layout_policy == "historical_reference":
+        if args.reference_layout is None:
+            raise ValueError("historical_reference requires --reference-layout")
+        reference = json.loads(args.reference_layout.read_text(encoding="utf-8"))
+        for name in ("dynamic_bases", "mask_dynamic_columns", "mask_phase_bases"):
+            if tuple(reference.get(name, [])) != getattr(layout, name):
+                raise ValueError(f"Historical layout differs in {name}; cannot make a matched replication")
+        static = tuple(reference.get("static_columns", []))
+        masks = tuple(reference.get("mask_static_columns", []))
+        missing = set(static).union(masks).difference(train.columns)
+        if missing:
+            raise ValueError(f"Historical layout columns missing from TRAIN: {sorted(missing)}")
+        nonnumeric = [column for column in (*static, *masks)
+                      if not pd.api.types.is_numeric_dtype(train[column])]
+        if nonnumeric:
+            raise ValueError(f"Historical layout columns are not numeric: {nonnumeric}")
+        layout = replace(layout, static_columns=static, mask_static_columns=masks)
     model_seed = role_seed(args.seed, "model", task=args.task, window=args.window,
                            pipeline=args.pipeline_id, model=args.model_name)
     loader_seed = role_seed(args.seed, "dataloader", task=args.task, window=args.window,
@@ -255,6 +275,7 @@ def main() -> None:
     manifest = {
         "runner": "tools/vastai_train_shared.py", "protocol": "shared_checkpoint_prefix_safe_v2_4",
         "static_ablation": args.static_ablation,
+        "static_layout_policy": args.static_layout_policy,
         "reference_layout_sha256": ('sha256:' + hashlib.sha256(args.reference_layout.read_bytes()).hexdigest()) if args.reference_layout else None,
         "run_purpose": "EXPLORATORY_STATIC_ABLATION" if args.static_ablation != 'none' else "PRIMARY_GRID",
         "runner_git_commit": detect_runner_git_commit(SCRIPT_PATH),
