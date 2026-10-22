@@ -31,7 +31,8 @@ image = (modal.Image.debian_slim(python_version="3.12")
          .add_local_python_source("release_core"))
 
 
-def _selected_models(base: Path, *, seed: int, spec: dict[str, str], data_release_id: str) -> list[dict]:
+def _selected_models(base: Path, *, seed: int, spec: dict[str, str],
+                     accepted_identities: dict[str, str]) -> list[dict]:
     selected: dict[tuple[str, str], tuple[int, float, dict]] = {}
     pattern = (f"task=CQ/feature_regime={REGIME}/window_id=*/pipeline_id=*/"
                f"model_name=RNN/seed={seed}/run_id=*/attempt_id=*/run_manifest.json")
@@ -39,9 +40,15 @@ def _selected_models(base: Path, *, seed: int, spec: dict[str, str], data_releas
         manifest = json.loads(path.read_text(encoding="utf-8"))
         if (manifest.get("run_status") != "SUCCESS" or
                 any(manifest.get(field) != spec[field] for field in
-                    ("release_id", "split_registry_id", "split_version", "phase_version")) or
-                manifest.get("data_release_id") != data_release_id):
+                    ("release_id", "split_registry_id", "split_version", "phase_version"))):
             continue
+        identity = str(manifest.get("data_release_id") or "")
+        if identity not in accepted_identities:
+            raise ValueError(
+                "CQ RNN manifest matches the active release contract but has unknown "
+                f"data_release_id={identity or '<absent>'}"
+            )
+        manifest = {**manifest, "data_release_identity_class": accepted_identities[identity]}
         key = str(manifest.get("pipeline_id")), str(manifest.get("window_id"))
         if key[0] not in PIPELINES or key[1] not in {"W1", "W2", "W3"}:
             continue
@@ -57,13 +64,17 @@ def _selected_models(base: Path, *, seed: int, spec: dict[str, str], data_releas
 @app.function(image=image, volumes={MOUNT: volume}, cpu=1, memory=2048, timeout=30 * 60)
 def export_cq_augmentation_facts(seed: int = 42, report_id: str = "") -> dict:
     import pandas as pd
-    from imputation_core.meta_storage import release_inventory
+    from imputation_core.meta_storage import release_identity_aliases
     from release_core import resolve_release
 
     spec = resolve_release(TASK, "CQ_V2_2")
     base = Path(MOUNT) / f"meta_release={META_RELEASE}"
-    data_release_id = release_inventory(Path(MOUNT) / "input" / spec["input_dir"], task=TASK)["data_release_id"]
-    models = _selected_models(base / "L1_runs", seed=seed, spec=spec, data_release_id=data_release_id)
+    release, accepted_identities = release_identity_aliases(
+        Path(MOUNT) / "input" / spec["input_dir"], task=TASK
+    )
+    data_release_id = release["data_release_id"]
+    models = _selected_models(base / "L1_runs", seed=seed, spec=spec,
+                              accepted_identities=accepted_identities)
     references = {
         str(manifest["parent_augmentation_run_id"]): manifest
         for manifest in models if manifest.get("parent_augmentation_run_id")
@@ -113,6 +124,7 @@ def export_cq_augmentation_facts(seed: int = 42, report_id: str = "") -> dict:
             method = manifest_method or "NONE"
         common = {
             "task": TASK, "release_id": spec["release_id"], "data_release_id": data_release_id,
+            "data_release_identity_class": parent.get("data_release_identity_class"),
             "window_id": manifest.get("window_id"), "phase_id": manifest.get("phase_id"),
             "pipeline_id": balance_pipeline, "parent_pipeline": manifest.get("parent_pipeline"),
             "method": method, "manifest_method": manifest_method,
@@ -158,7 +170,8 @@ def export_cq_augmentation_facts(seed: int = 42, report_id: str = "") -> dict:
     radius.to_parquet(output / "radius_fallback_long.parquet", index=False)
     metadata = {
         "task": TASK, "report_id": export_id, "seed": seed, "release_id": spec["release_id"],
-        "data_release_id": data_release_id, "sampling_plan_rows": len(sampling),
+        "data_release_id": data_release_id, "accepted_data_release_identities": accepted_identities,
+        "sampling_plan_rows": len(sampling),
         "radius_fallback_rows": len(radius),
         "radius_class_grain_complete": bool(not radius.empty and (radius["fallback_grain"] == "class").all()),
         "paths": {"augmentation_sampling_plan_long": str(output / "augmentation_sampling_plan_long.parquet"),

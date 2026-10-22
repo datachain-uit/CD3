@@ -408,3 +408,19 @@ One CSV per family x split x metric with pipelines as rows and W1/P1 ... W3/P4 a
 balanced, per family x window x phase) and `TREND_*` (P4 minus P1 per family x window x pipeline) are the only aggregates
 and carry their averaging rule.  The STRICT/OVERLAP slice facts now assert that the two slices partition ALL (their
 confusion matrices add up to ALL's), next to the ingest check that ALL equals the sanity facts.
+
+## Release identity ledger
+
+`materialization_lineage_*` is excluded from the current predictive-input identity. Historical manifests written before
+that rule can carry the legitimate legacy identity of the same release. Before any Modal export, create a ledger at the
+canonical mounted input path and scan all candidate manifests. Do not export if the scan reports `UNMATCHED`, `ABSENT`,
+or `UNREADABLE` manifests. Historical `UNVERSIONED_S2_PARENT` records are listed separately: they are admissible only
+when an accepted S3 run references them through `parent_augmentation_run_id`; they are never selected independently.
+
+```bash
+python tools/release_identity_ledger.py --release-root <canonical-input-root> --task CQ \
+  --manifests <L1_runs-root> --out release_identity_ledger_CQ.json
+```
+
+The canonical path matters because the historical identity included its root string. A downloaded copy cannot be used
+to classify Modal manifests unless it preserves that canonical path.

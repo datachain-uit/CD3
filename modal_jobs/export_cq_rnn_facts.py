@@ -26,8 +26,25 @@ image = (modal.Image.debian_slim(python_version="3.12")
          .add_local_python_source("release_core"))
 
 
+def _identity_class(manifest: dict, *, release_spec: dict[str, str],
+                    accepted_identities: dict[str, str]) -> str | None:
+    """Classify an active-contract manifest; never silently drop an unknown ID."""
+    if any(manifest.get(field) != release_spec[field] for field in
+           ("release_id", "split_registry_id", "split_version", "phase_version")):
+        return None
+    identity = str(manifest.get("data_release_id") or "")
+    if identity not in accepted_identities:
+        raise ValueError(
+            "Manifest matches the locked CQ release contract but has an unknown "
+            f"data_release_id: {identity or '<absent>'}. Materialize the release "
+            "identity ledger and resolve the mismatch before exporting facts."
+        )
+    return accepted_identities[identity]
+
+
 def _latest_successful_runs(base: Path, *, model_name: str, seed: int,
-                            release_spec: dict[str, str], data_release_id: str) -> list[tuple[Path, dict]]:
+                            release_spec: dict[str, str],
+                            accepted_identities: dict[str, str]) -> list[tuple[Path, dict]]:
     # Volume mtimes are not a reliable retry ordering after copies/commits.
     # The immutable attempt suffix is monotonic and is the canonical selector.
     selected: dict[tuple[str, str], tuple[int, float, Path, dict]] = {}
@@ -37,12 +54,12 @@ def _latest_successful_runs(base: Path, *, model_name: str, seed: int,
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         if manifest.get("run_status") != "SUCCESS":
             continue
-        if (manifest.get("release_id") != release_spec["release_id"] or
-                manifest.get("split_registry_id") != release_spec["split_registry_id"] or
-                manifest.get("split_version") != release_spec["split_version"] or
-                manifest.get("phase_version") != release_spec["phase_version"] or
-                manifest.get("data_release_id") != data_release_id):
+        identity_class = _identity_class(
+            manifest, release_spec=release_spec, accepted_identities=accepted_identities,
+        )
+        if identity_class is None:
             continue
+        manifest = {**manifest, "data_release_identity_class": identity_class}
         window, pipeline = manifest.get("window_id"), manifest.get("pipeline_id")
         if window not in {"W1", "W2", "W3"} or pipeline not in {f"V{i}" for i in range(17)}:
             continue
@@ -78,7 +95,7 @@ def _l2_fact_path(facts: Path, *, fact_name: str, window: str, phase: str,
 
 
 def _overlay_canonical_s_leak(sanity, runs_df, *, facts: Path, release_id: str,
-                               data_release_id: str, seed: int):
+                               accepted_identities: dict[str, str], seed: int):
     """Use one real-row leakage fact for every shared parent imputer.
 
     A model run may be trained on an augmented view, but S_leak is defined on
@@ -89,13 +106,35 @@ def _overlay_canonical_s_leak(sanity, runs_df, *, facts: Path, release_id: str,
     import numpy as np
     import pandas as pd
 
-    root = (facts / "canonical_s_leak" / "task=CQ" / f"feature_regime={REGIME}" /
-            f"release_id={release_id}" / f"data_release_id={data_release_id.replace(':', '_')}" /
-            f"seed={seed}")
-    paths = sorted(root.glob("part-*.parquet"))
+    paths = []
+    for data_release_id in accepted_identities:
+        root = (facts / "canonical_s_leak" / "task=CQ" / f"feature_regime={REGIME}" /
+                f"release_id={release_id}" / f"data_release_id={data_release_id.replace(':', '_')}" /
+                f"seed={seed}")
+        paths.extend(sorted(root.glob("part-*.parquet")))
     if not paths:
-        raise FileNotFoundError(f"Missing canonical S_leak facts under {root}")
+        raise FileNotFoundError("Missing canonical S_leak facts for every accepted CQ release identity")
     canonical = pd.concat([pd.read_parquet(path) for path in paths], ignore_index=True)
+    canonical_key = ["window_id", "parent_imputation_run_id", "eval_split", "phase_id"]
+    duplicate = canonical.duplicated(canonical_key, keep=False)
+    if duplicate.any():
+        evidence_columns = [column for column in (
+            "s_leak_probe_auc", "s_leak", "probe_fit_rows", "s_leak_probe_n_eval",
+            "probe_fit_scope", "probe_score_scope",
+        ) if column in canonical]
+        inconsistent = (
+            canonical.loc[duplicate, canonical_key + evidence_columns]
+            .groupby(canonical_key, dropna=False)[evidence_columns]
+            .nunique(dropna=False)
+            .gt(1)
+            .any(axis=1)
+        )
+        if inconsistent.any():
+            raise RuntimeError(
+                "Canonical S_leak differs between accepted release identities; "
+                "do not select either fact set automatically."
+            )
+        canonical = canonical.drop_duplicates(canonical_key, keep="last")
     expected = 15 * 2 * 4
     if len(canonical) != expected:
         raise RuntimeError(f"Incomplete canonical S_leak facts: expected {expected}, got {len(canonical)}")
@@ -127,13 +166,13 @@ def _overlay_canonical_s_leak(sanity, runs_df, *, facts: Path, release_id: str,
 @app.function(image=image, volumes={MOUNT: volume}, cpu=1, memory=1024, timeout=10 * 60)
 def rnn_status(model_name: str = "RNN", seed: int = 42) -> dict:
     """Read-only progress inventory for the 17 x 3 recurrent grid."""
-    from imputation_core.meta_storage import release_inventory
+    from imputation_core.meta_storage import release_identity_aliases
     from release_core import resolve_release
 
     spec = resolve_release(TASK, "CQ_V2_2")
-    active_data_release_id = release_inventory(
+    release, accepted_identities = release_identity_aliases(
         Path(MOUNT) / "input" / spec["input_dir"], task=TASK
-    )["data_release_id"]
+    )
     base = Path(MOUNT) / f"meta_release={META_RELEASE}" / "L1_runs"
     pattern = (f"task=CQ/feature_regime={REGIME}/window_id=*/pipeline_id=*/"
                f"model_name={model_name}/seed={seed}/run_id=*/attempt_id=*/run_manifest.json")
@@ -143,12 +182,12 @@ def rnn_status(model_name: str = "RNN", seed: int = 42) -> dict:
             manifest = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
-        if (manifest.get("release_id") != spec["release_id"] or
-                manifest.get("split_registry_id") != spec["split_registry_id"] or
-                manifest.get("split_version") != SPLIT_VERSION or
-                manifest.get("phase_version") != PHASE_VERSION or
-                manifest.get("data_release_id") != active_data_release_id):
+        identity_class = _identity_class(
+            manifest, release_spec=spec, accepted_identities=accepted_identities,
+        )
+        if identity_class is None:
             continue
+        manifest = {**manifest, "data_release_identity_class": identity_class}
         key = str(manifest.get("window_id")), str(manifest.get("pipeline_id"))
         candidate = (path.stat().st_mtime, manifest)
         if key not in latest or candidate[0] > latest[key][0]:
@@ -167,6 +206,8 @@ def rnn_status(model_name: str = "RNN", seed: int = 42) -> dict:
     for row in rows:
         counts[row["run_status"]] = counts.get(row["run_status"], 0) + 1
     return {"task": TASK, "model_name": model_name, "seed": seed,
+            "data_release_id": release["data_release_id"],
+            "accepted_data_release_identities": accepted_identities,
             "expected_cells": 51, "status_counts": counts, "completed_cells": counts.get("SUCCESS", 0),
             "rows": rows}
 
@@ -176,17 +217,18 @@ def rnn_status(model_name: str = "RNN", seed: int = 42) -> dict:
 @app.function(image=image, volumes={MOUNT: volume}, cpu=2, memory=4096, timeout=60 * 60)
 def export_cq_rnn_facts(model_name: str = "RNN", seed: int = 42, report_id: str = "") -> dict:
     import pandas as pd
-    from imputation_core.meta_storage import release_inventory
+    from imputation_core.meta_storage import release_identity_aliases
     from release_core import resolve_release
 
     base = Path(MOUNT) / f"meta_release={META_RELEASE}"
     spec = resolve_release(TASK, "CQ_V2_2")
-    active_data_release_id = release_inventory(
+    release, accepted_identities = release_identity_aliases(
         Path(MOUNT) / "input" / spec["input_dir"], task=TASK
-    )["data_release_id"]
+    )
+    active_data_release_id = release["data_release_id"]
     runs = _latest_successful_runs(
         base / "L1_runs", model_name=model_name, seed=seed,
-        release_spec=spec, data_release_id=active_data_release_id,
+        release_spec=spec, accepted_identities=accepted_identities,
     )
     if len(runs) != 51:
         raise RuntimeError(f"Expected 51 successful CQ RNN V2.2 cells, found {len(runs)}")
@@ -217,6 +259,7 @@ def export_cq_rnn_facts(model_name: str = "RNN", seed: int = 42, report_id: str 
             "model_revision": manifest.get("model_revision"),
             "config_version": manifest.get("config_version"),
             "data_release_id": manifest.get("data_release_id"),
+            "data_release_identity_class": manifest.get("data_release_identity_class"),
             "input_root": manifest.get("input_root"),
             "train_input_path": manifest.get("train_input_path"),
             "parent_imputation_run_id": manifest.get("parent_imputation_run_id"),
@@ -304,10 +347,10 @@ def export_cq_rnn_facts(model_name: str = "RNN", seed: int = 42, report_id: str 
     runs_df = pd.DataFrame(run_rows)
     sanity = _overlay_canonical_s_leak(sanity, runs_df, facts=facts,
                                        release_id=spec["release_id"],
-                                       data_release_id=active_data_release_id, seed=seed)
+                                       accepted_identities=accepted_identities, seed=seed)
     sanity_validation = _overlay_canonical_s_leak(sanity_validation, runs_df, facts=facts,
                                                   release_id=spec["release_id"],
-                                                  data_release_id=active_data_release_id, seed=seed)
+                                                  accepted_identities=accepted_identities, seed=seed)
     required = {"metrics_test": 51 * 4, "metrics_validation": 51 * 4, "sanity_test": 51 * 4,
                 "sanity_validation": 51 * 4,
                 "resource": 51, "checkpoint_selection": 51, "metrics_per_class": 51 * 2 * 4 * 3,
@@ -356,6 +399,7 @@ def export_cq_rnn_facts(model_name: str = "RNN", seed: int = 42, report_id: str 
     validation_sanity_summary.to_parquet(export / "validation_sanity_summary_p1_p4_mean.parquet", index=False)
     metadata = {"task": TASK, "report_id": selected_report_id, "exporter_revision": "clean_provenance_r2",
                 "release_id": spec["release_id"], "data_release_id": active_data_release_id,
+                "accepted_data_release_identities": accepted_identities,
                 "model_name": model_name, "seed": seed, "split_version": SPLIT_VERSION,
                 "phase_version": PHASE_VERSION, "generated_at_utc": datetime.now(timezone.utc).isoformat(),
                 "expected_rows": required, "actual_rows": actual,

@@ -458,14 +458,14 @@ def run_imputation(task: str, window: str, test_phase: str, variant: str,
 @app.function(image=image, volumes={MOUNT: volume}, timeout=30 * 60)
 def audit_imputation_runs(task: str = "CQ", seed: int = 20260922) -> dict:
     """Read-only completeness/QA audit for the five S1 imputation pipelines."""
-    from imputation_core.meta_storage import FEATURE_REGIME, PIPELINE_ID, release_inventory
+    from imputation_core.meta_storage import FEATURE_REGIME, PIPELINE_ID, release_identity_aliases
     from release_core import resolve_release
 
     if task not in {"CQ", "LO"}:
         raise ValueError("task must be CQ or LO")
     spec = resolve_release(task, "")
     active_input_root = Path(MOUNT) / "input" / spec["input_dir"]
-    active_data_release_id = release_inventory(active_input_root, task=task)["data_release_id"]
+    release, accepted_identities = release_identity_aliases(active_input_root, task=task)
     root = Path(MOUNT) / f"meta_release={META_RELEASE}" / "L1_runs" / f"task={task}" / \
         f"feature_regime={FEATURE_REGIME[task]}"
     required_inputs = {"train.parquet", "validation.parquet", *(f"test_{phase}.parquet" for phase in ("P1", "P2", "P3", "P4"))}
@@ -483,7 +483,7 @@ def audit_imputation_runs(task: str = "CQ", seed: int = 20260922) -> dict:
                     except (OSError, ValueError, json.JSONDecodeError):
                         continue
             successful = [item for item in attempts if item[2].get("run_status") == "SUCCESS"
-                          and item[2].get("data_release_id") == active_data_release_id
+                          and item[2].get("data_release_id") in accepted_identities
                           and item[2].get("split_version") == spec["split_version"]
                           and item[2].get("phase_version") == spec["phase_version"]]
             if not successful:
@@ -513,6 +513,7 @@ def audit_imputation_runs(task: str = "CQ", seed: int = 20260922) -> dict:
                 "future_imputed_cells": future_imputed, "unfittable_column_count": unfittable,
                 "release_id": manifest.get("release_id"), "split_version": manifest.get("split_version"),
                 "phase_version": manifest.get("phase_version"), "profile_scope": manifest.get("profile_scope"),
+                "data_release_identity_class": accepted_identities.get(manifest.get("data_release_id")),
             })
     counts = {status: sum(row["status"] == status for row in rows) for status in {row["status"] for row in rows}}
     return {"task": task, "seed": seed, "expected_cells": 15, "actual_cells": len(rows),

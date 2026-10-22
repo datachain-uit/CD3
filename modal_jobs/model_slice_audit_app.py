@@ -24,7 +24,7 @@ image = (modal.Image.debian_slim(python_version="3.12")
 
 
 def _selected_runs(base: Path, *, task: str, model_name: str, seed: int,
-                   spec: dict[str, str], data_release_id: str) -> list[tuple[Path, dict]]:
+                   spec: dict[str, str], accepted_identities: dict[str, str]) -> list[tuple[Path, dict]]:
     selected: dict[tuple[str, str], tuple[int, float, Path, dict]] = {}
     pattern = (f"task={task}/feature_regime={REGIME[task]}/window_id=*/pipeline_id=*/"
                f"model_name={model_name}/seed={seed}/run_id=*/attempt_id=*/run_manifest.json")
@@ -37,9 +37,15 @@ def _selected_runs(base: Path, *, task: str, model_name: str, seed: int,
             ("split_registry_id", spec["split_registry_id"]),
             ("split_version", spec["split_version"]),
             ("phase_version", spec["phase_version"]),
-            ("data_release_id", data_release_id),
         )):
             continue
+        identity = str(manifest.get("data_release_id") or "")
+        if identity not in accepted_identities:
+            raise ValueError(
+                f"{task} manifest matches the active release contract but has unknown "
+                f"data_release_id={identity or '<absent>'}"
+            )
+        manifest = {**manifest, "data_release_identity_class": accepted_identities[identity]}
         pipeline, window = str(manifest.get("pipeline_id")), str(manifest.get("window_id"))
         if pipeline not in {f"V{i}" for i in range(17)} or window not in {"W1", "W2", "W3"}:
             continue
@@ -83,17 +89,20 @@ def _slice_metrics(frame, *, task: str, window: str, phase: str, split: str,
 def materialize_slice_audit(task: str = "CQ", model_name: str = "RNN", seed: int = 42,
                             release_id: str = "") -> dict:
     import pandas as pd
-    from imputation_core.meta_storage import release_inventory
+    from imputation_core.meta_storage import release_identity_aliases
     from release_core import resolve_release
 
     if task not in REGIME:
         raise ValueError("task must be CQ or LO")
     spec = resolve_release(task, release_id)
     volume.reload()
-    active_id = release_inventory(Path(MOUNT) / "input" / spec["input_dir"], task=task)["data_release_id"]
+    release, accepted_identities = release_identity_aliases(
+        Path(MOUNT) / "input" / spec["input_dir"], task=task
+    )
+    active_id = release["data_release_id"]
     base = Path(MOUNT) / f"meta_release={META_RELEASE}"
     runs = _selected_runs(base / "L1_runs", task=task, model_name=model_name, seed=seed,
-                          spec=spec, data_release_id=active_id)
+                          spec=spec, accepted_identities=accepted_identities)
     if len(runs) != 51:
         raise RuntimeError(f"Expected 51 current {task} runs, found {len(runs)}")
     fact_root = base / "L2_facts" / "evaluation_slices"
@@ -137,15 +146,18 @@ def inspect_slice_audit(task: str = "CQ", model_name: str = "RNN", seed: int = 4
                         release_id: str = "") -> dict:
     """Verify all current run manifests have complete ALL/STRICT/OVERLAP facts."""
     import pandas as pd
-    from imputation_core.meta_storage import release_inventory
+    from imputation_core.meta_storage import release_identity_aliases
     from release_core import resolve_release
 
     spec = resolve_release(task, release_id)
     volume.reload()
-    active_id = release_inventory(Path(MOUNT) / "input" / spec["input_dir"], task=task)["data_release_id"]
+    release, accepted_identities = release_identity_aliases(
+        Path(MOUNT) / "input" / spec["input_dir"], task=task
+    )
+    active_id = release["data_release_id"]
     base = Path(MOUNT) / f"meta_release={META_RELEASE}"
     runs = _selected_runs(base / "L1_runs", task=task, model_name=model_name, seed=seed,
-                          spec=spec, data_release_id=active_id)
+                          spec=spec, accepted_identities=accepted_identities)
     root = base / "L2_facts" / "evaluation_slices"
     frames, missing = [], []
     for _, manifest in runs:

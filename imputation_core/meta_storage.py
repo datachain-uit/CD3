@@ -513,6 +513,29 @@ def release_inventory(input_root: Path, *, task: str) -> dict[str, Any]:
     return release
 
 
+def release_identity_aliases(input_root: Path, *, task: str) -> tuple[dict[str, Any], dict[str, str]]:
+    """Return the active release plus every identity valid for its payload.
+
+    Before the lineage-sidecar exclusion, immutable run manifests included
+    ``materialization_lineage_*`` files in ``data_release_id``.  Those
+    manifests are still valid if every other release-contract field matches.
+    Callers must use this function for *selection* and retain the returned
+    class (``CURRENT`` or ``LEGACY_WITH_LINEAGE``) in their output facts.
+    It intentionally does not accept arbitrary historical identities.
+    """
+    release = release_inventory(input_root, task=task)
+    legacy_entries = []
+    for path in sorted(input_root.rglob("*")):
+        if path.is_file() and not path.name.startswith("."):
+            legacy_entries.append({"path": str(path.relative_to(input_root)), "bytes": path.stat().st_size})
+    legacy_payload = {"task": task, "root": str(input_root), "files": legacy_entries}
+    legacy_id = f"sha256:{canonical_hash({'inventory': legacy_payload, 'sidecar': release['input_release_manifest']})}"
+    aliases = {release["data_release_id"]: "CURRENT"}
+    if legacy_id != release["data_release_id"]:
+        aliases[legacy_id] = "LEGACY_WITH_LINEAGE"
+    return release, aliases
+
+
 def _eligible_feature_values(raw: pd.DataFrame, values: pd.DataFrame, pipeline: Any, *, phase: str | None) -> dict[str, dict[str, list[np.ndarray]]]:
     """Observed/imputed values grouped by pooled base feature, in one stage's scale."""
     visible = set(PHASES if phase is None else PHASES[:phase_index(phase)])

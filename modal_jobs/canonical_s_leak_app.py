@@ -27,7 +27,8 @@ image = (modal.Image.debian_slim(python_version="3.12")
          .add_local_python_source("release_core"))
 
 
-def _selected_models(base: Path, *, task: str, seed: int, spec: dict[str, str], data_release_id: str):
+def _selected_models(base: Path, *, task: str, seed: int, spec: dict[str, str],
+                     accepted_identities: dict[str, str]):
     selected: dict[tuple[str, str], tuple[int, float, Path, dict]] = {}
     pattern = (f"task={task}/feature_regime={REGIME[task]}/window_id=*/pipeline_id=*/"
                f"model_name=RNN/seed={seed}/run_id=*/attempt_id=*/run_manifest.json")
@@ -38,8 +39,13 @@ def _selected_models(base: Path, *, task: str, seed: int, spec: dict[str, str], 
         if any(manifest.get(field) != spec[field] for field in
                ("release_id", "split_registry_id", "split_version", "phase_version")):
             continue
-        if manifest.get("data_release_id") != data_release_id:
-            continue
+        identity = str(manifest.get("data_release_id") or "")
+        if identity not in accepted_identities:
+            raise ValueError(
+                f"{task} model manifest matches the active release contract but has unknown "
+                f"data_release_id={identity or '<absent>'}"
+            )
+        manifest = {**manifest, "data_release_identity_class": accepted_identities[identity]}
         pipeline, window = str(manifest.get("pipeline_id")), str(manifest.get("window_id"))
         if pipeline not in {f"V{i}" for i in range(17)} or window not in {"W1", "W2", "W3"}:
             continue
@@ -80,7 +86,7 @@ def _phase_mask_matrix(frame, phase: str, dynamic_bases: list[str]):
 def materialize_canonical_s_leak(task: str = "CQ", seed: int = 42, release_id: str = "") -> dict:
     import numpy as np
     import pandas as pd
-    from imputation_core.meta_storage import release_inventory
+    from imputation_core.meta_storage import release_identity_aliases
     from metrics_core.evaluation import fit_missingness_probe, score_missingness_probe_auc, s_leak_from_probe
     from release_core import resolve_release
 
@@ -89,8 +95,10 @@ def materialize_canonical_s_leak(task: str = "CQ", seed: int = 42, release_id: s
     spec = resolve_release(task, release_id)
     volume.reload()
     base = Path(MOUNT) / f"meta_release={META_RELEASE}"
-    data_release_id = release_inventory(Path(MOUNT) / "input" / spec["input_dir"], task=task)["data_release_id"]
-    models = _selected_models(base / "L1_runs", task=task, seed=seed, spec=spec, data_release_id=data_release_id)
+    release, accepted_identities = release_identity_aliases(Path(MOUNT) / "input" / spec["input_dir"], task=task)
+    data_release_id = release["data_release_id"]
+    models = _selected_models(base / "L1_runs", task=task, seed=seed, spec=spec,
+                              accepted_identities=accepted_identities)
 
     # Every model declares its immutable parent.  The representative with the
     # lexically lowest pipeline supplies an identical feature layout only;
@@ -154,7 +162,7 @@ def backfill_canonical_s_leak_n_eval(task: str = "CQ", seed: int = 42, release_i
     reread/refit of 15 pooled parent TRAIN cohorts.
     """
     import pandas as pd
-    from imputation_core.meta_storage import release_inventory
+    from imputation_core.meta_storage import release_identity_aliases
     from release_core import resolve_release
 
     if task not in REGIME:
@@ -162,8 +170,10 @@ def backfill_canonical_s_leak_n_eval(task: str = "CQ", seed: int = 42, release_i
     spec = resolve_release(task, release_id)
     volume.reload()
     base = Path(MOUNT) / f"meta_release={META_RELEASE}"
-    data_release_id = release_inventory(Path(MOUNT) / "input" / spec["input_dir"], task=task)["data_release_id"]
-    models = _selected_models(base / "L1_runs", task=task, seed=seed, spec=spec, data_release_id=data_release_id)
+    release, accepted_identities = release_identity_aliases(Path(MOUNT) / "input" / spec["input_dir"], task=task)
+    data_release_id = release["data_release_id"]
+    models = _selected_models(base / "L1_runs", task=task, seed=seed, spec=spec,
+                              accepted_identities=accepted_identities)
     representatives: dict[tuple[str, str], dict] = {}
     for _, manifest in models:
         key = str(manifest["window_id"]), str(manifest["parent_imputation_run_id"])
