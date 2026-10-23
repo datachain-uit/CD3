@@ -39,6 +39,12 @@ def _mapping(values: list[str]) -> dict[str, Path]:
 def _metrics(root: Path, family: str) -> pd.DataFrame:
     frames = []
     for path in sorted(root.rglob("metrics_overall.parquet")):
+        # A compact downloaded receipt may place all four families under one
+        # artifact root.  Select by the immutable path component before
+        # overwriting/normalising the model field, otherwise the same 408
+        # facts are accidentally attributed to every family.
+        if family not in {part.upper() for part in path.parts}:
+            continue
         frame = pd.read_parquet(path)
         frame["model_name"] = family
         frames.append(frame)
@@ -83,23 +89,42 @@ def main() -> None:
     if set(roots) != set(audits):
         raise ValueError("family-root and audit-root must specify the same families")
     args.output.mkdir(parents=True, exist_ok=True)
-    detailed, resources = [], []
+    detailed, resources, per_class_facts, bootstrap_facts = [], [], [], []
     for family in sorted(roots):
         metrics = _metrics(roots[family], family)
         audit = audits[family]
         sanity = pd.read_parquet(audit / "sanity_components.parquet")
         slices = pd.read_parquet(audit / "evaluation_slices.parquet")
+        per_class = pd.read_parquet(audit / "metrics_per_class.parquet")
+        bootstrap = pd.read_parquet(audit / "bootstrap_metrics_per_class.parquet")
         sanity["model_name"] = family
         slices["model_name"] = family
+        per_class["model_name"] = family
+        bootstrap["model_name"] = family
         keys = ["window_id", "pipeline_id", "model_name", "seed", "eval_split", "phase_id"]
-        columns = keys + ["acctempo_m3", "s_ent", "s_perf", "s_san_plus", "s_eff", "s_leak",
-                          "c0_recall", "c1_recall", "c2_recall"]
+        # Keep the complete registered sanity contract in the report-grain
+        # table.  Earlier R3 exports only kept the fields needed for the
+        # headline phase chart, forcing readers to join a second fact table
+        # for s_cal, S_san+ v2, and the component diagnostics.
+        columns = keys + [
+            "acctempo_m3", "s_perf", "s_san_plus", "s_san_plus_v2",
+            "s_nan", "s_maj_jsd", "s_ent", "s_cal", "s_drift", "s_eff", "s_leak",
+            "c0_recall", "c1_recall", "c2_recall",
+        ]
         missing = set(columns).difference(sanity.columns)
         if missing:
             raise ValueError(f"{family}: missing sanity columns {sorted(missing)}")
         combined = metrics.merge(sanity[columns], on=keys, how="inner", validate="one_to_one")
         if len(combined) != 408:
             raise ValueError(f"{family}: expected 408 TEST/VALIDATION×phase facts, got {len(combined)}")
+        # M4 is a read-only sensitivity composite: it retains the registered
+        # M3 performance exponent but replaces entropy-based S_san+ v1 with
+        # calibration-based S_san+ v2.  It never affects historical model
+        # selection or immutable run manifests.
+        combined["acctempo_m4"] = (
+            combined["s_perf"].clip(lower=1e-3).pow(0.6)
+            * combined["s_san_plus_v2"].clip(lower=1e-3).pow(0.4)
+        )
         w2 = slices[(slices["window_id"] == "W2") & (slices["slice"].isin(["ALL", "STRICT"]))]
         strict = (w2.pivot_table(index=keys, columns="slice", values="n_eval_samples", aggfunc="first")
                     .reset_index())
@@ -107,6 +132,8 @@ def main() -> None:
         combined = combined.merge(strict[keys + ["w2_strict_share"]], on=keys, how="left", validate="one_to_one")
         detailed.append(combined)
         resources.append(_resources(roots[family], family))
+        per_class_facts.append(per_class)
+        bootstrap_facts.append(bootstrap)
 
     cells = pd.concat(detailed, ignore_index=True)
     required = 4 * 51 * 2 * 4
@@ -114,8 +141,21 @@ def main() -> None:
         raise RuntimeError(f"Expected {required} evaluation cells, got {len(cells)}")
     cells.to_parquet(args.output / "cq_family_pipeline_window_phase_metrics.parquet", index=False)
     cells.to_csv(args.output / "cq_family_pipeline_window_phase_metrics.csv", index=False)
+    per_class = pd.concat(per_class_facts, ignore_index=True)
+    bootstrap = pd.concat(bootstrap_facts, ignore_index=True)
+    expected_per_class = 4 * 51 * 2 * 4 * 3
+    expected_bootstrap = expected_per_class * 3
+    if len(per_class) != expected_per_class:
+        raise RuntimeError(f"Expected {expected_per_class:,} per-class facts, got {len(per_class):,}")
+    if len(bootstrap) != expected_bootstrap:
+        raise RuntimeError(f"Expected {expected_bootstrap:,} bootstrap facts, got {len(bootstrap):,}")
+    per_class.to_parquet(args.output / "cq_metrics_per_class_long.parquet", index=False)
+    per_class.to_csv(args.output / "cq_metrics_per_class_long.csv", index=False)
+    bootstrap.to_parquet(args.output / "cq_bootstrap_metrics_per_class_long.parquet", index=False)
+    bootstrap.to_csv(args.output / "cq_bootstrap_metrics_per_class_long.csv", index=False)
     means = (cells.groupby(["model_name", "eval_split", "window_id", "phase_id"], as_index=False)
-             [["acctempo_m3", "f1_macro", "balanced_accuracy", "s_ent", "c0_recall", "c1_recall", "c2_recall", "w2_strict_share"]]
+             [["acctempo_m3", "acctempo_m4", "f1_macro", "balanced_accuracy", "s_perf", "s_san_plus", "s_san_plus_v2",
+               "s_ent", "s_cal", "s_eff", "s_leak", "c0_recall", "c1_recall", "c2_recall", "w2_strict_share"]]
              .mean())
     means.to_parquet(args.output / "cq_family_window_phase_mean.parquet", index=False)
     means.to_csv(args.output / "cq_family_window_phase_mean.csv", index=False)
@@ -139,6 +179,7 @@ def main() -> None:
         "expected_evaluation_cells": required, "expected_resource_runs": 204,
         "all_energy_nonnull": bool(resource["energy_gpu_estimated_kwh"].notna().all()),
         "energy_measurement_types": sorted(resource["energy_measurement_type"].dropna().unique().tolist()),
+        "per_class_facts": int(len(per_class)), "bootstrap_per_class_facts": int(len(bootstrap)),
         "scope": "CQ seed=42, all pipelines V0-V16, windows W1-W3, phases P1-P4, TEST and VALIDATION",
     }
     (args.output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")

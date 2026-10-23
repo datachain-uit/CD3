@@ -21,3 +21,34 @@ STATIC_FEATURE_CONTRACT["fields"]["primary_risk_set"] = {
     "available": "materialization metadata; point-in-time contract requires review",
     "grain": "RELEASE", "disposition": "REVIEW",
 }
+
+# CQ V2.2 closure decisions.  These entries document how the already-locked
+# metrics and QA23 review evidence are read; they do not alter historical
+# model inputs or the preregistered metric calculation.
+CQ_METRIC_AND_QA23_POLICY = {
+    "policy_id": "cq_v2_2_metric_qa23_closure_20261023",
+    "acctempo": {
+        "meta_dataset_primary": "acctempo_m3_v1_jsd_base2_six_components",
+        "paper_phase_trend_metrics": ("s_perf", "f1_macro", "balanced_accuracy"),
+        "paper_composite_sensitivity": "acctempo_m4__s_cal_based",
+        "rule": (
+            "M3 remains the preregistered primary composite.  Paper phase trends and rankings "
+            "must not be inferred from M3 alone because its entropy component can decrease as "
+            "later-prefix predictions become more certain."
+        ),
+    },
+    "qa23_reviewed_behavioural_bases": {
+        "status": "APPROVED_PREFIX_OBSERVED_BEHAVIOUR",
+        "bases": (
+            "problem_count", "exercise_count", "problem_context_count", "score_sum",
+            "correct_problem_count", "attempts_sum", "problem_catalog_coverage",
+            "problem_score_catalog_coverage",
+        ),
+        "required_review_note": "reviewed_prefix_observed_behaviour__not_label_derived",
+        "rule": (
+            "Retain only prefix-observed values available by the prediction cutoff.  Their label "
+            "association is reported in QA23 linkage facts; no label-derived final-distance field "
+            "may enter imputation or model predictors."
+        ),
+    },
+}
