@@ -166,7 +166,9 @@ def main() -> None:
     candidates = train_relative_candidates(args.window, args.pipeline_id, args.seed)
     train_relative = next((relative for relative in candidates if (args.data_root / relative).is_file()), candidates[-1])
     train_path = args.data_root / train_relative
-    _, remote_paths, _ = load_download_manifest(args.data_root, task=args.task)
+    download_manifest, remote_paths, download_manifest_sha256 = load_download_manifest(
+        args.data_root, task=args.task
+    )
     seed_augmentation = augmentation_source_seed(remote_paths.get(train_relative)) if args.pipeline_id != parent else None
     if args.pipeline_id != parent:
         if seed_augmentation is None:
@@ -242,7 +244,9 @@ def main() -> None:
     output.mkdir(parents=True, exist_ok=True)
     torch.save(trained["checkpoint"], output / "model.pt")
     pd.DataFrame(trained["history"]).to_parquet(output / "train_history.parquet", index=False)
-    (output / "feature_layout.json").write_text(json.dumps(layout.as_dict(), indent=2), encoding="utf-8")
+    feature_layout_payload = json.dumps(layout.as_dict(), indent=2)
+    (output / "feature_layout.json").write_text(feature_layout_payload, encoding="utf-8")
+    feature_layout_sha256 = "sha256:" + hashlib.sha256(feature_layout_payload.encode("utf-8")).hexdigest()
 
     metrics = []
     prediction_root = output / "predictions"
@@ -277,6 +281,7 @@ def main() -> None:
         "static_ablation": args.static_ablation,
         "static_layout_policy": args.static_layout_policy,
         "reference_layout_sha256": ('sha256:' + hashlib.sha256(args.reference_layout.read_bytes()).hexdigest()) if args.reference_layout else None,
+        "feature_layout_sha256": feature_layout_sha256,
         "run_purpose": "EXPLORATORY_STATIC_ABLATION" if args.static_ablation != 'none' else "PRIMARY_GRID",
         "runner_git_commit": detect_runner_git_commit(SCRIPT_PATH),
         "task": args.task, "window_id": args.window, "pipeline_id": args.pipeline_id,
@@ -295,6 +300,14 @@ def main() -> None:
         "test_rows": {phase: len(frame) for phase, frame in tests.items()},
         "input_paths": {"train": str(train_path), "validation": str(validation_path),
                         **{phase: str(path) for phase, path in test_paths.items()}},
+        # Persist the validated release identity in the primary receipt as well
+        # as metadata_contract.json.  This prevents a report from having to
+        # infer release identity post hoc from a portable input path.
+        **{key: download_manifest.get(key) for key in (
+            "release_id", "data_release_id", "split_registry_id", "split_version", "phase_version",
+            "feature_dictionary_version", "label_rule_version", "label_threshold_set", "scenario",
+        )},
+        "input_download_manifest_sha256": download_manifest_sha256,
         "elapsed_seconds": time.perf_counter() - started,
         "peak_ram_mb": (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
                         if resource is not None else None),
