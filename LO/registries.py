@@ -43,7 +43,7 @@ try:
 except ImportError:  # Supports ``python LO/registries.py`` as documented.
     from seeds import sha256_of, SEED_PREPROCESS
 
-REGISTRY_REVISION = 'registries_rev_2026-10-14_r1'
+REGISTRY_REVISION = 'registries_rev_2026-10-25_r1'
 
 # ---------------------------------------------------------------------------------------------
 # Pipeline registry V0–V16 (PLAN Table 7 / Table 14)
@@ -154,10 +154,12 @@ INPUT_CHANNELS = ['X', 'M_missing', 'M_available', 'delta_t', 'phase_id', 'obser
 # of such columns is a course fingerprint; SEEN/UNSEEN course slices measure how much of the model's signal is that
 # fingerprint.  Dispositions: IN_TENSOR (allowed input), CONTEXT_ONLY (report column, never an input; rename to
 # context__<name> in the views), EXCLUDE (never an input).  ``timeline_source`` and ``window_duration_seconds`` are
-# still IN_TENSOR in every completed run; changing them to CONTEXT_ONLY is PENDING (author) and would require a rerun.
+# completed historical-layout runs included ``timeline_source``.  It is now
+# context-only for every new layout; existing runs remain historical evidence
+# and are never silently relabelled.
 STATIC_FEATURE_CONTRACT = {
-    'contract_id': 'static_feature_contract_lo_v1',
-    'enforcement': 'tools/audit_static_columns.py --strict (allowlist = IN_TENSOR fields); fit_layout enforcement pending',
+    'contract_id': 'static_feature_contract_lo_v2_point_in_time',
+    'enforcement': 'tools/audit_static_columns.py --strict plus model.data.fit_layout allowlist enforcement',
     'fields': {
         'ex_counts': {'definition': 'Number of exercise resources in the course catalog.', 'available': 'catalog, at enrollment',
                       'grain': 'COURSE', 'disposition': 'IN_TENSOR'},
@@ -186,7 +188,7 @@ STATIC_FEATURE_CONTRACT = {
         'timeline_source': {'definition': 'Provenance of the schedule used for the offering (course timeline, global template, '
                                           'enrollment-anchored proxy); a materialisation choice, not a learner attribute.',
                             'available': 'when the timeline is selected', 'grain': 'OFFERING',
-                            'disposition': 'IN_TENSOR', 'proposed': 'CONTEXT_ONLY (PENDING author decision)'},
+                            'disposition': 'CONTEXT_ONLY', 'status': 'closed 2026-10-25; excluded from new model layouts'},
         'window_duration_seconds': {'definition': 'offering_end_date minus enrollment time under the recorded schedule '
                                                   '(the same quantity that defines the P1-P4 cutoffs).',
                                     'available': 'at enrollment, schedule-derived', 'grain': 'ENROLLMENT',
@@ -657,6 +659,11 @@ PENDING_DECISIONS.extend([
      'resolution': 'Use channel-independent PatchTST with shared patch projection/Transformer weights per dynamic channel and '
                    'concatenate post-encoder channel embeddings only in the task head; deterministic Math-SDP is scoped to the PatchTST encoder call; '
                    'revision patchtst_channel_independent_v2_1_math_sdp.'},
+    {'id': 19, 'topic': 'LO static-feature policy for new layouts', 'status': 'CLOSED 2026-10-25',
+     'resolution': 'retain only registered P1-available catalog/enrollment context and window_duration_seconds; '
+                   'exclude split_rule_version and timeline_source as provenance/context-only. Historical-layout runs retain '
+                   'their recorded layout for comparability and are not silently reinterpreted. Static-only and V0/V8 '
+                   'ablation results are descriptive evidence, not a reason to alter completed runs.'},
 ])
 
 

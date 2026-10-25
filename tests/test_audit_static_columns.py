@@ -42,10 +42,12 @@ def synthetic_frame(rows: int, seed: int, offering_shift: float = 0.0) -> pd.Dat
 
 
 def test_audit_reports_the_selected_static_set_and_flags(tmp_path) -> None:
-    train = synthetic_frame(2000, seed=1)
-    evals = {"TEST": synthetic_frame(600, seed=2, offering_shift=5 * 86400.0)}
-    allowlist = {"task": "LO", "allowed": ["static_row_noise"], "denied": ["window_duration_seconds"]}
-    report = audit_mod.audit(train, "LO", evals, allowlist)
+    train = synthetic_frame(2000, seed=1).rename(columns={"LO_performance_label_3": "CQ_label_final"})
+    evals = {"TEST": synthetic_frame(600, seed=2, offering_shift=5 * 86400.0).rename(columns={"LO_performance_label_3": "CQ_label_final"})}
+    # Arbitrary synthetic columns are valid for the generic CQ selection test.
+    # LO now has a locked, explicit static allowlist and rejects them instead.
+    allowlist = {"task": "CQ", "allowed": ["static_row_noise"], "denied": ["window_duration_seconds"]}
+    report = audit_mod.audit(train, "CQ", evals, allowlist)
     summary = report["summary"]
     assert summary["layout_mode"].startswith("use_masks=True")
     assert summary["static_columns"] == ["static_constant", "static_offering_attr", "static_row_noise", "window_duration_seconds"]
@@ -70,15 +72,15 @@ def test_audit_reports_the_selected_static_set_and_flags(tmp_path) -> None:
 
 def test_cli_strict_fails_on_unlisted_columns(tmp_path) -> None:
     train_path, out_path = tmp_path / "train.parquet", tmp_path / "audit.json"
-    synthetic_frame(500, seed=3).to_parquet(train_path, index=False)
-    assert audit_mod.main(["--task", "LO", "--train", str(train_path), "--out", str(out_path)]) == 0
+    synthetic_frame(500, seed=3).rename(columns={"LO_performance_label_3": "CQ_label_final"}).to_parquet(train_path, index=False)
+    assert audit_mod.main(["--task", "CQ", "--train", str(train_path), "--out", str(out_path)]) == 0
     report = json.loads(out_path.read_text(encoding="utf-8"))
     assert report["summary"]["n_static_columns"] == 4
-    assert audit_mod.main(["--task", "LO", "--train", str(train_path), "--out", str(out_path), "--strict"]) == 1
+    assert audit_mod.main(["--task", "CQ", "--train", str(train_path), "--out", str(out_path), "--strict"]) == 1
     allow = tmp_path / "allow.json"
-    allow.write_text(json.dumps({"task": "LO", "allowed": ["static_constant", "static_offering_attr", "static_row_noise",
+    allow.write_text(json.dumps({"task": "CQ", "allowed": ["static_constant", "static_offering_attr", "static_row_noise",
                                                               "window_duration_seconds"]}), encoding="utf-8")
-    assert audit_mod.main(["--task", "LO", "--train", str(train_path), "--out", str(out_path), "--strict",
+    assert audit_mod.main(["--task", "CQ", "--train", str(train_path), "--out", str(out_path), "--strict",
                            "--allowlist", str(allow)]) == 0
 
 
@@ -87,8 +89,9 @@ def test_registry_allowlist_matches_the_static_feature_contract() -> None:
     from model.data import IDENTITY_OR_PROVENANCE
     allow = audit_mod.registry_allowlist("LO")
     fields = STATIC_FEATURE_CONTRACT["fields"]
-    assert len(fields) == 15 and len(allow["allowed"]) == 14 and allow["denied"] == ["split_rule_version"]
+    assert len(fields) == 15 and len(allow["allowed"]) == 13 and allow["denied"] == ["split_rule_version", "timeline_source"]
     assert fields["split_rule_version"]["disposition"] == "EXCLUDE" and "split_rule_version" in IDENTITY_OR_PROVENANCE
+    assert fields["timeline_source"]["disposition"] == "CONTEXT_ONLY" and "timeline_source" in IDENTITY_OR_PROVENANCE
     assert set(STATIC_FEATURE_CONTRACT["course_fingerprint_fields"]) <= set(allow["allowed"])
     assert all(fields[n]["grain"] == "COURSE" for n in STATIC_FEATURE_CONTRACT["course_fingerprint_fields"])
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))

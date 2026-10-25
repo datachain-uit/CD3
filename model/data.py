@@ -29,9 +29,26 @@ IDENTITY_OR_PROVENANCE = {
     # constant in the LO V3.1 release, but excluding it prevents a future
     # multi-release input from encoding its split/release identity.
     "split_rule_version",
+    # A schedule/materialisation provenance label, not an observed learner or
+    # course characteristic.  LO historical-layout runs included its numeric
+    # encoding; the locked successor policy excludes it from every new tensor.
+    "timeline_source",
     "course_id", "user_id", "teacher_id", "school_id",
     "user_id_code", "course_id_code", "teacher_id_code", "school_id_code",
 }
+
+# The LO static branch is an explicit, point-in-time feature contract.  Do
+# not let a new numeric bookkeeping column silently become a model feature
+# merely because it does not carry a phase suffix.  Historical-layout runs
+# remain reproducible through their recorded feature_layout.json; this list
+# governs only layouts fitted by current code.
+LO_STATIC_TENSOR_COLUMNS = frozenset({
+    "ex_counts", "gender", "resource_count",
+    "teacher_count", "teacher_bio_coverage", "teacher_avg_bio_length_chars", "teacher_org_count",
+    "school_count", "school_bio_coverage", "school_avg_bio_length_chars",
+    "school_motto_coverage", "school_avg_motto_length_chars",
+    "window_duration_seconds",
+})
 
 
 def label_column(task: str) -> str:
@@ -104,6 +121,14 @@ def fit_layout(train: pd.DataFrame, *, task: str, phase_id: str, use_masks: bool
             continue
         if _is_numeric(train, column):
             static.append(column)
+    if task == "LO":
+        unexpected = sorted(set(static).difference(LO_STATIC_TENSOR_COLUMNS))
+        if unexpected:
+            raise ValueError(
+                "LO static contract rejects unregistered numeric static columns: "
+                f"{unexpected}. Register an explicit point-in-time disposition first."
+            )
+        static = [column for column in static if column in LO_STATIC_TENSOR_COLUMNS]
     if not static:
         raise ValueError("no numeric static features found after identity exclusion")
 
