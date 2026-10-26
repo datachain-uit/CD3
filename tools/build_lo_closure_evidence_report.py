@@ -109,6 +109,11 @@ def main() -> None:
     }], [(key, key) for key in ("Cell thay thế", "Runner commit", "Batch size", "GPU", "Energy", "Facts audit")])
     add_text(doc, "Cell RNN W1/V0 cũ có runner revision khác phần còn lại của campaign. Cell thay thế đã được chạy và audit bằng revision 7886a856, batch 2.048 trên L4; khi materialize L2 phải chọn cell thay thế này làm RNN W1/V0 chính thức và không trộn cell cũ vào bảng so sánh.")
 
+    doc.add_heading("3.1 Hợp đồng static-v2 dùng chung cho mọi model mới", level=2)
+    add_text(doc, "Hợp đồng static_feature_contract_lo_v2_point_in_time chỉ cho phép 13 trường static đã đăng ký: 11 trường catalog, gender và window_duration_seconds. split_rule_version và timeline_source là provenance/context-only, bị loại trước khi tensor được tạo.")
+    add_text(doc, "RNN, LSTM, GRU, BiLSTM, PatchTST và MOMENT không có nhánh chọn static riêng: tất cả nhận FeatureLayout từ model.data.fit_layout trước khi kiến trúc được khởi tạo. Vì vậy PatchTST và MOMENT mới tự động dùng đúng cùng 13 trường static. Manifest mới ghi static_feature_contract_id cùng feature_layout_sha256 để verifier từ chối grid trộn hợp đồng.")
+    add_text(doc, "Điều này không sửa checkpoint historical-layout 15 trường. Các run đã hoàn tất vẫn được báo cáo là historical evidence; mọi run LO mới phải dùng static-v2 và không được gộp trực tiếp với bảng historical như cùng một experiment grid.")
+
     doc.add_heading("4. Trạng thái kết luận", level=2)
     add_text(doc, "Các điều kiện kỹ thuật còn mở của LO đã được đóng: prediction grain, tính hợp lệ STRICT, cohort SEEN/UNSEEN × STRICT/OVERLAP, facts hậu kiểm cho bốn family và cell RNN W1/V0 đồng nhất revision.")
     add_text(doc, "L2 chính thức đã nhận ingest_id = vastai_lo_f2_seed42_clean_20261025_r3. Receipt xác nhận 204 contracts, 1.632 rows metrics, 204 rows resource và đủ 87 partitions: 12 partitions cho từng fact family-specific (sanity, per-class, bootstrap, slice, checkpoint, metrics, resource) và 3 canonical S_leak partitions.")

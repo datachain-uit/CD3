@@ -42,7 +42,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from model.architectures import ARCHITECTURE_METADATA
-from model.data import fit_layout
+from model.data import fit_layout, static_contract_id
 from model.energy import GpuPowerSampler
 from model.shared_phase import evaluate_test_prefix, train_shared_checkpoint
 from vastai_metadata_contract import (augmentation_source_seed, build_contract, detect_runner_git_commit, load_download_manifest,
@@ -280,6 +280,7 @@ def main() -> None:
         "runner": "tools/vastai_train_shared.py", "protocol": "shared_checkpoint_prefix_safe_v2_4",
         "static_ablation": args.static_ablation,
         "static_layout_policy": args.static_layout_policy,
+        "static_feature_contract_id": static_contract_id(args.task),
         "reference_layout_sha256": ('sha256:' + hashlib.sha256(args.reference_layout.read_bytes()).hexdigest()) if args.reference_layout else None,
         "feature_layout_sha256": feature_layout_sha256,
         "run_purpose": "EXPLORATORY_STATIC_ABLATION" if args.static_ablation != 'none' else "PRIMARY_GRID",

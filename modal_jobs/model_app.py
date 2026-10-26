@@ -238,7 +238,7 @@ def train_temporal(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0"
     import pandas as pd
     import torch
     from model.architectures import ARCHITECTURE_METADATA, MOMENT_SPECS
-    from model.data import fit_layout
+    from model.data import fit_layout, static_contract_id
     from model.energy import GpuEnergyMeter
     from model.metrics import per_class_metric_records, stratified_bootstrap_per_class_ci
     from model.shared_phase import evaluate_test_prefix, train_shared_checkpoint
@@ -294,6 +294,7 @@ def train_temporal(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0"
               "model_name": model_name, "architecture": architecture,
               "model_family": architecture_metadata["model_family"],
               "model_revision": architecture_metadata["model_revision"], "seed": seed,
+              "static_feature_contract_id": static_contract_id(task),
               "augmentation_seed": augmentation_seed,
               "prediction_id_salt_sha256": hashlib.sha256(prediction_salt.encode("utf-8")).hexdigest(),
               **seed_bundle,

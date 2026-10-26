@@ -42,6 +42,7 @@ IDENTITY_OR_PROVENANCE = {
 # merely because it does not carry a phase suffix.  Historical-layout runs
 # remain reproducible through their recorded feature_layout.json; this list
 # governs only layouts fitted by current code.
+LO_STATIC_CONTRACT_ID = "static_feature_contract_lo_v2_point_in_time"
 LO_STATIC_TENSOR_COLUMNS = frozenset({
     "ex_counts", "gender", "resource_count",
     "teacher_count", "teacher_bio_coverage", "teacher_avg_bio_length_chars", "teacher_org_count",
@@ -53,6 +54,11 @@ LO_STATIC_TENSOR_COLUMNS = frozenset({
 
 def label_column(task: str) -> str:
     return "CQ_label_final" if task == "CQ" else "LO_performance_label_3"
+
+
+def static_contract_id(task: str) -> str:
+    """Identity of the static-tensor policy used when fitting a new layout."""
+    return LO_STATIC_CONTRACT_ID if task == "LO" else "static_feature_contract_cq_current_v1"
 
 
 def read_parquet(path: str | Path) -> pd.DataFrame:
