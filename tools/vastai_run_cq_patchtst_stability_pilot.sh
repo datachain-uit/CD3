@@ -14,6 +14,14 @@ readonly RUN_ROOT=runs/cq_patchtst_v3_stability_pilot_seed42
 readonly LOG_ROOT=runs/logs
 readonly SALT_FILE=.tempo_prediction_salt
 
+# The Modal-style portable bundle uses ``code/`` while a normal Git checkout
+# keeps the runner in ``tools/``.  Accept both without duplicating code.
+if test -f code/vastai_train_shared.py; then
+  readonly RUNNER=code/vastai_train_shared.py
+else
+  readonly RUNNER=tools/vastai_train_shared.py
+fi
+
 test -s "$SALT_FILE" || { echo "Missing $SALT_FILE" >&2; exit 2; }
 test -s "$DATA_ROOT/download_manifest.json" || { echo "Missing $DATA_ROOT/download_manifest.json" >&2; exit 2; }
 export TEMPO_PREDICTION_SALT="$(cat "$SALT_FILE")"
@@ -27,7 +35,7 @@ for WINDOW in W2 W3; do
     continue
   fi
   echo "[$(date -Is)] START D23 stability pilot $TASK/$WINDOW/V0/$MODEL/seed=$SEED"
-  python -u code/vastai_train_shared.py \
+  python -u "$RUNNER" \
     --task "$TASK" --data-root "$DATA_ROOT" --output-root "$RUN_ROOT" \
     --window "$WINDOW" --pipeline-id V0 --model-name "$MODEL" --seed "$SEED" \
     --batch-size 2048 --accumulation-steps 4 --workers 2 --max-epochs 50 --patience 5 \
