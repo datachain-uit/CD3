@@ -107,6 +107,14 @@ def parse() -> argparse.Namespace:
                         help="Epoch cap; use 1 only for environment smoke tests.")
     parser.add_argument("--patience", type=int, default=5,
                         help="Validation early-stopping patience; capped to max_epochs.")
+    parser.add_argument("--learning-rate", type=float, default=None,
+                        help="Override the registered architecture learning rate for an explicitly labelled pilot.")
+    parser.add_argument("--warmup-epochs", type=int, default=0,
+                        help="Linear per-update warm-up duration. Must be pre-registered for primary runs.")
+    parser.add_argument("--gradient-clip-norm", type=float, default=None,
+                        help="Optional global gradient-norm cap. Must be pre-registered for primary runs.")
+    parser.add_argument("--run-purpose", choices=("PRIMARY_GRID", "STABILITY_PILOT_D23", "EXPLORATORY_STATIC_ABLATION"),
+                        default="PRIMARY_GRID", help="Explicitly separates diagnostics from a primary grid.")
     parser.add_argument("--prediction-salt", default=os.environ.get("TEMPO_PREDICTION_SALT", ""))
     parser.add_argument("--static-ablation", choices=("none", "no_static", "gender_duration"), default="none",
                         help="Exploratory LO ablation; never merge these runs into the primary grid.")
@@ -153,6 +161,15 @@ def main() -> None:
     if (output / 'run_manifest.json').exists():
         raise FileExistsError(f"Refusing to overwrite run: {output}")
     architecture = args.model_name.lower()
+    if args.warmup_epochs < 0:
+        raise ValueError("--warmup-epochs must be non-negative")
+    if args.gradient_clip_norm is not None and args.gradient_clip_norm <= 0:
+        raise ValueError("--gradient-clip-norm must be positive when supplied")
+    hparams = dict(HPARAMS)
+    if args.learning_rate is not None:
+        if args.learning_rate <= 0:
+            raise ValueError("--learning-rate must be positive when supplied")
+        hparams["learning_rate"] = args.learning_rate
     provenance = execution_provenance(args)
     moment_snapshot = None
     moment_cache_dir = None
@@ -238,7 +255,7 @@ def main() -> None:
         architecture=architecture, seed=model_seed, dataloader_seed=loader_seed,
         batch_size=args.batch_size, workers=args.workers, max_epochs=args.max_epochs,
         patience=min(args.patience, args.max_epochs), accumulation_steps=args.accumulation_steps,
-        **HPARAMS,
+        **hparams, warmup_epochs=args.warmup_epochs, gradient_clip_norm=args.gradient_clip_norm,
         moment_cache_dir=moment_cache_dir, moment_snapshot=(moment_snapshot or {}).get("snapshot"),
     )
     output.mkdir(parents=True, exist_ok=True)
@@ -283,13 +300,13 @@ def main() -> None:
         "static_feature_contract_id": static_contract_id(args.task),
         "reference_layout_sha256": ('sha256:' + hashlib.sha256(args.reference_layout.read_bytes()).hexdigest()) if args.reference_layout else None,
         "feature_layout_sha256": feature_layout_sha256,
-        "run_purpose": "EXPLORATORY_STATIC_ABLATION" if args.static_ablation != 'none' else "PRIMARY_GRID",
+        "run_purpose": "EXPLORATORY_STATIC_ABLATION" if args.static_ablation != 'none' else args.run_purpose,
         "runner_git_commit": detect_runner_git_commit(SCRIPT_PATH),
         "task": args.task, "window_id": args.window, "pipeline_id": args.pipeline_id,
         "parent_pipeline": parent, "model_name": args.model_name, "architecture": architecture,
         "model_revision": ARCHITECTURE_METADATA[architecture]["model_revision"],
         "architecture_metadata": ARCHITECTURE_METADATA[architecture],
-        **HPARAMS,
+        **hparams, "warmup_epochs": args.warmup_epochs, "gradient_clip_norm": args.gradient_clip_norm,
         "seed": args.seed, "seed_model": model_seed, "seed_dataloader": loader_seed,
         "seed_augmentation": seed_augmentation, "augmentation_seed_policy": args.augmentation_seed_policy,
         "batch_size": args.batch_size, "micro_batch_size": trained["micro_batch_size"],

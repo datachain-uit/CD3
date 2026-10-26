@@ -112,11 +112,17 @@ def train_shared_checkpoint(*, layout: FeatureLayout, classes: tuple[str, ...], 
                             batch_size: int = 2048, max_epochs: int = 50, patience: int = 5,
                             learning_rate: float = 1e-3, weight_decay: float = 1e-5, workers: int = 4,
                             moment_cache_dir: str | None = None,
-                            moment_snapshot: str | None = None, accumulation_steps: int = 1) -> tuple[dict, dict]:
+                            moment_snapshot: str | None = None, accumulation_steps: int = 1,
+                            warmup_epochs: int = 0,
+                            gradient_clip_norm: float | None = None) -> tuple[dict, dict]:
     """Fit a single checkpoint using average CE over P1--P4 real train rows."""
     seed_everything(seed)
     if accumulation_steps < 1 or batch_size % accumulation_steps:
         raise ValueError("accumulation_steps must be >= 1 and divide batch_size")
+    if warmup_epochs < 0:
+        raise ValueError("warmup_epochs must be non-negative")
+    if gradient_clip_norm is not None and gradient_clip_norm <= 0:
+        raise ValueError("gradient_clip_norm must be positive when supplied")
     micro_batch_size = batch_size // accumulation_steps
     dataloader_seed = seed if dataloader_seed is None else dataloader_seed
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -137,6 +143,33 @@ def train_shared_checkpoint(*, layout: FeatureLayout, classes: tuple[str, ...], 
     scaler = GradScaler("cuda", enabled=device.type == "cuda"); amp_device = "cuda" if device.type == "cuda" else "cpu"
     criterion = nn.CrossEntropyLoss(); best_state = None; best_key = (-np.inf, -np.inf); best_epoch = 0; stale = 0; history = []
     n_micro_batches = len(train_loader)
+    updates_per_epoch = (n_micro_batches + accumulation_steps - 1) // accumulation_steps
+    warmup_updates = warmup_epochs * updates_per_epoch
+    optimizer_updates = 0
+
+    def optimizer_step(*, denominator: int = 1) -> None:
+        """Take one deterministic AMP-safe optimiser step.
+
+        Warm-up is applied per optimiser update (rather than per epoch), so a
+        one-epoch warm-up genuinely ramps from near zero to the registered
+        learning rate.  Unscaling precedes averaging and clipping as required
+        by GradScaler.
+        """
+        nonlocal optimizer_updates
+        if warmup_updates:
+            scale = min(1.0, (optimizer_updates + 1) / warmup_updates)
+            for group in optimizer.param_groups:
+                group["lr"] = learning_rate * scale
+        scaler.unscale_(optimizer)
+        if denominator != 1:
+            for parameter in trainable_parameters:
+                if parameter.grad is not None:
+                    parameter.grad.div_(denominator)
+        if gradient_clip_norm is not None:
+            torch.nn.utils.clip_grad_norm_(trainable_parameters, max_norm=gradient_clip_norm)
+        scaler.step(optimizer); scaler.update(); optimizer.zero_grad(set_to_none=True)
+        optimizer_updates += 1
+
     for epoch in range(1, max_epochs + 1):
         epoch_started = time.perf_counter()
         model.train(); total = 0.; rows = 0; group_rows = 0; pending = 0
@@ -151,21 +184,20 @@ def train_shared_checkpoint(*, layout: FeatureLayout, classes: tuple[str, ...], 
                 loss = sum(criterion(logits[:, i].float(), target) for i in range(logits.size(1))) / logits.size(1)
             total += float(loss.detach()) * len(target); rows += len(target)
             if accumulation_steps == 1:
-                scaler.scale(loss).backward(); scaler.step(optimizer); scaler.update(); optimizer.zero_grad(set_to_none=True)
+                scaler.scale(loss).backward(); optimizer_step()
                 continue
             scaler.scale(loss * len(target)).backward(); group_rows += len(target); pending += 1
             if pending == accumulation_steps or step == n_micro_batches:
-                for parameter in trainable_parameters:
-                    if parameter.grad is not None:
-                        parameter.grad.div_(group_rows)
-                scaler.step(optimizer); scaler.update(); optimizer.zero_grad(set_to_none=True)
+                optimizer_step(denominator=group_rows)
                 group_rows = 0; pending = 0
         train_seconds = time.perf_counter() - epoch_started
         val_metrics, _ = _evaluate_prefixes(model, val_dynamic, val_static, val_y, batch_size, workers, device, class_ids,
                                             seed=dataloader_seed)
         mean_f1 = float(np.mean([val_metrics[p]["f1_macro"] for p in PHASES])); mean_ce = float(np.mean([val_metrics[p]["cross_entropy"] for p in PHASES]))
         history.append({"epoch": epoch, "train_cross_entropy_mean_p1_p4": total / max(rows, 1), "validation_macro_f1_mean_p1_p4": mean_f1, "validation_cross_entropy_mean_p1_p4": mean_ce,
-                        "train_seconds": round(train_seconds, 3), "epoch_seconds": round(time.perf_counter() - epoch_started, 3)})
+                        "train_seconds": round(train_seconds, 3), "epoch_seconds": round(time.perf_counter() - epoch_started, 3),
+                        "learning_rate_end": optimizer.param_groups[0]["lr"],
+                        "optimizer_updates": optimizer_updates})
         key = (mean_f1, -mean_ce)
         if key > best_key:
             best_key, best_epoch, stale = key, epoch, 0
