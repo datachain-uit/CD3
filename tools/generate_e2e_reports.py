@@ -21,11 +21,12 @@ TODAY = "2026-10-16"
 PIPES = [f"V{i}" for i in range(17)]
 PIPELINE_LABELS = {
     "V0": "zero-fill + masks",
-    "V1": "mean", "V5": "median", "V9": "ExtraTrees", "V13": "MICE",
-    "V2": "mean + CDSMOTE", "V3": "mean + RadiusSMOTE", "V4": "mean + SASMOTE",
-    "V6": "median + CDSMOTE", "V7": "median + RadiusSMOTE", "V8": "median + SASMOTE",
-    "V10": "ExtraTrees + CDSMOTE", "V11": "ExtraTrees + RadiusSMOTE", "V12": "ExtraTrees + SASMOTE",
-    "V14": "MICE + CDSMOTE", "V15": "MICE + RadiusSMOTE", "V16": "MICE + SASMOTE",
+    # The order is defined by LO.registries / the immutable S1/S2 artefacts:
+    # V1=MEDIAN, V5=MEAN; each triplet is CDSMOTE, SASMOTE, RadiusSMOTE.
+    "V1": "median", "V2": "median + CDSMOTE", "V3": "median + SASMOTE", "V4": "median + RadiusSMOTE",
+    "V5": "mean", "V6": "mean + CDSMOTE", "V7": "mean + SASMOTE", "V8": "mean + RadiusSMOTE",
+    "V9": "ExtraTrees", "V10": "ExtraTrees + CDSMOTE", "V11": "ExtraTrees + SASMOTE", "V12": "ExtraTrees + RadiusSMOTE",
+    "V13": "MICE", "V14": "MICE + CDSMOTE", "V15": "MICE + SASMOTE", "V16": "MICE + RadiusSMOTE",
 }
 
 
@@ -219,7 +220,7 @@ def main():
     cq_runprov=cq["resource_long"].groupby(["model_name","attempt_id","runner_sha256","execution_backend"],dropna=False).agg(runs=("run_id","nunique")).reset_index()
     cq_sections=[
       ("1. Phạm vi, release và quy tắc đọc kết quả", "CQ dùng release CQ_V2_2, split v2_2 và feature phase prefix v2_2. Ba window dùng A–G: W1 TRAIN=A, VALIDATION=B, TEST=C; W2 TRAIN=A+B+C, VALIDATION=D, TEST=E; W3 TRAIN=A+B+C+D+E, VALIDATION=F, TEST=G. A là 60% enrollment sớm nhất theo offering, phần còn lại theo lát thời gian; validation/test chỉ dùng các prefix P1–P4 tương ứng. AccTEMPO là metric hiệu năng chính; S_san+ v1 là metric chất lượng dữ liệu chính, còn S_san+ v2/s_cal là sensitivity. Accuracy không được dùng để kết luận khi nhãn mất cân bằng.", []),
-      ("2. Pipeline và kế hoạch thực nghiệm", "V0 là zero-fill + mask. V1/V5/V9/V13 lần lượt là mean/median/ExtraTrees/MICE; các pipeline V2–V4, V6–V8, V10–V12, V14–V16 là CDSMOTE/RadiusSMOTE/SASMOTE trên parent tương ứng. S2 giữ validation/test nguyên vẹn. Seed augmentation của batch hiện có là 42; seed model là 42.", [pd.DataFrame({"Pipeline":PIPES,"Cấu hình":[PIPELINE_LABELS[p] for p in PIPES]})]),
+      ("2. Pipeline và kế hoạch thực nghiệm", "V0 là zero-fill + mask. V1/V5/V9/V13 lần lượt là median/mean/ExtraTrees/MICE; mỗi nhóm ba pipeline tiếp theo theo thứ tự CDSMOTE/SASMOTE/RadiusSMOTE trên parent tương ứng. S2 giữ validation/test nguyên vẹn. Seed augmentation của batch hiện có là 42; seed model là 42.", [pd.DataFrame({"Pipeline":PIPES,"Cấu hình":[PIPELINE_LABELS[p] for p in PIPES]})]),
       ("3. Kiểm soát grain, lineage và S2", "Nguồn cumulative_phase_features v1 từng có exact duplicate 23,614,180 → 11,807,090; release clean-grain v2 là đầu vào hiện hành và materializer dừng cứng nếu còn duplicate. Grain audit downstream của V0/V2 xác nhận mỗi enrollment có đúng một hàng. S2 có 36 plan immutable: 4 parent imputer × 3 window × 3 method, seed 42. RadiusSMOTE có fallback nearest-neighbour cao (>50% trong 24/24 cell lớp–window), nên chỉ là sensitivity comparator, không phải bằng chứng nội suy local-radius ổn định.", [pd.DataFrame([{"Window":"W1","V0 TRAIN": "1,609,276", "V2 balanced TRAIN":"1,866,048"},{"Window":"W2","V0 TRAIN":"1,963,060","V2 balanced TRAIN":"2,269,260"},{"Window":"W3","V0 TRAIN":"2,324,027","V2 balanced TRAIN":"2,688,368"}])]),
       ("4. Bao phủ facts mới và provenance", "Các facts dưới đây là export L2 đã ingest từ các compact contract VastAI. LSTM và GRU thuộc cùng batch provenance; BiLSTM thuộc batch runner khác, nên bảng dùng để mô tả và so sánh trong batch. Không gộp chúng thành một tuyên bố reproducibility đồng nhất.", [cq_counts, cq_runprov]),
       ("4.1 RNN Modal L4/BF16 đã nghiệm thu", "RNN seed 42 là batch Modal L4/BF16 provenance-strict trước đó: 51/51 cell, release hash CQ_V2_2 hiện hành, model revision recurrent_shared_phase_v2_4_prefixsafe_epoch50. Bảng được đọc lại từ report provenance-strict ngày 07/10; giữ tách khỏi batch VastAI bên dưới vì backend/runner khác. Nó vẫn là evidence thực nghiệm hợp lệ cho RNN riêng lẻ.", [legacy_rnn]),

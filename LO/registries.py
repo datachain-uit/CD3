@@ -118,7 +118,10 @@ def build_pipeline_registry(sampling: Dict = SAMPLING_STRATEGY['primary']) -> Li
                 'pipeline_id': pid, 'pipeline_name': name, 'imputer': imp, 'balancer': bal,
                 'imputer_family': IMPUTER_FAMILY[imp], 'balancer_family': 'NONE' if bal == 'NONE' else 'SMOTE_VARIANT',
                 'is_no_intervention': int(pid == 'V0'), 'has_imputation': int(imp != 'NONE'), 'has_balancing': int(bal != 'NONE'),
-                'before_ref': 'V0', 'imputer_only_ref': 'V0' if bal == 'NONE' else imp_only,
+                # N10: an imputer-only cell is its own completed parent.  V0
+                # is still the ``before_ref`` baseline, while every balanced
+                # child points to the corresponding imputer-only parent.
+                'before_ref': 'V0', 'imputer_only_ref': pid if bal == 'NONE' else imp_only,
                 'fit_scope': 'TRAIN_POOLED_P1_P4', 'impute_scope': 'OBSERVED_MISSING_ONLY',
                 'v0_fill_rule': V0_FILL_RULE['rule_id'], 'seed_preprocess': SEED_PREPROCESS,
                 'synthetic_phase_rule': 'SAME_PHASE_ONLY', 'synthetic_mask_rule': 'INTERSECTION_OF_PARENTS',
@@ -139,7 +142,7 @@ def validate_pipeline_registry(rows: List[Dict]) -> None:
     by = {r['pipeline_id']: r for r in rows}
     # PLAN Table 14 mapping
     expect = {'V2': 'V1', 'V3': 'V1', 'V4': 'V1', 'V6': 'V5', 'V7': 'V5', 'V8': 'V5', 'V10': 'V9', 'V11': 'V9',
-              'V12': 'V9', 'V14': 'V13', 'V15': 'V13', 'V16': 'V13', 'V1': 'V0', 'V5': 'V0', 'V9': 'V0', 'V13': 'V0', 'V0': 'V0'}
+              'V12': 'V9', 'V14': 'V13', 'V15': 'V13', 'V16': 'V13', 'V1': 'V1', 'V5': 'V5', 'V9': 'V9', 'V13': 'V13', 'V0': 'V0'}
     for k, v in expect.items():
         assert by[k]['imputer_only_ref'] == v, (k, by[k]['imputer_only_ref'], v)
 
