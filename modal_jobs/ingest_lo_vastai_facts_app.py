@@ -203,8 +203,34 @@ def assert_uniform_execution(contracts: dict[tuple[str, str, str], dict], *, exp
     known_gpus = gpus - {"None"}
     if known_gpus and known_gpus != {expected_gpu}:
         raise ValueError(f"Ingest spans GPUs other than the registered {expected_gpu}: {sorted(known_gpus)}")
+    # One training protocol per ingest (044d6c7 made learning rate, warm-up, gradient clipping and run
+    # purpose per-run options): a grid that mixes the registered protocol with a pilot protocol, or
+    # mixes layout policies, is not one experiment.  Contracts older than the ``training_protocol``
+    # block ran the registered protocol, so the absence of the block is normalised, not tolerated.
+    protocols = {json.dumps(_training_protocol_of(item["contract"]), sort_keys=True) for item in contracts.values()}
+    if len(protocols) != 1:
+        raise ValueError(f"Ingest spans {len(protocols)} training protocols: {sorted(protocols)[:4]}")
+    protocol = json.loads(next(iter(protocols)))
+    if protocol["run_purpose"] != "PRIMARY_GRID":
+        raise ValueError(f"Ingest contains non-primary runs (run_purpose={protocol['run_purpose']}); pilots and ablations never enter L2")
     return {"runner_sha256": next(iter(runner)), "release_contract_sha256": sorted(release_contract),
-            "gpu": sorted(known_gpus) or ["UNRECORDED (contracts older than b5f55fe)"]}
+            "gpu": sorted(known_gpus) or ["UNRECORDED (contracts older than b5f55fe)"],
+            "training_protocol": protocol}
+
+
+def _training_protocol_of(contract: dict) -> dict:
+    """Training protocol and layout policy of one contract, defaults filled for pre-044d6c7 contracts."""
+    identity = contract.get("model_identity", {}) or {}
+    recorded = contract.get("training_protocol", {}) or {}
+    return {
+        "model_revision": identity.get("model_revision"),
+        "learning_rate": float(recorded.get("learning_rate", identity.get("learning_rate", 1e-3)) or 1e-3),
+        "warmup_epochs": int(recorded.get("warmup_epochs") or 0),
+        "gradient_clip_norm": recorded.get("gradient_clip_norm"),
+        "run_purpose": recorded.get("run_purpose") or "PRIMARY_GRID",
+        "static_layout_policy": identity.get("static_layout_policy") or "current",
+        "batch_size": identity.get("batch_size"), "accumulation_steps": identity.get("accumulation_steps") or 1,
+    }
 
 
 def _external_model_facts(contracts: dict[tuple[str, str, str], dict]):

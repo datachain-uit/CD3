@@ -35,7 +35,15 @@ F2_PROTOCOL = {
     "accumulation_steps": 4,
     "static_ablation": "none",
     "run_purpose": "PRIMARY_GRID",
+    # Registered optimisation protocol (HPARAMS of tools/vastai_train_shared.py; model/shared_phase defaults).
+    # 044d6c7 made these per-run options: a grid trained with another learning rate, a warm-up or gradient
+    # clipping is a different protocol and must fail here until MODEL_REGISTRY registers it (hparam config v3).
+    "learning_rate": 1e-3,
+    "warmup_epochs": 0,
+    "gradient_clip_norm": None,
 }
+# Manifests older than 044d6c7 do not carry these keys; they ran the registered values.
+F2_PROTOCOL_DEFAULT_IF_ABSENT = {"warmup_epochs": 0, "gradient_clip_norm": None, "learning_rate": 1e-3}
 WINDOWS = ("W1", "W2", "W3")
 
 
@@ -53,8 +61,9 @@ def patchtst_provenance(root: Path, *, protocol: dict = F2_PROTOCOL) -> pd.DataF
             raise FileNotFoundError(f"PatchTST pilot feature layout missing: {layout_path}")
         feature_layout_sha256 = "sha256:" + hashlib.sha256(layout_path.read_bytes()).hexdigest()
         for key, expected in protocol.items():
-            if manifest.get(key) != expected:
-                deviations.append(f"{window}: {key}={manifest.get(key)!r} (registered {expected!r})")
+            actual = manifest.get(key, F2_PROTOCOL_DEFAULT_IF_ABSENT.get(key)) if key in F2_PROTOCOL_DEFAULT_IF_ABSENT else manifest.get(key)
+            if actual != expected:
+                deviations.append(f"{window}: {key}={actual!r} (registered {expected!r})")
         for key in (
             "static_layout_policy", "runner_git_commit", "seed", "best_epoch",
             "elapsed_seconds", "energy_measurement_type", "energy_gpu_estimated_kwh",

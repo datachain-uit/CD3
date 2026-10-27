@@ -32,7 +32,11 @@ from typing import Any
 WINDOWS = ("W1", "W2", "W3")
 PIPELINES = tuple(f"V{i}" for i in range(17))
 UNIFORM_FIELDS = ("runner_git_commit", "model_revision", "static_layout_policy", "reference_layout_sha256",
-                  "batch_size", "micro_batch_size", "accumulation_steps", "seed")
+                  "batch_size", "micro_batch_size", "accumulation_steps", "seed",
+                  # training protocol (per-run options since 044d6c7) and the static contract id (8d105db)
+                  "learning_rate", "warmup_epochs", "gradient_clip_norm", "run_purpose", "static_feature_contract_id")
+# Manifests written before these options existed ran the registered values.
+FIELD_DEFAULTS = {"warmup_epochs": 0, "gradient_clip_norm": None, "run_purpose": "PRIMARY_GRID", "learning_rate": 1e-3}
 
 
 def canonical_cells(task: str, model_name: str, seed: int, *, windows=WINDOWS, pipelines=PIPELINES) -> list[dict[str, Any]]:
@@ -83,7 +87,8 @@ def shard_cells(plan: dict[str, Any], shard: int) -> list[dict[str, Any]]:
     return [cell for cell in plan["cells"] if cell["shard"] == shard]
 
 
-def verify(plan: dict[str, Any], run_root: Path, *, expect_static_layout_policy: str | None = None) -> dict[str, Any]:
+def verify(plan: dict[str, Any], run_root: Path, *, expect_static_layout_policy: str | None = None,
+           expect_run_purpose: str = "PRIMARY_GRID") -> dict[str, Any]:
     missing: list[dict[str, str]] = []
     manifests: dict[str, dict[str, Any]] = {}
     for cell in plan["cells"]:
@@ -102,19 +107,23 @@ def verify(plan: dict[str, Any], run_root: Path, *, expect_static_layout_policy:
         same_grid = (parts[-6] == plan["task"] and parts[-3] == plan["model_name"] and parts[-2] == f"seed={plan['seed']}")
         if same_grid and (parts[-5], parts[-4]) not in planned and (parts[-5], parts[-4]) not in excluded:
             unplanned.append(str(path))
-    values = {field: sorted({str(m.get(field)) for m in manifests.values()}) for field in UNIFORM_FIELDS}
+    values = {field: sorted({str(m.get(field, FIELD_DEFAULTS.get(field))) for m in manifests.values()})
+              for field in UNIFORM_FIELDS}
     non_uniform = {field: vals for field, vals in values.items() if len(vals) > 1}
     policy_mismatch = []
     if expect_static_layout_policy is not None:
         policy_mismatch = [key for key, m in manifests.items() if m.get("static_layout_policy") != expect_static_layout_policy]
+    purpose_mismatch = [key for key, m in manifests.items()
+                        if (m.get("run_purpose") or "PRIMARY_GRID") != expect_run_purpose]
     report = {
         "plan_sha256": plan["plan_sha256"], "planned": len(plan["cells"]), "found": len(manifests),
         "missing": missing, "unplanned_manifests": unplanned, "non_uniform": non_uniform,
         "static_layout_policy_mismatch": policy_mismatch,
+        "run_purpose_mismatch": purpose_mismatch,
         "uniform_values": {field: vals[0] if len(vals) == 1 else None for field, vals in values.items()},
         "histories_present": sum((run_dir(run_root, c) / "train_history.parquet").is_file() for c in plan["cells"]),
     }
-    report["complete"] = not (missing or unplanned or non_uniform or policy_mismatch)
+    report["complete"] = not (missing or unplanned or non_uniform or policy_mismatch or purpose_mismatch)
     return report
 
 
@@ -135,6 +144,8 @@ def main(argv: list[str] | None = None) -> int:
     ver.add_argument("--plan", type=Path, required=True)
     ver.add_argument("--run-root", type=Path, required=True)
     ver.add_argument("--expect-static-layout-policy", default=None)
+    ver.add_argument("--expect-run-purpose", default="PRIMARY_GRID",
+                     help="pilot and ablation runs (STABILITY_PILOT_D23, EXPLORATORY_STATIC_ABLATION) never complete a grid")
     ver.add_argument("--out", type=Path, default=None)
     args = parser.parse_args(argv)
     if args.command == "plan":
@@ -148,7 +159,8 @@ def main(argv: list[str] | None = None) -> int:
         for cell in shard_cells(loaded, args.shard):
             print(cell["window_id"], cell["pipeline_id"])
         return 0
-    report = verify(loaded, args.run_root, expect_static_layout_policy=args.expect_static_layout_policy)
+    report = verify(loaded, args.run_root, expect_static_layout_policy=args.expect_static_layout_policy,
+                    expect_run_purpose=args.expect_run_purpose)
     if args.out is not None:
         args.out.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(json.dumps(report, indent=2))

@@ -123,6 +123,22 @@ def augmentation_source_seed(remote_path: str | None) -> int | None:
     return int(seed) if str(seed).isdigit() else None
 
 
+# Registered optimisation protocol of every primary grid (model/shared_phase defaults and HPARAMS of
+# tools/vastai_train_shared.py).  Runs that deviate are pilots or ablations until the registry changes.
+REGISTERED_TRAINING_PROTOCOL = {"learning_rate": 1e-3, "warmup_epochs": 0, "gradient_clip_norm": None,
+                                "run_purpose": "PRIMARY_GRID"}
+
+
+def training_protocol(manifest: dict[str, Any]) -> dict[str, Any]:
+    """The optimisation settings of a run; manifests older than 044d6c7 recorded none and ran the registered ones."""
+    return {
+        "learning_rate": float(manifest.get("learning_rate", REGISTERED_TRAINING_PROTOCOL["learning_rate"])),
+        "warmup_epochs": int(manifest.get("warmup_epochs") or 0),
+        "gradient_clip_norm": manifest.get("gradient_clip_norm"),
+        "run_purpose": manifest.get("run_purpose") or "PRIMARY_GRID",
+    }
+
+
 def build_contract(*, task: str, data_root: Path, run_dir: Path, manifest: dict[str, Any],
                    runner_path: Path, train_relative: str | None = None) -> dict[str, Any]:
     download, remote_paths, download_hash = load_download_manifest(data_root, task=task)
@@ -156,6 +172,13 @@ def build_contract(*, task: str, data_root: Path, run_dir: Path, manifest: dict[
     if manifest.get("static_layout_policy", "current") != "current":
         immutable_key["static_layout_policy"] = manifest.get("static_layout_policy")
         immutable_key["reference_layout_sha256"] = manifest.get("reference_layout_sha256")
+    # A run trained under a training protocol other than the registered one (044d6c7 added
+    # --learning-rate / --warmup-epochs / --gradient-clip-norm / --run-purpose) is a different
+    # experiment even with the same runner; keep its identity apart.  Registered runs keep the
+    # historical identity because the key is only added when a setting deviates.
+    protocol = training_protocol(manifest)
+    if protocol != REGISTERED_TRAINING_PROTOCOL:
+        immutable_key["training_protocol"] = protocol
     return {
         "metadata_schema_version": "vastai_model_metadata_contract_v1",
         "portable_run_id": _sha256_bytes(json.dumps(immutable_key, sort_keys=True, separators=(",", ":")).encode()),
@@ -167,7 +190,8 @@ def build_contract(*, task: str, data_root: Path, run_dir: Path, manifest: dict[
             "architecture_metadata", "seed", "protocol", "precision_policy", "batch_size", "micro_batch_size",
             "accumulation_steps", "max_epochs", "early_stopping_patience", "hidden_size", "num_layers", "dropout",
             "learning_rate", "weight_decay", "best_epoch", "static_layout_policy",
-            "reference_layout_sha256")},
+            "reference_layout_sha256", "static_feature_contract_id", "feature_layout_sha256")},
+        "training_protocol": protocol,
         "execution": {key: manifest.get(key) for key in (
             "execution_backend", "gpu", "gpu_count", "gpu_total_memory_gb", "cuda_capability", "torch_version",
             "cuda_version", "cudnn_version", "cublas_workspace_config", "deterministic_algorithms",
