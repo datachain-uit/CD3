@@ -43,7 +43,7 @@ try:
 except ImportError:  # Supports ``python LO/registries.py`` as documented.
     from seeds import sha256_of, SEED_PREPROCESS
 
-REGISTRY_REVISION = 'registries_rev_2026-10-25_r1'
+REGISTRY_REVISION = 'registries_rev_2026-10-27_r1'
 
 # ---------------------------------------------------------------------------------------------
 # Pipeline registry V0–V16 (PLAN Table 7 / Table 14)
@@ -223,6 +223,13 @@ MODEL_REGISTRY = [
      'max_seq_len': 4, 'patch_len': 2, 'patch_stride': 1, 'transformer_layers': 2, 'attention_heads': 4, 'd_model': 128,
      'channel_mixing': False, 'channel_aggregation': 'flatten_after_shared_encoder',
      'model_revision': 'patchtst_channel_independent_v2_1_math_sdp',
+     # Decision 23 / 27-10-2026: D23 is retained as a sensitivity pilot.
+     # The primary F2 grid stays on the originally registered v2 optimizer
+     # protocol; do not infer v3 from the two pilot TEST evaluations.
+     'optimisation_protocol': {'protocol_id': 'HP_PATCHTST_CHANNEL_INDEPENDENT_v2',
+                               'learning_rate': 1e-3, 'warmup_epochs': 0,
+                               'gradient_clip_norm': None, 'run_purpose': 'PRIMARY_GRID',
+                               'status': 'LOCKED 2026-10-27'},
      'attention_backend': 'math_sdp__scoped_to_encoder_call__flash_and_mem_efficient_rejected_for_large_BxC',
      'implementation_note': 'each dynamic channel is patched and Transformer-encoded independently with shared weights; '
                             'the classification head receives concatenated post-encoder channel embeddings and static features'},
@@ -286,6 +293,11 @@ TEMPORAL_FAMILY_POLICY = {
         'role': 'PRIMARY', 'scope': 'FULL_GRID',
         'pipelines': [f'V{i}' for i in range(17)], 'windows': ['W1', 'W2', 'W3'], 'master_seeds': [42, 43, 44],
         'implementation': 'channel_independent_shared_encoder__flatten_after_shared_encoder',
+        'seed42_optimisation_protocol': {
+            'protocol_id': 'HP_PATCHTST_CHANNEL_INDEPENDENT_v2', 'learning_rate': 1e-3,
+            'warmup_epochs': 0, 'gradient_clip_norm': None, 'run_purpose': 'PRIMARY_GRID',
+            'decision': 'LOCKED 2026-10-27; D23 v3 remains sensitivity evidence after W3 failed the registered curve criterion',
+        },
     },
     'F3_MOMENT_SMALL': {
         'role': 'DEFERRED', 'scope': 'AFTER_F2_COMPLETE',
