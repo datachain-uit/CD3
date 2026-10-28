@@ -171,8 +171,78 @@ def static_contract() -> list[str]:
     return layout["static_columns"]
 
 
+# The shared training loop changed in 044d6c7 (optimizer_step: unscale, gradient division, optional warm-up and
+# clipping).  POST_MATERIALIZE_CHECKS[27] closes only when a cell trained BEFORE that commit and its replay trained
+# AFTER it agree; two runs from checkouts on the same side of 044d6c7 prove determinism, not loop equivalence.
+TRAINING_LOOP_CHANGE_COMMIT = "044d6c7"
+COMMITS_BEFORE_LOOP_CHANGE = ("5b14052", "7886a85", "585343e", "eb80516", "83c5056", "75eae0c", "c225961", "8d105db", "0851aed")
+COMMITS_AFTER_LOOP_CHANGE = ("044d6c7", "b0e5ae1", "bc20089", "af079d8", "651b458", "29da3b2", "e0ae433")
+
+
+def _loop_side(commit: str | None) -> str:
+    """'before' / 'after' 044d6c7 by git ancestry when the checkout knows both commits, else by the reviewed list."""
+    short = (commit or "").strip()[:7]
+    if not short:
+        return "unknown"
+    try:
+        import subprocess
+        probe = subprocess.run(["git", "-C", str(ROOT), "merge-base", "--is-ancestor", TRAINING_LOOP_CHANGE_COMMIT, short],
+                               capture_output=True, text=True, timeout=10)
+        if probe.returncode == 0:
+            return "after"
+        if probe.returncode == 1 and subprocess.run(["git", "-C", str(ROOT), "cat-file", "-e", f"{short}^{{commit}}"],
+                                                     capture_output=True, timeout=10).returncode == 0:
+            return "before"
+    except (OSError, subprocess.SubprocessError):
+        pass
+    if any(short.startswith(c) or c.startswith(short) for c in COMMITS_BEFORE_LOOP_CHANGE):
+        return "before"
+    if any(short.startswith(c) or c.startswith(short) for c in COMMITS_AFTER_LOOP_CHANGE):
+        return "after"
+    return "unknown"
+
+
+def replay_provenance(receipt: dict, *, reference_key: str = "reference", current_key: str = "current") -> dict:
+    """Commits of both sides of a paired replay and what the delta-0 result proves.
+
+    Receipts written before this field existed carry no commits: the report then says so instead of
+    claiming that the training-loop check is closed.
+    """
+    def commit_of(side: str) -> str | None:
+        for key in (f"{side}_runner_commit", f"{side}_commit", f"{side}_runner_git_commit"):
+            if receipt.get(key):
+                return str(receipt[key])
+        nested = receipt.get(side) or {}
+        if isinstance(nested, dict):
+            for key in ("runner_git_commit", "runner_commit", "commit"):
+                if nested.get(key):
+                    return str(nested[key])
+        return None
+
+    reference, current = commit_of(reference_key), commit_of(current_key)
+    sides = (_loop_side(reference), _loop_side(current))
+    if reference is None or current is None:
+        verdict = "Delta 0; receipt chưa ghi commit hai phía — kiểm tương đương vòng lặp huấn luyện (044d6c7) chưa đóng"
+        sentence = (f"Receipt không ghi runner commit của phía reference và phía current, nên chưa xác định được phía reference "
+                    f"có được huấn luyện trước {TRAINING_LOOP_CHANGE_COMMIT} hay không; delta 0 vì thế chưa đóng kiểm tương đương vòng lặp huấn luyện.")
+    elif sides == ("before", "after"):
+        verdict = f"Tương đương chính xác giữa vòng lặp trước và sau {TRAINING_LOOP_CHANGE_COMMIT}"
+        sentence = (f"Phía reference ({reference}) được huấn luyện trước {TRAINING_LOOP_CHANGE_COMMIT} và phía current ({current}) sau đó, "
+                    f"nên delta 0 đóng kiểm tương đương vòng lặp huấn luyện cho họ recurrent.")
+    elif "unknown" in sides:
+        verdict = "Delta 0; chưa xếp được commit hai phía so với 044d6c7"
+        sentence = (f"Commit {reference} và {current} chưa nằm trong danh sách commit đã rà soát; "
+                    f"cần ghi rõ hai phía so với {TRAINING_LOOP_CHANGE_COMMIT} trước khi đọc delta 0 là tương đương vòng lặp.")
+    else:
+        verdict = f"Delta 0 giữa hai checkout cùng phía {TRAINING_LOOP_CHANGE_COMMIT}: chứng minh tất định, chưa chứng minh tương đương vòng lặp"
+        sentence = (f"Cả hai phía ({reference}, {current}) nằm cùng phía {TRAINING_LOOP_CHANGE_COMMIT}, nên delta 0 chứng minh tính tất định "
+                    f"của backend, không phải tương đương giữa vòng lặp cũ và mới.")
+    return {"reference_commit": reference or "UNRECORDED", "current_commit": current or "UNRECORDED",
+            "sides": sides, "verdict": verdict, "sentence": sentence}
+
+
 def cq_report() -> Path:
-    target = ROOT / "CQ/docs/REPORT_CQ_CONSOLIDATED_EVIDENCE_2026-10-28.docx"
+    target = ROOT / "CQ/docs/REPORT_CQ_CONSOLIDATED_EVIDENCE_2026-10-28_R20.docx"
     summary = json.loads((CQ_FACTS / "summary.json").read_text(encoding="utf-8"))
     metrics = pd.read_parquet(CQ_FACTS / "cq_family_pipeline_window_phase_metrics.parquet")
     resources = pd.read_parquet(CQ_FACTS / "cq_resource_per_run.parquet")
@@ -193,7 +263,7 @@ def cq_report() -> Path:
     )
     add_heading(doc, "1. Kết luận điều hành")
     add_text(doc, "Lưới F1 CQ đã hoàn tất và có facts hậu kiểm đầy đủ: 4 họ mô hình × 17 pipeline × 3 window × 4 phase × 2 tập đánh giá = 1.632 evaluation cells; 204 run có NVML GPU-only energy estimate. AccTEMPO là độ đo hiệu năng chính. Macro-F1, balanced accuracy, recall từng lớp, calibration và các thành phần sanity là bằng chứng bổ trợ.")
-    add_text(doc, "PatchTST D23 chỉ là sensitivity pilot: W2/V0 chọn epoch 4 nhưng W3/V0 chọn epoch 1 với lịch sử validation không đơn đỉnh. D23 không được dùng để đổi giao thức. F2 v2 đã khóa cấu hình và paired replay RNN đã đạt tương đương chính xác; full grid F2 chưa khởi chạy vì là pha thực nghiệm kế tiếp, không phải vì một lỗi replay.")
+    add_text(doc, "PatchTST D23 chỉ là sensitivity pilot: W2/V0 chọn epoch 4 nhưng W3/V0 chọn epoch 1 với lịch sử validation không đơn đỉnh. D23 không được dùng để đổi giao thức. Nhóm đã khóa cấu hình F2 v2; paired replay RNN đạt delta 0 nhưng cần xác minh commit hai phía trước khi kết luận tương đương training loop.")
 
     add_heading(doc, "2. Release, thiết kế và độ bao phủ")
     scope = pd.DataFrame([{
@@ -259,18 +329,21 @@ def cq_report() -> Path:
             "Energy kWh": item["energy_gpu_estimated_kwh"], "Purpose": item["run_purpose"],
         })
     add_table(doc, pd.DataFrame(d23_rows), [(x, x) for x in ["Window", "Best epoch", "LR", "Warm-up", "Clip", "Batch / micro / accum.", "Energy kWh", "Purpose"]])
-    add_text(doc, f"D23 audit: {d23['runs']} run, {d23['bootstrap_repetitions']} bootstrap repetitions, {d23['rows']['sanity_components']} sanity rows. Vì W3 dừng ở epoch 1 và validation trajectory không đủ ổn định, D23 là sensitivity pilot. F2 v2 đã được khóa (LR 1e-3, warm-up 0, không clipping, channel-independent, PRIMARY_GRID); replay gate đã đóng bằng paired replay chính xác, nhưng full grid F2 vẫn chưa chạy.")
+    add_text(doc, f"D23 audit: {d23['runs']} run, {d23['bootstrap_repetitions']} bootstrap repetitions, {d23['rows']['sanity_components']} sanity rows. Vì W3 dừng ở epoch 1 và validation trajectory không đủ ổn định, D23 là sensitivity pilot. Protocol F2 v2 đã được nhóm khóa (LR 1e-3, warm-up 0, không clipping); replay delta 0 chưa tự chứng minh tương đương trước–sau thay đổi training loop.")
 
     add_heading(doc, "8. Replay và việc còn mở")
+    provenance = replay_provenance(replay_receipt)
     replay = pd.DataFrame([{
         "Cell": "CQ/W1/V0/RNN/seed42",
         "Backend": "VastAI L4, batch 2.048, deterministic",
+        "Reference (commit)": provenance["reference_commit"],
+        "Current (commit)": provenance["current_commit"],
         "Canonical facts mỗi phía": int(replay_receipt["rows_current"]),
         "Delta tuyệt đối lớn nhất": max(float(value) for value in replay_receipt["max_abs_delta"].values()),
-        "Kết luận": "Đạt tương đương chính xác (current vs reference cùng host/data)",
+        "Kết luận": provenance["verdict"],
     }])
-    add_table(doc, replay, [(x, x) for x in replay.columns])
-    add_text(doc, "Paired replay dùng CQ/W1/V0/RNN/seed 42, cùng host L4, cùng input và deterministic contract, so sánh 8 canonical facts theo split × phase. AccTEMPO, sáu thành phần sanity, Macro-F1, balanced accuracy và recall ba lớp đều có delta bằng 0. Sai khác AccTEMPO khoảng 0,0144 trong bảng cũ là so sánh không đồng provenance giữa facts/export materialization lịch sử, không phải sai khác training loop. Bước tiếp theo không dùng TEST để chỉnh model: thực hiện full-grid F2 v2 theo protocol đã khóa; seed 43/44 và MOMENT vẫn ngoài claim seed-42 hiện tại.")
+    add_table(doc, replay, [(x, x) for x in replay.columns], font_size=8.6)
+    add_text(doc, "Paired replay CQ/W1/V0/RNN/seed 42 so sánh 8 canonical facts theo split × phase, với delta bằng 0. Sai khác khoảng 0,0144 khi so với export lịch sử chưa có receipt chứng minh nguyên nhân; không được kết luận nguyên nhân từ phép so này. " + provenance["sentence"] + " Không dùng TEST để chỉnh model; seed 43/44 và MOMENT chưa thuộc claim seed-42 này.")
 
     add_heading(doc, "9. Định danh artefact")
     add_text(doc, f"Facts chính: {CQ_FACTS.relative_to(ROOT)}. Pilot D23: {CQ_D23.relative_to(ROOT)}. Paired-replay receipt: {CQ_REPLAY_RECEIPT.relative_to(ROOT)}. Tài liệu sinh lúc {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}.")
@@ -279,7 +352,7 @@ def cq_report() -> Path:
 
 
 def lo_report() -> Path:
-    target = ROOT / "LO/docs/REPORT_LO_STATIC_V2_CONSOLIDATED_EVIDENCE_2026-10-28.docx"
+    target = ROOT / "LO/docs/REPORT_LO_STATIC_V2_CONSOLIDATED_EVIDENCE_2026-10-28_R20.docx"
     metrics, manifests = load_lo_metrics()
     static_cols = static_contract()
     prefix_path = ROOT / "LO/resuilt/lo_prefix_source_audit_20261028/summary_static13_full_scan.json"
@@ -326,7 +399,9 @@ def lo_report() -> Path:
     add_table(doc, coverage_table(manifests, task="LO"), [(x, x) for x in ["Family", "Runs", "Sanity", "S_leak", "Slices", "Per-class", "Bootstrap B=2,000", "Checkpoint", "Release"]])
     add_text(doc, "S_leak được tính từ parent imputation train thực và frozen evaluation prefix; không refit riêng theo augmented pipeline. Audit lưu support/precision/recall/F1 theo lớp, CI bootstrap, checkpoint selection, STRICT/OVERLAP và probability invariant.")
     add_text(doc, f"Audit cohort current static-v2 hoàn tất 68/68 tổ hợp family × pipeline (204 run, 1.632 prediction files): mỗi pipeline có 24 file dự đoán và 96 cell SEEN/UNSEEN × STRICT/OVERLAP; không có hash enrollment trùng hoặc cờ STRICT không hợp lệ. Kết quả: {cohort_root.relative_to(ROOT)}. Phân nhóm SEEN xác định theo course_id có trong TRAIN cùng window; các lát là phân tích mô tả, không thay đổi tập TEST.")
-    add_text(doc, "Replay equivalence LO/W1/V0/RNN/seed 42: baseline b0e5ae1 và replay 29da3b2 cùng contract static-v2 13 cột, batch 2.048 và cùng chọn epoch 4. Ghép từng enrollment nguồn qua salt riêng từng run: cả 8 split × phase khớp nhãn thật, nhãn dự đoán và xác suất, delta tối đa 0. Receipt: LO/resuilt/lo_static_v2_cohort_audit_20261028/paired_replay_equivalence.json.")
+    lo_prov = replay_provenance({"reference_commit": lo_replay.get("baseline_commit"), "current_commit": lo_replay.get("replay_commit")})
+    lo_delta = max(float(cell["max_probability_delta"]) for cell in lo_replay["cells"])
+    add_text(doc, f"Replay equivalence LO/W1/V0/RNN/seed 42: baseline {lo_prov['reference_commit']} và replay {lo_prov['current_commit']} cùng contract static-v2 13 cột, batch 2.048 và cùng chọn epoch {lo_replay['best_epoch']}. Ghép từng enrollment nguồn qua salt riêng từng run: cả {len(lo_replay['cells'])} split × phase khớp nhãn thật, nhãn dự đoán và xác suất, delta tối đa {lo_delta:g}. {lo_prov['sentence']} Receipt: LO/resuilt/lo_static_v2_cohort_audit_20261028/paired_replay_equivalence.json.")
     archive = pd.DataFrame([{
         "Closure archive": LO_CLOSURE.name,
         "SHA-256": f"sha256:{closure_sha}",

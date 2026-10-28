@@ -200,6 +200,13 @@ def assert_uniform_execution(contracts: dict[tuple[str, str, str], dict], *, exp
     gpus = {str(item["contract"].get("execution", {}).get("gpu")) for item in contracts.values()}
     if len(runner) != 1:
         raise ValueError(f"Ingest spans {len(runner)} runner revisions: {sorted(runner)[:4]}")
+    # runner_sha256 hashes the runner script only; the training loop lives in model/shared_phase.py
+    # (044d6c7), so the git commit recorded by the launcher is the code identity of the whole run.
+    # The 2026-10-23 PatchTST V0 pilot (runner 7886a85) therefore cannot share an ingest with F2
+    # shards trained from a later checkout: rerun those cells or register an explicit exception.
+    commits = {str(item["contract"].get("lineage", {}).get("runner_git_commit") or "UNRECORDED") for item in contracts.values()}
+    if len(commits) != 1:
+        raise ValueError(f"Ingest spans {len(commits)} runner git commits: {sorted(commits)[:4]}")
     known_gpus = gpus - {"None"}
     if known_gpus and known_gpus != {expected_gpu}:
         raise ValueError(f"Ingest spans GPUs other than the registered {expected_gpu}: {sorted(known_gpus)}")
@@ -213,7 +220,8 @@ def assert_uniform_execution(contracts: dict[tuple[str, str, str], dict], *, exp
     protocol = json.loads(next(iter(protocols)))
     if protocol["run_purpose"] != "PRIMARY_GRID":
         raise ValueError(f"Ingest contains non-primary runs (run_purpose={protocol['run_purpose']}); pilots and ablations never enter L2")
-    return {"runner_sha256": next(iter(runner)), "release_contract_sha256": sorted(release_contract),
+    return {"runner_sha256": next(iter(runner)), "runner_git_commit": next(iter(commits)),
+            "release_contract_sha256": sorted(release_contract),
             "gpu": sorted(known_gpus) or ["UNRECORDED (contracts older than b5f55fe)"],
             "training_protocol": protocol}
 

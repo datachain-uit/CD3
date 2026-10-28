@@ -49,14 +49,21 @@ def run_dir(root: Path, cell: dict[str, Any]) -> Path:
     return root / cell["task"] / cell["window_id"] / cell["pipeline_id"] / cell["model_name"] / f"seed={cell['seed']}"
 
 
-def completed(root: Path, cell: dict[str, Any]) -> bool:
+def _manifest(root: Path | None, cell: dict[str, Any]) -> dict[str, Any]:
+    if root is None:
+        return {}
     manifest = run_dir(root, cell) / "run_manifest.json"
     if not manifest.is_file():
-        return False
+        return {}
     try:
-        return json.loads(manifest.read_text(encoding="utf-8")).get("run_status", "SUCCESS") == "SUCCESS"
+        return json.loads(manifest.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return False
+        return {}
+
+
+def completed(root: Path, cell: dict[str, Any]) -> bool:
+    manifest = _manifest(root, cell)
+    return bool(manifest) and manifest.get("run_status", "SUCCESS") == "SUCCESS"
 
 
 def build_plan(task: str, model_name: str, seed: int, shard_count: int, *,
@@ -69,10 +76,15 @@ def build_plan(task: str, model_name: str, seed: int, shard_count: int, *,
     for index, cell in enumerate(remaining):
         cell["cell_index"] = index
         cell["shard"] = index % shard_count
+    # A reused (excluded) cell enters the same L2 ingest as the shards, and the ingest asserts one
+    # runner sha / git commit per grid: record the commits of the reused cells so that a pilot trained
+    # from an older checkout is visible at planning time instead of at ingest time.
+    reused_commits = sorted({str(_manifest(exclude_completed, c).get("runner_git_commit") or "UNRECORDED") for c in excluded})
     payload = {
         "plan_version": "f2_shard_plan_v1", "task": task, "model_name": model_name, "seed": seed,
         "shard_count": shard_count, "grid_cells": len(cells), "excluded_completed": len(excluded),
         "excluded": [{k: c[k] for k in ("window_id", "pipeline_id")} for c in excluded],
+        "excluded_runner_commits": reused_commits,
         "cells": remaining,
         "shards": {str(k): [c["cell_index"] for c in remaining if c["shard"] == k] for k in range(shard_count)},
     }
@@ -151,7 +163,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "plan":
         payload = build_plan(args.task, args.model_name, args.seed, args.shard_count, exclude_completed=args.exclude_completed)
         args.out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        print(json.dumps({k: payload[k] for k in ("plan_sha256", "grid_cells", "excluded_completed", "shard_count")}))
+        print(json.dumps({k: payload[k] for k in ("plan_sha256", "grid_cells", "excluded_completed", "excluded_runner_commits", "shard_count")}))
+        if len(payload["excluded_runner_commits"]) > 1 or (payload["excluded_runner_commits"] and payload["excluded_runner_commits"] == ["UNRECORDED"]):
+            print("WARNING: reused cells carry several or no runner commits; the ingest will refuse a grid that mixes them with the shards")
         print(json.dumps({k: len(v) for k, v in payload["shards"].items()}))
         return 0
     loaded = json.loads(args.plan.read_text(encoding="utf-8"))

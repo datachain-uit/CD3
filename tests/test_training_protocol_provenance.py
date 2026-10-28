@@ -128,3 +128,47 @@ def test_d23_criterion_is_evaluated_on_the_validation_curve() -> None:
     assert not stats["criterion_selected_epoch_gt_1"] and stats["criterion_unimodal_no_spike"] and mod.d23_criterion_met(stats)
     table = mod.stability_comparison({"D23 W2": stats})
     assert table.loc[0, "Tiêu chí D-23 (b)"] == "ĐẠT"
+
+
+def test_ingest_requires_one_runner_git_commit(tmp_path: Path) -> None:
+    """runner_sha256 covers the runner script only; the training loop lives in model/shared_phase.py (044d6c7)."""
+    module = _ingest_module(tmp_path)
+    def with_commit(commit: str | None) -> dict:
+        contract = _contract()
+        if commit:
+            contract["lineage"]["runner_git_commit"] = commit
+        return contract
+    same = {("PATCHTST", "W1", "V1"): {"contract": with_commit("e0ae433"), "path": tmp_path / "a"},
+            ("PATCHTST", "W1", "V2"): {"contract": with_commit("e0ae433"), "path": tmp_path / "b"}}
+    assert module.assert_uniform_execution(same)["runner_git_commit"] == "e0ae433"
+    pilot_plus_shards = dict(same)
+    pilot_plus_shards[("PATCHTST", "W1", "V0")] = {"contract": with_commit("7886a856"), "path": tmp_path / "c"}   # 23/10 pilot checkout
+    with pytest.raises(ValueError, match="runner git commits"):
+        module.assert_uniform_execution(pilot_plus_shards)
+    unrecorded = dict(same)
+    unrecorded[("PATCHTST", "W1", "V3")] = {"contract": with_commit(None), "path": tmp_path / "d"}
+    with pytest.raises(ValueError, match="runner git commits"):
+        module.assert_uniform_execution(unrecorded)
+
+
+def test_shard_plan_records_the_runner_commits_of_reused_cells(tmp_path: Path) -> None:
+    pilot = tmp_path / "pilot"
+    plan_cells = shard_mod.canonical_cells("CQ", "PATCHTST", 42)
+    for cell in plan_cells[:3]:
+        _write_run(pilot, cell, runner_git_commit="7886a856")
+    plan = shard_mod.build_plan("CQ", "PATCHTST", 42, 6, exclude_completed=pilot)
+    assert plan["excluded_completed"] == 3 and plan["excluded_runner_commits"] == ["7886a856"]
+    assert len(plan["cells"]) == 48 and shard_mod.build_plan("CQ", "PATCHTST", 42, 6)["excluded_runner_commits"] == []
+
+
+def test_replay_provenance_distinguishes_loop_equivalence_from_determinism() -> None:
+    pytest.importorskip("docx")
+    spec = importlib.util.spec_from_file_location("consolidated_reports", ROOT / "tools" / "build_cq_lo_consolidated_reports_20261028.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    closed = mod.replay_provenance({"reference_runner_commit": "7886a85", "current_runner_commit": "e0ae433"})
+    assert closed["sides"] == ("before", "after") and "044d6c7" in closed["verdict"] and "chưa" not in closed["verdict"]
+    same_side = mod.replay_provenance({"reference_commit": "b0e5ae1", "current_commit": "29da3b2"})   # the LO receipt
+    assert same_side["sides"] == ("after", "after") and "tất định" in same_side["verdict"]
+    missing = mod.replay_provenance({"rows_current": 8})
+    assert missing["reference_commit"] == "UNRECORDED" and "chưa đóng" in missing["verdict"]
