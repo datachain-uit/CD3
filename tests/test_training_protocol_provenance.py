@@ -172,3 +172,48 @@ def test_replay_provenance_distinguishes_loop_equivalence_from_determinism() -> 
     assert same_side["sides"] == ("after", "after") and "tất định" in same_side["verdict"]
     missing = mod.replay_provenance({"rows_current": 8})
     assert missing["reference_commit"] == "UNRECORDED" and "chưa đóng" in missing["verdict"]
+
+
+def test_runner_exception_admits_only_the_registered_cells(tmp_path: Path) -> None:
+    """Decision 25 option (b): an explicit, receipt-backed exception instead of a relaxed runner check."""
+    module = _ingest_module(tmp_path)
+    def contract(sha: str, commit: str) -> dict:
+        c = _contract(runner="sha256:" + sha * 64)
+        c["lineage"]["runner_git_commit"] = commit
+        return c
+    grid = {("PATCHTST", "W1", "V1"): {"contract": contract("a", "e0ae433"), "path": tmp_path / "a"},
+            ("PATCHTST", "W1", "V2"): {"contract": contract("a", "e0ae433"), "path": tmp_path / "b"},
+            ("PATCHTST", "W1", "V0"): {"contract": contract("b", "7886a856"), "path": tmp_path / "c"}}   # the 23/10 pilot cell
+    with pytest.raises(ValueError, match="runner revisions"):
+        module.assert_uniform_execution(grid)
+    exception = {"PATCHTST/W1/V0": {"runner_sha256": "sha256:" + "b" * 64, "runner_git_commit": "7886a856",
+                                    "equivalence_receipt_sha256": "sha256:" + "e" * 64, "registered_by": "decision 25 (b), author"}}
+    receipt = module.assert_uniform_execution(grid, runner_exceptions=exception)
+    assert receipt["runner_git_commit"] == "e0ae433" and receipt["runner_exceptions"][0]["cell"] == "PATCHTST/W1/V0"
+    wrong = {"PATCHTST/W1/V0": {**exception["PATCHTST/W1/V0"], "runner_git_commit": "0000000"}}
+    with pytest.raises(ValueError, match="does not match"):
+        module.assert_uniform_execution(grid, runner_exceptions=wrong)
+    stale = {**exception, "PATCHTST/W2/V0": exception["PATCHTST/W1/V0"]}
+    with pytest.raises(ValueError, match="absent from this ingest"):
+        module.assert_uniform_execution(grid, runner_exceptions=stale)
+    incomplete = {"PATCHTST/W1/V0": {"runner_sha256": "sha256:" + "b" * 64}}
+    with pytest.raises(ValueError, match="lacks"):
+        module.assert_uniform_execution(grid, runner_exceptions=incomplete)
+    only_exceptions = {("PATCHTST", "W1", "V0"): grid[("PATCHTST", "W1", "V0")]}
+    with pytest.raises(ValueError, match="no primary runner"):
+        module.assert_uniform_execution(only_exceptions, runner_exceptions=exception)
+
+
+def test_runner_hash_is_attributed_to_a_commit_interval() -> None:
+    import subprocess
+    attribution = importlib.import_module("identify_runner_commit")
+    if subprocess.run(["git", "-C", str(ROOT), "cat-file", "-e", "83c5056^{commit}"], capture_output=True).returncode != 0:
+        pytest.skip("checkout without the CD3 history")
+    history = attribution.runner_hash_history()
+    assert history and all(len(item["sha256"]) == 64 for item in history)
+    before = attribution.identify(next(item["sha256"] for item in history if item["short"] == "83c5056"), history=history)
+    assert before["status"] == "matched" and before["introduced_in"] == "83c5056" and before["side_of_loop_change"] == "before"
+    assert before["superseded_by"] == "eb80516"
+    after = attribution.identify("sha256:" + history[0]["sha256"], history=history)
+    assert after["side_of_loop_change"] == "after" and after["superseded_by"] is None
+    assert attribution.identify("f" * 64, history=history)["status"] == "unmatched"

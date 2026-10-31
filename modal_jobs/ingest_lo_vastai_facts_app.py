@@ -44,6 +44,9 @@ DEFAULT_FAMILIES = "LSTM,GRU,BILSTM" if TASK == "CQ" else "RNN,LSTM,GRU,BILSTM"
 FAMILIES = tuple(item.strip().upper() for item in os.environ.get("VASTAI_FAMILIES", DEFAULT_FAMILIES).split(",") if item.strip())
 if not FAMILIES or any(item not in {"RNN", "LSTM", "GRU", "BILSTM"} for item in FAMILIES):
     raise ValueError("VASTAI_FAMILIES must be a non-empty comma-separated subset of RNN,LSTM,GRU,BILSTM")
+# Registered runner exceptions (decision 25): a JSON object {"MODEL/WINDOW/PIPELINE": {runner_sha256, runner_git_commit,
+# equivalence_receipt_sha256, registered_by}} mounted with the artefacts; absent means no exception.
+RUNNER_EXCEPTIONS_FILE = os.environ.get("VASTAI_RUNNER_EXCEPTIONS", "").strip()
 EXPECTED_PER_FAMILY = {
     "canonical_s_leak": 120,
     "sanity_components": 408,
@@ -189,13 +192,51 @@ def run_resources(contract: dict, contract_path: Path) -> dict:
     return resources
 
 
-def assert_uniform_execution(contracts: dict[tuple[str, str, str], dict], *, expected_gpu: str = "NVIDIA L4") -> dict:
+RUNNER_EXCEPTION_FIELDS = ("runner_sha256", "runner_git_commit", "equivalence_receipt_sha256", "registered_by")
+
+
+def _cell_key(key: tuple[str, str, str]) -> str:
+    """Contract keys are (model, window, pipeline); exceptions are registered as 'MODEL/WINDOW/PIPELINE'."""
+    return "/".join(str(part) for part in key)
+
+
+def assert_uniform_execution(contracts: dict[tuple[str, str, str], dict], *, expected_gpu: str = "NVIDIA L4",
+                             runner_exceptions: dict[str, dict] | None = None) -> dict:
     """One code revision and one GPU model across the whole ingested grid.
 
     A grid whose cells were produced by different runner revisions or on different GPUs is not one
     experiment; the receipt records the unique values so that the ingest can be audited later.
+
+    ``runner_exceptions`` is the only way to admit a cell trained from another runner revision: a mapping
+    ``{"MODEL/WINDOW/PIPELINE": {runner_sha256, runner_git_commit, equivalence_receipt_sha256, registered_by}}``
+    whose every entry must name the exact runner of that cell and the sha256 of the paired-replay receipt that
+    proved the two revisions equivalent (decision 25 of the reference registry).  Excepted cells still have to
+    share the GPU, the training protocol and the layout policy of the grid; an entry that matches no contract
+    or whose runner differs from the contract is an error, so a stale allowlist cannot silently widen the grid.
     """
-    runner = {str(item["contract"].get("lineage", {}).get("runner_sha256")) for item in contracts.values()}
+    exceptions = dict(runner_exceptions or {})
+    for cell, entry in exceptions.items():
+        missing = [field for field in RUNNER_EXCEPTION_FIELDS if not entry.get(field)]
+        if missing:
+            raise ValueError(f"runner exception for {cell} lacks {missing}; every exception names its runner and its equivalence receipt")
+    excepted, regular = {}, {}
+    for key, item in contracts.items():
+        entry = exceptions.get(_cell_key(key))
+        if entry is None:
+            regular[key] = item
+            continue
+        lineage = item["contract"].get("lineage", {})
+        if str(lineage.get("runner_sha256")) != str(entry["runner_sha256"]) or \
+                str(lineage.get("runner_git_commit") or "UNRECORDED") != str(entry["runner_git_commit"]):
+            raise ValueError(f"runner exception for {_cell_key(key)} does not match the contract lineage "
+                             f"({lineage.get('runner_sha256')}, {lineage.get('runner_git_commit')})")
+        excepted[key] = item
+    unused = sorted(set(exceptions) - {_cell_key(k) for k in excepted})
+    if unused:
+        raise ValueError(f"runner exceptions registered for cells absent from this ingest: {unused}")
+    if not regular:
+        raise ValueError("every cell of the ingest is a runner exception; the grid has no primary runner")
+    runner = {str(item["contract"].get("lineage", {}).get("runner_sha256")) for item in regular.values()}
     release_contract = {str(item["contract"].get("lineage", {}).get("release_contract_sha256")) for item in contracts.values()}
     gpus = {str(item["contract"].get("execution", {}).get("gpu")) for item in contracts.values()}
     if len(runner) != 1:
@@ -204,7 +245,7 @@ def assert_uniform_execution(contracts: dict[tuple[str, str, str], dict], *, exp
     # (044d6c7), so the git commit recorded by the launcher is the code identity of the whole run.
     # The 2026-10-23 PatchTST V0 pilot (runner 7886a85) therefore cannot share an ingest with F2
     # shards trained from a later checkout: rerun those cells or register an explicit exception.
-    commits = {str(item["contract"].get("lineage", {}).get("runner_git_commit") or "UNRECORDED") for item in contracts.values()}
+    commits = {str(item["contract"].get("lineage", {}).get("runner_git_commit") or "UNRECORDED") for item in regular.values()}
     if len(commits) != 1:
         raise ValueError(f"Ingest spans {len(commits)} runner git commits: {sorted(commits)[:4]}")
     known_gpus = gpus - {"None"}
@@ -223,7 +264,9 @@ def assert_uniform_execution(contracts: dict[tuple[str, str, str], dict], *, exp
     return {"runner_sha256": next(iter(runner)), "runner_git_commit": next(iter(commits)),
             "release_contract_sha256": sorted(release_contract),
             "gpu": sorted(known_gpus) or ["UNRECORDED (contracts older than b5f55fe)"],
-            "training_protocol": protocol}
+            "training_protocol": protocol,
+            "runner_exceptions": [{"cell": _cell_key(key), **{field: exceptions[_cell_key(key)][field] for field in RUNNER_EXCEPTION_FIELDS}}
+                                  for key in sorted(excepted)]}
 
 
 def _training_protocol_of(contract: dict) -> dict:
@@ -377,7 +420,10 @@ def ingest_lo_vastai_facts() -> str:
     facts_base = base / "L2_facts"
     receipt_root = base / "L0_registry" / "external_fact_ingests" / f"task={TASK}" / f"ingest_id={INGEST_ID}"
     receipt_root.mkdir(parents=True, exist_ok=True)
-    uniform_execution = assert_uniform_execution(contracts)
+    runner_exceptions = None
+    if RUNNER_EXCEPTIONS_FILE:
+        runner_exceptions = json.loads((artifact_root / RUNNER_EXCEPTIONS_FILE).read_text(encoding="utf-8"))
+    uniform_execution = assert_uniform_execution(contracts, runner_exceptions=runner_exceptions)
     counts: dict[str, int] = {"written": 0, "already_present": 0}
     family_rows: dict[str, dict[str, int]] = {}
     canonical_frames = []

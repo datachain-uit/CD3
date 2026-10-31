@@ -21,6 +21,9 @@ from docx.shared import Inches, Pt
 
 
 ROOT = Path(__file__).resolve().parents[1]
+import sys as _sys
+if str(ROOT / "tools") not in _sys.path:
+    _sys.path.insert(0, str(ROOT / "tools"))
 CQ_FACTS = ROOT / "CQ/resuilt/cq_recurrent_allfamilies_grid_r4_20261023"
 CQ_D23 = ROOT / "CQ/resuilt/cq_patchtst_d23_stability_pilot_20261026"
 CQ_REPLAY_RECEIPT = ROOT / "CQ/resuilt/cq_rnn_equivalence_20261028/canonical_facts_comparison.json"
@@ -208,18 +211,41 @@ def replay_provenance(receipt: dict, *, reference_key: str = "reference", curren
     Receipts written before this field existed carry no commits: the report then says so instead of
     claiming that the training-loop check is closed.
     """
-    def commit_of(side: str) -> str | None:
-        for key in (f"{side}_runner_commit", f"{side}_commit", f"{side}_runner_git_commit"):
+    def field_of(side: str, keys: tuple[str, ...], nested_keys: tuple[str, ...]) -> str | None:
+        for key in keys:
             if receipt.get(key):
                 return str(receipt[key])
         nested = receipt.get(side) or {}
         if isinstance(nested, dict):
-            for key in ("runner_git_commit", "runner_commit", "commit"):
+            for key in nested_keys:
                 if nested.get(key):
                     return str(nested[key])
         return None
 
+    def commit_of(side: str) -> str | None:
+        return field_of(side, (f"{side}_runner_commit", f"{side}_commit", f"{side}_runner_git_commit"),
+                        ("runner_git_commit", "runner_commit", "commit"))
+
+    def attributed_commit(side: str) -> str | None:
+        """A side without a recorded commit is attributed through its runner_sha256 (tools/identify_runner_commit.py)."""
+        digest = field_of(side, (f"{side}_runner_sha256",), ("runner_sha256",))
+        if not digest:
+            return None
+        try:
+            import identify_runner_commit as attribution
+            found = attribution.identify(digest, root=ROOT)
+        except Exception:                     # no git history in this checkout: the hash stays unattributed
+            return None
+        return found["introduced_in"] if found["status"] == "matched" and found["side_of_loop_change"] != "unknown" else None
+
     reference, current = commit_of(reference_key), commit_of(current_key)
+    attributed = []
+    if reference is None and attributed_commit(reference_key):
+        reference = attributed_commit(reference_key)
+        attributed.append(f"reference ({reference}, theo runner_sha256)")
+    if current is None and attributed_commit(current_key):
+        current = attributed_commit(current_key)
+        attributed.append(f"current ({current}, theo runner_sha256)")
     sides = (_loop_side(reference), _loop_side(current))
     if reference is None or current is None:
         verdict = "Delta 0; receipt chưa ghi commit hai phía — kiểm tương đương vòng lặp huấn luyện (044d6c7) chưa đóng"
@@ -237,8 +263,10 @@ def replay_provenance(receipt: dict, *, reference_key: str = "reference", curren
         verdict = f"Delta 0 giữa hai checkout cùng phía {TRAINING_LOOP_CHANGE_COMMIT}: chứng minh tất định, chưa chứng minh tương đương vòng lặp"
         sentence = (f"Cả hai phía ({reference}, {current}) nằm cùng phía {TRAINING_LOOP_CHANGE_COMMIT}, nên delta 0 chứng minh tính tất định "
                     f"của backend, không phải tương đương giữa vòng lặp cũ và mới.")
+    if attributed:
+        sentence += " Commit suy ra từ runner_sha256 bằng tools/identify_runner_commit.py: " + "; ".join(attributed) + "."
     return {"reference_commit": reference or "UNRECORDED", "current_commit": current or "UNRECORDED",
-            "sides": sides, "verdict": verdict, "sentence": sentence}
+            "sides": sides, "verdict": verdict, "sentence": sentence, "attributed_by_runner_hash": attributed}
 
 
 def cq_report() -> Path:
@@ -375,7 +403,7 @@ def lo_report() -> Path:
         "LO V3.1 clean-grain · 13 static fields · seed 42 · F1 recurrent grid batch 2.048 · cập nhật 28/10/2026",
     )
     add_heading(doc, "1. Kết luận điều hành")
-    add_text(doc, "Lưới LO static-v2 hoàn tất cho bốn họ recurrent: 4 family × 17 pipeline × 3 window × 4 phase × VALIDATION/TEST = 1.632 evaluation facts. Mỗi family có 51 run và audit hậu kiểm B=2.000. BiLSTM được lưu trong closure archive đã tải về và xác minh SHA-256; RNN/LSTM/GRU có facts audit trực tiếp tại local.")
+    add_text(doc, "Lưới LO static-v2 13 cột là lưới F1 seed 42 chính cho báo cáo này, gồm bốn họ recurrent: 4 family × 17 pipeline × 3 window × 4 phase × VALIDATION/TEST = 1.632 evaluation facts. Mỗi family có 51 run và audit hậu kiểm B=2.000. BiLSTM được lưu trong closure archive đã tải về và xác minh SHA-256; RNN/LSTM/GRU có facts audit trực tiếp tại local. Lưới 15 cột chỉ là bằng chứng lịch sử và không trộn vào các bảng chính.")
     add_text(doc, "AccTEMPO là metric hiệu năng chính. Accuracy không được dùng làm kết luận chính do bất cân bằng nhãn LO mạnh. S_san+ v1 là độ đo chất lượng dữ liệu chính; s_cal và S_san+ v2 là sensitivity. Toàn bộ kết quả dưới đây là static-v2 current layout 13 cột, không trộn historical layout 15 cột.")
 
     add_heading(doc, "2. Release và static contract")
@@ -402,6 +430,11 @@ def lo_report() -> Path:
     lo_prov = replay_provenance({"reference_commit": lo_replay.get("baseline_commit"), "current_commit": lo_replay.get("replay_commit")})
     lo_delta = max(float(cell["max_probability_delta"]) for cell in lo_replay["cells"])
     add_text(doc, f"Replay equivalence LO/W1/V0/RNN/seed 42: baseline {lo_prov['reference_commit']} và replay {lo_prov['current_commit']} cùng contract static-v2 13 cột, batch 2.048 và cùng chọn epoch {lo_replay['best_epoch']}. Ghép từng enrollment nguồn qua salt riêng từng run: cả {len(lo_replay['cells'])} split × phase khớp nhãn thật, nhãn dự đoán và xác suất, delta tối đa {lo_delta:g}. {lo_prov['sentence']} Receipt: LO/resuilt/lo_static_v2_cohort_audit_20261028/paired_replay_equivalence.json.")
+    cq_match_path = ROOT / 'CQ/resuilt/cq_rnn_matched_historical_20261029/paired_replay_equivalence.json'
+    cq_match = json.loads(cq_match_path.read_text(encoding='utf-8'))
+    if not cq_match.get('paired_exact') or len(cq_match.get('cells', [])) != 8:
+        raise ValueError('CQ matched replay evidence is incomplete')
+    add_text(doc, 'Bằng chứng hỗ trợ loop chung từ CQ/W1/V0/RNN: matched replay giữ layout lịch sử và ghép theo enrollment, cả 8 split × phase có nhãn, prediction và xác suất khớp tuyệt đối; cùng chọn epoch 2. Baseline CQ có timestamp 20/10 trước 044d6c7 nhưng không ghi Git commit chính xác, nên không tự gán revision. Phép so này hỗ trợ kiểm tra loop chung, không phải phép before–after riêng trên LO. Việc không có baseline LO 13 cột trước 044d6c7 không làm lưới static-v2 hiện tại trở thành lưới lịch sử hay bắt buộc train lại.')
     archive = pd.DataFrame([{
         "Closure archive": LO_CLOSURE.name,
         "SHA-256": f"sha256:{closure_sha}",
