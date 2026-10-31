@@ -15,8 +15,16 @@ def main():
     sources.extend((x,Path('CQ/D23')/x.relative_to(d23)) for x in d23.rglob('train_history.parquet'))
     s2=DRIVE/'CQ/organized_moved_20261029/L1_runs/S2_augmentation/provenance_seed42'
     sources.extend((x,Path('CQ/S2_seed42')/x.relative_to(s2)) for x in s2.rglob('run_manifest.json'))
+    qa=DRIVE/'CQ/organized_moved_20261029/L2_facts/fact_exports/qa23_v2_2'
+    for phase in ('P1','P2','P3','P4'):
+        for kind in ('qa23_summary','feature_dictionary_v1','imputer_predictors_cq_raw_early'):
+            sources.extend((x,Path('CQ/QA23')/x.relative_to(qa)) for x in (qa/f'phase_id={phase}'/kind).rglob('*.parquet'))
     lo=DRIVE/'LO/organized_moved_20261029/L1_runs/S3_model/run_bundles/lo_static_v2_seed42_20261026/audits/closure_seed42'
     sources.extend((x,Path('LO/audit_seed42')/x.relative_to(lo)) for x in lo.rglob('*') if x.is_file() and x.suffix in ('.parquet','.json'))
+    lo_models=DRIVE/'LO/organized_moved_20261029/L1_runs/S3_model/run_bundles/lo_static_v2_seed42_20261026/models'
+    for family in ('RNN','LSTM','GRU'):
+        audit=lo_models/family/'audits'
+        sources.extend((x,Path('LO/audit_seed42')/family/x.relative_to(audit)) for x in audit.rglob('*') if x.is_file() and x.suffix in ('.parquet','.json'))
     for task, rel in [('CQ','cq_full_prefix_static_audit_20261017/full_scan.json'),('LO','lo_prefix_source_audit_20261028/summary.json')]:
         path=DRIVE/task/'organized_moved_20261029/L2_facts/audits_and_evidence'/rel
         if path.exists(): sources.append((path,Path(task)/'prefix_audit'/path.name))
