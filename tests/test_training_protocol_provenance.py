@@ -217,3 +217,19 @@ def test_runner_hash_is_attributed_to_a_commit_interval() -> None:
     after = attribution.identify("sha256:" + history[0]["sha256"], history=history)
     assert after["side_of_loop_change"] == "after" and after["superseded_by"] is None
     assert attribution.identify("f" * 64, history=history)["status"] == "unmatched"
+
+
+def test_runner_hash_matches_the_crlf_rendition_of_a_committed_blob() -> None:
+    """The 20/10 CQ baseline recorded the CRLF hash of the eb80516 runner (Windows checkout, committed one day later)."""
+    import hashlib
+    import subprocess
+    attribution = importlib.import_module("identify_runner_commit")
+    if subprocess.run(["git", "-C", str(ROOT), "cat-file", "-e", "eb80516^{commit}"], capture_output=True).returncode != 0:
+        pytest.skip("checkout without the CD3 history")
+    history = attribution.runner_hash_history()
+    blob = subprocess.run(["git", "-C", str(ROOT), "show", "eb80516:tools/vastai_train_shared.py"], capture_output=True, check=True).stdout
+    crlf = hashlib.sha256(blob.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")).hexdigest()
+    found = attribution.identify(crlf, history=history)
+    assert found["status"] == "matched" and found["introduced_in"] == "eb80516" and found["line_ending_rendition"] == "crlf"
+    assert found["side_of_loop_change"] == "before" and found["superseded_by"] == "75eae0c"
+    assert attribution.identify(history[0]["sha256"], history=history)["line_ending_rendition"] == "blob"

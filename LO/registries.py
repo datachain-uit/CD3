@@ -43,7 +43,7 @@ try:
 except ImportError:  # Supports ``python LO/registries.py`` as documented.
     from seeds import sha256_of, SEED_PREPROCESS
 
-REGISTRY_REVISION = 'registries_rev_2026-10-27_r1'
+REGISTRY_REVISION = 'registries_rev_2026-10-31_r22'
 
 # ---------------------------------------------------------------------------------------------
 # Pipeline registry V0–V16 (PLAN Table 7 / Table 14)
@@ -319,7 +319,7 @@ TEMPORAL_FAMILY_POLICY = {
 # Metric, sanity, AccTEMPO and recommendation definitions
 # ---------------------------------------------------------------------------------------------
 METRIC_DEF = {
-    'metric_def_version': 'metric_def_v1.2',
+    'metric_def_version': 'metric_def_v1.3',
     'class_index': {'CQ': {'c0': 'W', 'c1': 'A', 'c2': 'G'}, 'LO': {'c0': 'ID', 'c1': 'G', 'c2': 'E'}},
     'risk_class': 'c0',
     'majority_class': {'CQ': 'c0', 'LO': 'c0'},   # both tasks: the risk class is the majority class ([CL §7.5], [V3 §6])
@@ -371,10 +371,10 @@ S_SAN_FORMULA = {
            'components': ['s_nan', 's_maj_jsd', 's_ent', 's_drift', 's_eff', 's_leak'], 'aggregation': 'geometric_mean',
            's_eps_floor': 1e-3, 'jsd_base': 2,
            's_ent': '1 - min(|median(h_i) - 0.5| / 0.5, 1), h_i normalised entropy',
-           's_eff': 'run-level: mean(mask) over the TRAIN tensor actually used for training (S3_MODEL_INPUT, pooled P1-P4)',
+           's_eff': 'mean(mask) on unaugmented parent-imputation real TRAIN, pooled P1-P4; inherited by augmented variants',
            's_leak': '1 - 2*max(AUC_probe - 0.5, 0); probe = multinomial logistic regression (L2, C=1.0) on missingness '
-                     'indicators only; fit on TRAIN after pipeline pooled P1-P4 (4 views per real enrollment + synthetic); '
-                     'evaluated on the row slice (eval_split, phase) at S3_MODEL_INPUT; record n_fit, n_eval, eval_split',
+                     'indicators only; fit once on unaugmented parent-imputation real TRAIN pooled P1-P4; '
+                     'evaluate on real parent evaluation prefix per (eval_split, phase); record n_fit, n_eval, eval_split',
            's_drift_reference': 'TRAIN real class distribution before balancing (trpool_class_count)',
            's_maj_jsd_reference': 'true class distribution of the evaluated slice'},
     'v2': {'s_san_formula_version': 's_san_v2_calibration', 'components': ['s_nan', 's_maj_jsd', 's_cal', 's_drift', 's_eff', 's_leak'],
@@ -387,11 +387,11 @@ ACCTEMPO_DEF = {'acctempo_def_version': 'acctempo_m3_v1.1', 'alpha': 0.6, 'beta'
                 'decision_status': 'LOCKED 2026-10-05; primary v1, v2 auxiliary sensitivity'}
 EXPERIMENT_SEEDS = {
     'master_seeds': [42, 43, 44],
-    'augmentation_policy': 'MATCH_MASTER_SEED',
-    'rule': 'materialize one S2 balanced TRAIN artifact per master seed; each S3 model cell consumes the S2 artifact with the same seed',
+    'augmentation_policy': 'FIXED_SEED_42',
+    'rule': 'reuse the seed-42 S2 balanced TRAIN artifact across model master seeds 42, 43 and 44',
     'role_seeds': {
         'seed_model / seed_dataloader': 'int(sha256("{master}|{role}|{task}|{window}|{pipeline_id}|{model_name}")[:8], 16) mod (2**31 - 1), independent per cell (modal_jobs/model_app._role_seed)',
-        'seed_sampler = seed_augmentation': 'the master seed itself; None for pipelines without a balancer',
+        'seed_sampler = seed_augmentation': '42 for balanced pipelines; None for pipelines without a balancer',
         'seed_preprocess': SEED_PREPROCESS,
         'supersedes': 'PLAN v1.6 §3.1 H(seed, role) = sha256("{seed}:{role}")[:4 bytes] and H(0, "preprocess"); never used by a materialized artifact',
     },
@@ -662,8 +662,8 @@ PENDING_DECISIONS.extend([
      'resolution': 'LO W2: log_loss + pr_auc_macro. When n_offerings_with_class<=2, also report offering-cluster bootstrap B=2000, CI=95%; applies to LO W1 TEST E and LO W3 TEST G'},
     {'id': 5, 'topic': 'AccTEMPO primary S_san+ version v1 vs v2', 'status': 'CLOSED 2026-10-05',
      'resolution': 'v1 is primary; v2/s_cal is reported only as a calibration sensitivity analysis. Every result table also publishes S_perf and all sanity components.'},
-    {'id': 9, 'topic': 'augmentation seed policy', 'status': 'CLOSED 2026-10-05',
-     'resolution': 'run the full master-seed design (42, 43, 44); augmentation seed equals the model master seed rather than a hidden fixed draw.'},
+    {'id': 9, 'topic': 'augmentation seed policy', 'status': 'CLOSED updated 2026-10-31',
+     'resolution': 'reuse augmentation seed 42 across model master seeds 42, 43 and 44; model seeds measure training variability.'},
     {'id': 10, 'topic': 'full F1 grid and legacy LO result eligibility', 'status': 'CLOSED 2026-10-05',
      'resolution': 'run the full registered architecture/pipeline/seed grid after L4 acceptance; the 51 pre-lineage LO cells remain quarantined and are ineligible for comparison, export, or meta-observation assembly.'},
     {'id': 11, 'topic': 'F2/F3 experiment scope', 'status': 'CLOSED 2026-10-12',

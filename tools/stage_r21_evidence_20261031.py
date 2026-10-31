@@ -30,6 +30,10 @@ def main():
         if path.exists(): sources.append((path,Path(task)/'prefix_audit'/path.name))
     for source,relative in [('CQ/resuilt/cq_rnn_matched_historical_20261029/paired_replay_equivalence.json','CQ/replay/rnn_matched.json'),('CQ/resuilt/cq_patchtst_v0_current_seed42_r21_report/current_epoch1_replay_receipt.json','CQ/replay/patchtst_current_epoch1.json'),('CQ/resuilt/cq_label_view_consistency_20261031.json','CQ/labels/label_view_consistency.json')]:
         sources.append((ROOT/source,Path(relative)))
+    for name in ('REPORT_CQ_PATCHTST_V0_CURRENT_2026-10-31.docx','REPORT_CQ_PATCHTST_V0_CURRENT_2026-10-31_STATIC_PROVENANCE.docx','BAO_CAO_CQ_PATCHTST_V0_HIEU_SUAT_REPLAY_2026-10-31.docx'):
+        sources.append((ROOT/'CQ/docs'/name,Path('CQ/V0_reports')/name))
+    for name in ('run_contracts.csv','training_history.csv','metrics_and_sanity.csv','per_class_recall_ci.csv'):
+        sources.append((ROOT/'CQ/resuilt/cq_patchtst_v0_current_seed42_r21_report'/name,Path('CQ/V0_reports')/name))
     receipts=[]
     for src,rel in sources:
         if not src.is_file():
@@ -42,6 +46,7 @@ def main():
     manifest={'status':'PARTIAL_NOT_RELEASED','warning':'Selected facts only; not complete R21 checklist. Verify source release identity before use.','files':receipts}
     (DEST/'manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     (DEST/'README.md').write_text('# R21 evidence — partial staging\n\nSelected CQ/LO facts, D23 histories and replay receipts. See manifest.json for original Drive/local path and SHA-256. This is not the complete R21 evidence package and is not a scientific approval.\n',encoding='utf-8')
+    (DEST/'LO/facts/README_HISTORICAL_R2.md').write_text('# Historical LO R2 export\n\nThese facts are historical R2, not the current static-v2 grid. Current static-v2 audit facts are in LO/audit_seed42/. Do not combine the two releases.\n',encoding='utf-8')
     print(json.dumps({'staged':len(receipts),'d23_histories':len(list((DEST/'CQ/D23').rglob('train_history.parquet'))),'missing':sum(x['status']=='MISSING' for x in receipts),'destination':str(DEST)},ensure_ascii=False))
 
 if __name__=='__main__': main()

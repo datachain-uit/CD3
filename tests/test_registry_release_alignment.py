@@ -38,7 +38,7 @@ def test_closed_decisions_have_unique_ids_and_seed_contract_is_locked():
     ids = [item["id"] for item in registries.PENDING_DECISIONS]
     assert len(ids) == len(set(ids))
     assert all(str(item.get("status", "")).startswith("CLOSED") for item in registries.PENDING_DECISIONS)
-    assert registries.EXPERIMENT_SEEDS["augmentation_policy"] == "MATCH_MASTER_SEED"
+    assert registries.EXPERIMENT_SEEDS["augmentation_policy"] == "FIXED_SEED_42"
     assert registries.EXPERIMENT_SEEDS["role_seeds"]["seed_preprocess"] == 20260922
 
 

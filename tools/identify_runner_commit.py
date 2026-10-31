@@ -4,8 +4,8 @@
 Manifests written before the launcher recorded ``runner_git_commit`` carry only ``lineage.runner_sha256``,
 the sha256 of ``tools/vastai_train_shared.py`` as it was when the run started.  Git keeps every version of
 that file, so the hash identifies the interval of commits during which the runner had that content, and the
-interval tells on which side of the training-loop change (044d6c7, model/shared_phase.py) the run was trained.
-This replaces "timestamp before 044d6c7" by a reproducible attribution.
+interval describes committed runner history relative to the training-loop change (044d6c7). A runner hash
+alone cannot establish the complete working-tree revision or prove which training loop a historical run used.
 
     python tools/identify_runner_commit.py --sha256 <hex or sha256:hex>
     python tools/identify_runner_commit.py --manifest <run_manifest.json | metadata_contract.json>
@@ -39,8 +39,22 @@ def runner_hash_history(*, root: Path = ROOT, path: str = RUNNER_PATH, ref: str 
     for line in lines:
         commit, date = line.split(" ", 1)
         blob = subprocess.run(["git", "-C", str(root), "show", f"{commit}:{path}"], capture_output=True, check=True, timeout=60).stdout
-        history.append({"commit": commit, "short": commit[:7], "date": date, "sha256": hashlib.sha256(blob).hexdigest()})
+        # A Windows checkout with core.autocrlf stores the runner with CRLF line endings, so the hash the launcher
+        # recorded can be that of the CRLF rendition of a committed (LF) blob; both renditions are the same content.
+        lf = blob.replace(b"\r\n", b"\n")
+        history.append({"commit": commit, "short": commit[:7], "date": date, "sha256": hashlib.sha256(blob).hexdigest(),
+                        "sha256_lf": hashlib.sha256(lf).hexdigest(), "sha256_crlf": hashlib.sha256(lf.replace(b"\n", b"\r\n")).hexdigest()})
     return history
+
+
+def _rendition(item: dict, digest: str) -> str | None:
+    if item["sha256"] == digest:
+        return "blob"
+    if item.get("sha256_crlf") == digest:
+        return "crlf"
+    if item.get("sha256_lf") == digest:
+        return "lf"
+    return None
 
 
 def _side(commit: str, *, root: Path = ROOT, loop_change: str = TRAINING_LOOP_CHANGE_COMMIT) -> str:
@@ -56,10 +70,11 @@ def identify(runner_sha256: str, *, history: list[dict] | None = None, root: Pat
     """Interval of commits whose runner content hashes to ``runner_sha256``."""
     digest = runner_sha256.strip().lower().removeprefix("sha256:")
     history = runner_hash_history(root=root) if history is None else history
-    matches = [index for index, item in enumerate(history) if item["sha256"] == digest]
+    matches = [index for index, item in enumerate(history) if _rendition(item, digest)]
     if not matches:
         return {"runner_sha256": digest, "status": "unmatched", "introduced_in": None, "superseded_by": None,
-                "side_of_loop_change": "unknown"}
+                "side_of_loop_change": "unknown", "line_ending_rendition": None}
+    rendition = _rendition(history[max(matches)], digest)
     oldest = max(matches)                      # history is newest first; the content was introduced by the oldest match
     newest = min(matches)
     superseded = history[newest - 1] if newest > 0 else None
@@ -73,7 +88,10 @@ def identify(runner_sha256: str, *, history: list[dict] | None = None, root: Pat
             "introduced_in": introduced["short"], "introduced_on": introduced["date"],
             "superseded_by": superseded["short"] if superseded else None,
             "superseded_on": superseded["date"] if superseded else None,
-            "side_of_loop_change": side,
+            "side_of_loop_change": side, "line_ending_rendition": rendition,
+            "content_note": ("the recorded hash is that of the committed blob" if rendition == "blob" else
+                             f"the recorded hash is that of the {rendition.upper()} rendition of the committed blob (same content, "
+                             "Windows checkout); matching runner content alone does not identify the full working tree"),
             "loop_change_commit": TRAINING_LOOP_CHANGE_COMMIT}
 
 
