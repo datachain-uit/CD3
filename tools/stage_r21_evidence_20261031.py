@@ -13,6 +13,13 @@ def main():
         sources.extend((x,Path(task)/'facts'/x.name) for x in path.iterdir() if x.is_file() and x.suffix in ('.json','.parquet'))
     d23=DRIVE/'CQ/organized_moved_20261029/L1_runs/S3_model/run_bundles/cq_patchtst_d23_stability_pilot_20261026'
     sources.extend((x,Path('CQ/D23')/x.relative_to(d23)) for x in d23.rglob('train_history.parquet'))
+    s2=DRIVE/'CQ/organized_moved_20261029/L1_runs/S2_augmentation/provenance_seed42'
+    sources.extend((x,Path('CQ/S2_seed42')/x.relative_to(s2)) for x in s2.rglob('run_manifest.json'))
+    lo=DRIVE/'LO/organized_moved_20261029/L1_runs/S3_model/run_bundles/lo_static_v2_seed42_20261026/audits/closure_seed42'
+    sources.extend((x,Path('LO/audit_seed42')/x.relative_to(lo)) for x in lo.rglob('*') if x.is_file() and x.suffix in ('.parquet','.json'))
+    for task, rel in [('CQ','cq_full_prefix_static_audit_20261017/full_scan.json'),('LO','lo_prefix_source_audit_20261028/summary.json')]:
+        path=DRIVE/task/'organized_moved_20261029/L2_facts/audits_and_evidence'/rel
+        if path.exists(): sources.append((path,Path(task)/'prefix_audit'/path.name))
     for source,relative in [('CQ/resuilt/cq_rnn_matched_historical_20261029/paired_replay_equivalence.json','CQ/replay/rnn_matched.json'),('CQ/resuilt/cq_patchtst_v0_current_seed42_r21_report/current_epoch1_replay_receipt.json','CQ/replay/patchtst_current_epoch1.json'),('CQ/resuilt/cq_label_view_consistency_20261031.json','CQ/labels/label_view_consistency.json')]:
         sources.append((ROOT/source,Path(relative)))
     receipts=[]
