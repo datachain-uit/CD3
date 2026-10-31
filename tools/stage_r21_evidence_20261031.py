@@ -1,0 +1,32 @@
+"""Stage identifiable local evidence and record hashes; never claim completeness."""
+from pathlib import Path
+import hashlib, json, shutil
+
+ROOT = Path(__file__).resolve().parents[1]
+DRIVE = Path('G:/My Drive/Jobs')
+DEST = ROOT/'CQ/resuilt/input/results/R21_evidence_20261031'
+
+def main():
+    sources = []
+    for task, name in [('CQ','cq_recurrent_allfamilies_grid_r4_20261023'),('LO','lo_recurrent_allfamilies_grid_r2_20261021')]:
+        path=DRIVE/task/'organized_moved_20261029/L2_facts/fact_exports'/name
+        sources.extend((x,Path(task)/'facts'/x.name) for x in path.iterdir() if x.is_file() and x.suffix in ('.json','.parquet'))
+    d23=DRIVE/'CQ/organized_moved_20261029/L1_runs/S3_model/run_bundles/cq_patchtst_d23_stability_pilot_20261026'
+    sources.extend((x,Path('CQ/D23')/x.relative_to(d23)) for x in d23.rglob('train_history.parquet'))
+    for source,relative in [('CQ/resuilt/cq_rnn_matched_historical_20261029/paired_replay_equivalence.json','CQ/replay/rnn_matched.json'),('CQ/resuilt/cq_patchtst_v0_current_seed42_r21_report/current_epoch1_replay_receipt.json','CQ/replay/patchtst_current_epoch1.json'),('CQ/resuilt/cq_label_view_consistency_20261031.json','CQ/labels/label_view_consistency.json')]:
+        sources.append((ROOT/source,Path(relative)))
+    receipts=[]
+    for src,rel in sources:
+        if not src.is_file():
+            receipts.append({'source':str(src),'destination':str(rel),'status':'MISSING'}); continue
+        dst=DEST/rel; dst.parent.mkdir(parents=True,exist_ok=True); shutil.copy2(src,dst)
+        with src.open('rb') as f: source_digest=hashlib.file_digest(f,'sha256').hexdigest()
+        with dst.open('rb') as f: digest=hashlib.file_digest(f,'sha256').hexdigest()
+        if source_digest != digest: raise ValueError(f'Copy checksum mismatch: {src}')
+        receipts.append({'source':str(src),'destination':rel.as_posix(),'bytes':dst.stat().st_size,'sha256':digest,'status':'COPIED_VERIFIED'})
+    manifest={'status':'PARTIAL_NOT_RELEASED','warning':'Selected facts only; not complete R21 checklist. Verify source release identity before use.','files':receipts}
+    (DEST/'manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+    (DEST/'README.md').write_text('# R21 evidence — partial staging\n\nSelected CQ/LO facts, D23 histories and replay receipts. See manifest.json for original Drive/local path and SHA-256. This is not the complete R21 evidence package and is not a scientific approval.\n',encoding='utf-8')
+    print(json.dumps({'staged':len(receipts),'d23_histories':len(list((DEST/'CQ/D23').rglob('train_history.parquet'))),'missing':sum(x['status']=='MISSING' for x in receipts),'destination':str(DEST)},ensure_ascii=False))
+
+if __name__=='__main__': main()
