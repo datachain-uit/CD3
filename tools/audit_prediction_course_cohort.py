@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Post-hoc SEEN/UNSEEN x STRICT/OVERLAP audit from portable prediction rows.
 
-This read-only audit is deliberately independent of enrollment-id hashes and
-therefore does not require a prediction salt.  It uses the ``course_id`` and
-phase-specific temporal-strict flag already copied into prediction files by
-``tools.vastai_train_shared``.  A course is SEEN only when it appears in the
+This read-only audit joins prediction hashes to source enrollment IDs using
+the original prediction salt, then reads course and strict context from the
+corresponding input. A course is SEEN only when it appears in the
 real parent TRAIN file of the same window; it does not mean the offering was
 seen.  The script never changes predictions, checkpoints, or source inputs.
 """
@@ -51,10 +50,7 @@ def parent_pipeline(pipeline: str) -> str:
 
 def train_path(data_root: Path, window: str, pipeline: str, seed: int) -> Path:
     parent = parent_pipeline(pipeline)
-    candidates = ([data_root / "train" / window / pipeline / f"seed={seed}" / "balanced_train.parquet",
-                   data_root / "train" / window / pipeline / "balanced_train.parquet"]
-                  if pipeline != parent else [data_root / "train" / window / pipeline / "train.parquet"])
-    return next((path for path in candidates if path.is_file()), candidates[-1])
+    return data_root / "train" / window / parent / "train.parquet"
 
 
 def first_present(columns: set[str], candidates: tuple[str, ...], *, source: Path) -> str:
@@ -66,6 +62,11 @@ def first_present(columns: set[str], candidates: tuple[str, ...], *, source: Pat
 
 def schema_columns(path: Path) -> set[str]:
     return set(pq.ParquetFile(path).schema_arrow.names)
+
+
+def read_shell_salt(path: Path) -> str:
+    """Read UTF-8 exactly as shell command substitution removes trailing LF."""
+    return path.read_bytes().decode("utf-8").rstrip("\n")
 
 
 def evaluation_path(data_root: Path, window: str, pipeline: str, split: str, phase: str) -> Path:
@@ -107,7 +108,10 @@ def main() -> None:
     args = parse()
     if args.prediction_salt_file is None or not args.prediction_salt_file.is_file():
         raise FileNotFoundError("Provide --prediction-salt-file; the salt value is never logged or exported.")
-    salt = args.prediction_salt_file.read_text(encoding="utf-8").strip()
+    # Runners use shell command substitution: trailing LF bytes are removed,
+    # while CR and other whitespace remain part of the secret.  read_text()
+    # performs universal-newline conversion and strip() would change it.
+    salt = read_shell_salt(args.prediction_salt_file)
     if not salt:
         raise ValueError("prediction salt file is empty")
     output = args.output_root
