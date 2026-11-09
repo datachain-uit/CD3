@@ -93,9 +93,12 @@ def test_mantis_registry_row_equals_the_f3_mantis_spec_and_moment_rows_are_retir
     row = next(row for row in registries.MODEL_REGISTRY if row["model_name"] == "MANTIS_V2")
     for key in ("model_tier", "model_family", "variant_role", "is_pretrained", "finetune_mode", "pretrained_repo",
                 "pretrained_revision", "return_transf_layer", "output_token", "input_encoding", "interp_len",
-                "model_revision", "max_seq_len", "patch_len", "patch_stride", "param_count_backbone_total",
-                "param_count_backbone_used"):
+                "model_revision", "param_count_backbone_total", "param_count_backbone_used"):
         assert row[key] == spec[key], key
+    # request 2026-11-09 (D4): PatchTST patching keys mean nothing for the frozen Mantis encoder and are not in the registry row
+    # (the package spec keeps them: its spec_digest is frozen); provenance keys are required instead.
+    assert not {"max_seq_len", "patch_len", "patch_stride"} & set(row)
+    assert row["licence"] and row["pretraining_data"] and len(row["references"]) == 2
     assert row["library_revision"] == spec["library"]
     assert row["hparam_config_id"] == spec["hparam_config_id"]
     assert row["channel_adapter"]["n_components"] == spec["channel_adapter"]["n_components"]
@@ -137,3 +140,13 @@ def test_patchtst_registry_declares_the_accumulated_registered_batch():
     assert row["batch_size"] == 2048 == row["optimisation_batch_size"]
     assert row["micro_batch_size"] * row["accumulation_steps"] == row["batch_size"]
     assert row["accumulation_steps"] == 4 and row["micro_batch_size"] == 512
+
+
+def test_metric_def_maps_the_paper_objectives_d18():
+    """Request 2026-11-09 (E1): METRIC_DEF v1.3 carries the D-18 objective mapping (AccTEMPO_M3^(cal) = exporter column acctempo_m4)."""
+    change = registries.METRIC_DEF["v1_3_change_2026-10-24"]
+    assert change["objectives"] == {"PAPER_COMPOSITE_CAL": "acctempo_m3_cal", "PAPER_PERF_AXIS": "s_perf",
+                                    "META_PRIMARY_M3_V1": "acctempo_m3", "SECONDARY_MACRO_F1": "macro_f1"}
+    assert change["default_objective"] == "PAPER_COMPOSITE_CAL"
+    assert "acctempo_m4" in change["names"]["acctempo_m3_cal"]
+    assert "S_san+_v2" in registries.METRIC_DEF["acctempo_m4_export_note_2026-10-23"]

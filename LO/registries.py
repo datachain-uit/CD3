@@ -248,8 +248,15 @@ MODEL_REGISTRY = [
                          'fallback': 'CELL_TRAIN when the real rows of a balanced cell differ from the imputer-only TRAIN',
                          'dtype': 'float16'},
      'model_revision': 'mantisv2_frozen_linear_probe_v1_pca8_interp512',
-     'max_seq_len': 4, 'patch_len': 16, 'patch_stride': 16,
-     'param_count_backbone_total': 4188672, 'param_count_backbone_used': 2214144},
+     'param_count_backbone_total': 4188672, 'param_count_backbone_used': 2214144,
+     'licence': 'Apache-2.0 (PyPI package; model-card metadata at the pinned revision)',
+     'pretraining_data': 'synthetic only (CauKer, 2 million series), so no overlap with MOOCCubeX is possible',
+     'references': [
+         'Feofanov et al., Mantis: Lightweight Foundation Model for Time Series Classification, ICML 2026, PMLR 306:30692-30719',
+         'Feofanov et al., MantisV2, arXiv:2602.17868 (2026)'],
+     # max_seq_len / patch_len / patch_stride removed on 2026-11-09 (request D4): they describe PatchTST patching and mean nothing for
+     # the frozen Mantis encoder (the package spec keeps them for its frozen spec_digest).
+     },
 ]
 # MOMENT rows retired on 2026-11-06 (decision 37): no F3 cell was run or read, the family_smoke/family_screen runs of 548d4d4
 # never entered L2. Kept for history only; they are not exported and not part of MODEL_REGISTRY.
@@ -339,6 +346,44 @@ TEMPORAL_FAMILY_POLICY = {
 # ---------------------------------------------------------------------------------------------
 METRIC_DEF = {
     'metric_def_version': 'metric_def_v1.3',
+    # D-18 (author ratification of 2026-10-24, registered 2026-10-25): objective names for METRIC_DEF v1.3; the exporter column of
+    # AccTEMPO_M3^(cal) is acctempo_m4 = clip(S_perf, 1e-3)^0.6 x clip(S_san+ v2, 1e-3)^0.4.
+    'v1_3_change_2026-10-24': {'authority': 'author ratification D-18 of 2026-10-24 (AUTHOR_RATIFICATIONS_2026_10_24); registered here on '
+                      '2026-10-25',
+         'names': {'acctempo_m3': 'AccTEMPO_M3 (S_san+ v1): pre-registered primary of the meta-dataset, kept as the '
+                                  'sensitivity objective of every paper test',
+                   'acctempo_m3_cal': 'AccTEMPO_M3^(cal) = clip(S_perf, 1e-3)^0.6 x clip(S_san+ v2, 1e-3)^0.4 (S_san+ v2: '
+                                      's_cal replaces s_ent); exporter column acctempo_m4 (5b14052); the composite objective '
+                                      'of the paper'},
+         'objectives': {'PAPER_COMPOSITE_CAL': 'acctempo_m3_cal',
+                        'PAPER_PERF_AXIS': 's_perf',
+                        'META_PRIMARY_M3_V1': 'acctempo_m3',
+                        'SECONDARY_MACRO_F1': 'macro_f1'},
+         'default_objective': 'PAPER_COMPOSITE_CAL',
+         'hypothesis_objectives': {'H1': 'PAPER_COMPOSITE_CAL',
+                                   'H2': 'PAPER_COMPOSITE_CAL',
+                                   'H3': 'PAPER_COMPOSITE_CAL',
+                                   'H4': 'PAPER_COMPOSITE_CAL',
+                                   'H5': 'PAPER_COMPOSITE_CAL',
+                                   'H6': 'PAPER_COMPOSITE_CAL',
+                                   'H7': 'PAPER_COMPOSITE_CAL vs SECONDARY_MACRO_F1',
+                                   'H8': 'PAPER_COMPOSITE_CAL'},
+         'sensitivity_objective': 'META_PRIMARY_M3_V1',
+         'trend_and_ranking_rule': 'phase trends (P1 -> P4) and family or pipeline rankings in the paper are read on S_perf, '
+                                   'macro-F1 and balanced accuracy; both composites are printed next to them; neither '
+                                   'composite carries a W2 trend (s_leak of the V0 parent falls 0.232 -> 0.019 on CQ TEST '
+                                   'W2)',
+         'disclosure': 'the Method section states that the composite objective was changed after the seed-42 F1 results were '
+                       'read (hedging reward of s_ent); the meta-dataset keeps v1 as pre-registered',
+         'code_mirror': 'metamodel.contracts.OBJECTIVES / HYPOTHESIS_OBJECTIVES / SENSITIVITY_OBJECTIVE (v0.2.0) use the '
+                        'same names; CQ/registries.CQ_METRIC_AND_QA23_POLICY (5b14052) records the same rule for the team; '
+                        'metrics_core still computes acctempo_m3 only (M3^(cal) is derived in the exporters)',
+         'evidence_2026-10-25': 'per-pipeline means over 12 window x phase cells (CQ TEST, R4): M3 spans 0.63-0.70 within '
+                                'every family while M3^(cal) spans 0.737-0.747 and macro-F1 0.704-0.726; balanced minus '
+                                'imputation-only pipelines: M3 +0.055 to +0.060, M3^(cal) +0.002 to +0.003, macro-F1 +0.001 '
+                                'to +0.003; Spearman(M3^(cal), S_perf) 0.94-0.98, Spearman(M3^(cal), macro-F1) 0.79-0.87, '
+                                'Spearman(M3, M3^(cal)) 0.54-0.66'},
+    'acctempo_m4_export_note_2026-10-23': 'acctempo_m4 = clip(S_perf, 1e-3)^0.6 x clip(S_san+_v2, 1e-3)^0.4 with S_san+_v2 = geometric mean of (s_nan, s_maj_jsd, s_cal, s_drift, s_eff, s_leak), computed read-only in tools/export_cq_recurrent_grid_report.py and build_cq_current_recurrent_patchtst_report.py (5b14052), not in metrics_core; it is the sensitivity composite of CQ_METRIC_AND_QA23_POLICY. M4 removes the hedging term but keeps s_leak, which for the V0 parent at W2 falls 0.232 (P1) -> 0.019 (P4) on TEST (identical for PatchTST and the recurrent V0 cells), so M4 also falls P1 -> P4 on W2 while macro-F1 rises; phase trends are read from S_perf / macro-F1 / balanced accuracy only, composites are reported next to them',
     'class_index': {'CQ': {'c0': 'W', 'c1': 'A', 'c2': 'G'}, 'LO': {'c0': 'ID', 'c1': 'G', 'c2': 'E'}},
     'risk_class': 'c0',
     'majority_class': {'CQ': 'c0', 'LO': 'c0'},   # both tasks: the risk class is the majority class ([CL §7.5], [V3 §6])
