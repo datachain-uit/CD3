@@ -62,6 +62,12 @@ def _parse() -> argparse.Namespace:
     parser.add_argument("--bootstrap-repetitions", type=int, default=2000)
     parser.add_argument("--allow-partial", action="store_true",
                         help="For smoke tests only; official exports require all 51 cells.")
+    parser.add_argument("--s-leak-reference", type=Path,
+                        help="csv/parquet with window_id, eval_split, phase_id, s_leak: the canonical table of the F1 grid (one value per "
+                             "window x split x phase). The audit stops if any canonical s_leak differs by more than --s-leak-tolerance.")
+    parser.add_argument("--s-leak-tolerance", type=float, default=1e-9)
+    parser.add_argument("--no-s-leak-reference", action="store_true",
+                        help="explicit opt-out (only for the audit that PRODUCES a reference table); recorded in the manifest")
     parser.add_argument("--include-static-ablation", action="store_true",
                         help="Audit explicitly marked LO no-static ablations without a primary-grid contract.")
     return parser.parse_args()
@@ -175,7 +181,7 @@ def _prediction(run_dir: Path, split: str, phase: str) -> pd.DataFrame:
 
 
 def _canonical_s_leak(args: argparse.Namespace, selected: dict[tuple[str, str], Path]) -> pd.DataFrame:
-    from metrics_core.evaluation import fit_missingness_probe, score_missingness_probe_auc, s_leak_from_probe
+    from metrics_core.evaluation import PROBE_CONFIG, fit_missingness_probe, score_missingness_probe_auc, s_leak_from_probe
 
     records: list[dict] = []
     parent_pipelines = sorted(set(PARENT_PIPELINES.get(pipeline, pipeline) for _, pipeline in selected))
@@ -191,7 +197,8 @@ def _canonical_s_leak(args: argparse.Namespace, selected: dict[tuple[str, str], 
             train_y = _class_ids(train[_label(args.task)], args.task)
             x = np.concatenate([_mask_matrix(train, phase, bases) for phase in PHASES])
             y = np.concatenate([train_y] * len(PHASES))
-            probe = fit_missingness_probe(x, y, seed=args.seed)
+            probe = fit_missingness_probe(x, y, seed=args.seed, deterministic=True)
+            probe_n_iter = int(np.max(probe[1].n_iter_)) if probe is not None else None
             for split in SPLITS:
                 for phase in PHASES:
                     input_path = (args.data_root / "evaluation" / window / parent /
@@ -206,6 +213,9 @@ def _canonical_s_leak(args: argparse.Namespace, selected: dict[tuple[str, str], 
                         "probe_fit_scope": "PARENT_IMPUTATION_REAL_TRAIN_POOLED_P1_P4",
                         "probe_score_scope": "PARENT_IMPUTATION_REAL_EVAL_PREFIX",
                         "s_leak_probe_auc": auc, "s_leak": s_leak_from_probe(auc),
+                        "probe_solver": PROBE_CONFIG["solver"], "probe_tol": PROBE_CONFIG["tol"],
+                        "probe_max_iter": PROBE_CONFIG["max_iter"], "probe_n_iter": probe_n_iter,
+                        "probe_deterministic_single_thread": True,
                     })
     expected = len({window for window, _ in selected}) * len(parent_pipelines) * len(SPLITS) * len(PHASES)
     if len(records) != expected:
@@ -333,13 +343,43 @@ def _run_facts(args: argparse.Namespace, selected: dict[tuple[str, str], Path], 
             pd.DataFrame(bootstrap), pd.DataFrame(selection))
 
 
+def assert_s_leak_matches_reference(canonical: pd.DataFrame, reference: pd.DataFrame, tolerance: float = 1e-9) -> dict:
+    """s_leak is a property of (task, window, split, phase): every canonical value must equal the reference table within ``tolerance``
+    (check 38). Raises RuntimeError listing the worst cells; returns a small report for the audit manifest."""
+    keys = ["window_id", "eval_split", "phase_id"]
+    ref = reference[keys + ["s_leak"]].drop_duplicates()
+    if ref.duplicated(keys).any():
+        raise RuntimeError("s_leak reference holds several values for one window x split x phase")
+    merged = canonical.merge(ref, on=keys, how="left", suffixes=("", "_reference"))
+    if merged["s_leak_reference"].isna().any():
+        missing = merged.loc[merged["s_leak_reference"].isna(), keys].drop_duplicates().to_dict("records")
+        raise RuntimeError(f"s_leak reference lacks cells: {missing[:6]}")
+    diff = (merged["s_leak"] - merged["s_leak_reference"]).abs()
+    report = {"checked_cells": int(len(merged)), "tolerance": tolerance, "max_abs_diff": float(diff.max())}
+    if (diff > tolerance).any():
+        worst = merged.assign(abs_diff=diff).sort_values("abs_diff", ascending=False).head(5)[keys + ["s_leak", "s_leak_reference", "abs_diff"]]
+        raise RuntimeError(f"canonical s_leak differs from the reference by up to {report['max_abs_diff']:.3e} (> {tolerance:g}); "
+                           f"the probe is not reproducible in this environment:\n{worst.to_string(index=False)}")
+    return report
+
+
 def main() -> None:
+    from metrics_core.evaluation import PROBE_CONFIG, probe_environment
     args = _parse()
+    if args.s_leak_reference is None and not args.no_s_leak_reference:
+        raise SystemExit("--s-leak-reference FILE is required (or --no-s-leak-reference for the audit that produces the reference)")
     download, _, download_hash = load_download_manifest(args.data_root, task=args.task)
     selected = _selected_runs(args, download)
     root = args.audit_root / args.task / args.model_name / f"seed={args.seed}"
     root.mkdir(parents=True, exist_ok=True)
     canonical = _canonical_s_leak(args, selected)
+    if args.s_leak_reference is not None:
+        ref_path = args.s_leak_reference
+        reference = pd.read_parquet(ref_path) if ref_path.suffix == ".parquet" else pd.read_csv(ref_path)
+        leak_check = {"checked": True, "reference_file": ref_path.name, "reference_sha256": hashlib.sha256(ref_path.read_bytes()).hexdigest(),
+                      **assert_s_leak_matches_reference(canonical, reference, args.s_leak_tolerance)}
+    else:
+        leak_check = {"checked": False, "reason": "NO_REFERENCE_OPT_OUT"}
     sanity, slices, per_class, bootstrap, selection = _run_facts(args, selected, canonical)
     outputs = {
         "canonical_s_leak": canonical, "sanity_components": sanity, "evaluation_slices": slices,
@@ -354,6 +394,7 @@ def main() -> None:
         "data_release_id": download["data_release_id"], "input_download_manifest_sha256": download_hash,
         "runs": len(selected), "bootstrap_repetitions": args.bootstrap_repetitions,
         "rows": {name: int(len(frame)) for name, frame in outputs.items()},
+        "probe_config": PROBE_CONFIG, "probe_environment": probe_environment(), "s_leak_check": leak_check,
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
     }
     (root / "audit_manifest.json").write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")

@@ -131,14 +131,41 @@ def classification_metrics(y_true: np.ndarray, probabilities: np.ndarray, *, tra
     return output
 
 
-def fit_missingness_probe(train_x: np.ndarray, train_y: np.ndarray, *, seed: int = 42):
-    """Fit the registered TRAIN-only missingness/availability probe once."""
+# Registered probe configuration (unchanged since the F1 grid); recorded in every audit manifest.
+PROBE_CONFIG = {"estimator": "sklearn.linear_model.LogisticRegression", "solver": "lbfgs", "penalty": "l2", "C": 1.0,
+                "tol": 1e-4, "max_iter": 500, "scaler": "StandardScaler", "scoring": "roc_auc ovr macro"}
+
+
+def probe_environment() -> dict[str, Any]:
+    """Library versions and BLAS/OpenMP pools of the current process (the probe is a numerical optimiser: its result
+    depends on them, so every audit records them)."""
+    import platform
+    import scipy
+    import sklearn
+    from threadpoolctl import threadpool_info
+    return {"python": platform.python_version(), "numpy": np.__version__, "scipy": scipy.__version__,
+            "scikit_learn": sklearn.__version__,
+            "threadpools": [{k: pool.get(k) for k in ("user_api", "internal_api", "num_threads", "version")} for pool in threadpool_info()]}
+
+
+def fit_missingness_probe(train_x: np.ndarray, train_y: np.ndarray, *, seed: int = 42, deterministic: bool = False):
+    """Fit the registered TRAIN-only missingness/availability probe once.
+
+    ``deterministic=True`` (used by the audits, request 2026-11-09 C2) fits inside a single-threaded BLAS/OpenMP region so that the
+    optimiser takes the same floating-point path on every host with the same library versions; the estimator parameters
+    are those of ``PROBE_CONFIG`` in both modes."""
     if len(np.unique(train_y)) < 2:
         return None
     scaler = StandardScaler()
     train_scaled = scaler.fit_transform(train_x)
-    model = LogisticRegression(C=1.0, max_iter=500, random_state=seed)
-    model.fit(train_scaled, train_y)
+    model = LogisticRegression(C=PROBE_CONFIG["C"], max_iter=PROBE_CONFIG["max_iter"], tol=PROBE_CONFIG["tol"],
+                               solver=PROBE_CONFIG["solver"], random_state=seed)
+    if deterministic:
+        from threadpoolctl import threadpool_limits
+        with threadpool_limits(limits=1):
+            model.fit(train_scaled, train_y)
+    else:
+        model.fit(train_scaled, train_y)
     return scaler, model
 
 
