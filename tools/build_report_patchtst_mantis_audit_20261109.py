@@ -105,8 +105,7 @@ doc.add_paragraph(f'Lập ngày {datetime.now(timezone.utc):%d/%m/%Y} (UTC) từ
 doc.add_heading('1. Phạm vi và vị trí lưu trên Drive', level=1)
 
 cq_san = san_from([CQ / 'cq_patchtst_v0_v6_full_facts_20261103/sanity_components.parquet', CQ / 'cq_patchtst_v7_v16_full_facts_20261109/sanity_components.parquet'])
-lo_paths = [args.lo_audit / 'LO/PATCHTST/seed=42/sanity_components.parquet'] + sorted(args.lo_other.rglob('sanity_components.parquet'))
-lo_san = san_from(lo_paths)
+lo_san = san_from([Path('LO/resuilt/lo_patchtst_v0_v16_full_facts_20261109_r2/sanity_components.parquet')])  # r2: canonical s_leak (Q-27 (a), C1)
 mt_paths = []
 for root in args.mantis_audit:
     mt_paths += sorted(root.rglob('sanity_components.parquet'))
@@ -121,9 +120,9 @@ add_table(doc, ['Nhóm', 'Pipeline có audit chuẩn', 'Ô (pipeline × cửa s�
     ['CQ PatchTST', ', '.join(sorted(cq_san.pipeline_id.unique(), key=vkey)), f'{cells(cq_san)}/51',
      'CQ/L2_facts/fact_exports/cq_patchtst_v0_v6_full_facts_20261103 và …v7_v16_full_facts_20261109; bundle V1–V8, V10, V11, V13–V15 ở CQ/L1_runs/S3_model/staging_incoming/patchtst_seed42_20261105/<V>/, V9/V12/V16 ở primary/family=PATCHTST/'],
     ['LO PatchTST', ', '.join(sorted(lo_san.pipeline_id.unique(), key=vkey)), f'{cells(lo_san)}/51',
-     'LO/L2_facts/fact_exports/lo_patchtst_v0_v16_full_facts_20261109; audit chạy lại cho V0–V4, V7, V11, V12 ở LO/L2_facts/audits/lo_patchtst_standard_audit_V0-V4_V7_V11_V12_seed42_20261109; bundle ở LO/L1_runs/S3_model/staging_incoming/patchtst_seed42_after_credit_20261108/<V>/'],
+     'LO/L2_facts/fact_exports/lo_patchtst_v0_v16_full_facts_20261109_r2 (s_leak chuẩn của LO F1; bản đầu 20261109 trộn ba đầu dò); audit chạy lại cho V0–V4, V7, V11, V12 ở LO/L2_facts/audits/lo_patchtst_standard_audit_V0-V4_V7_V11_V12_seed42_20261109; bundle ở LO/L1_runs/S3_model/staging_incoming/patchtst_seed42_after_credit_20261108/<V>/'],
     ['CQ Mantis (MANTIS_V2)', ', '.join(sorted(mt_san.pipeline_id.unique(), key=vkey)), f'{cells(mt_san)}/51',
-     'CQ/L2_facts/fact_exports/cq_mantis_v2_v0_v16_full_facts_20261109; audit và dữ liệu chuẩn hóa ở CQ/L1_runs/S3_model/staging_incoming/mantis_v2_seed42_exploratory_20261108/{audit,standardized_runs}_*_20261109'],
+     'CQ/L2_facts/fact_exports/cq_mantis_v2_v0_v16_full_facts_20261109_r2; audit và dữ liệu chuẩn hóa ở CQ/L1_runs/S3_model/staging_incoming/mantis_v2_seed42_exploratory_20261108/{audit,standardized_runs}_*_20261109'],
 ])
 
 # ---- 2. CQ PatchTST
@@ -144,18 +143,18 @@ doc.add_paragraph(f'Tổng {len(c)} lát cohort; trạng thái: {c.status.value_
 # ---- 3. LO PatchTST
 doc.add_heading('3. LO PatchTST', level=1)
 model_table(doc, lo_san, '3.1 Hiệu năng theo pipeline và cửa sổ', 'Audit chuẩn B=2000, release LO_V3_1. Nhãn LO_performance_label_3, lớp I/D, G, E.')
-lo_c = read(Path('LO/resuilt/lo_patchtst_v0_v16_full_facts_20261109/cohort_slice_status.parquet'))
+lo_c = read(Path('LO/resuilt/lo_patchtst_v0_v16_full_facts_20261109_r2/cohort_slice_status.parquet'))
 cohort_section(doc, lo_c, 2, '3.2 SEEN/UNSEEN × STRICT/OVERLAP (TEST)',
                'Cùng định nghĩa như CQ. Macro-F1 trung bình qua cửa sổ và pha, chỉ tính các lát có đủ nhiều lớp (trạng thái OK); các lát một lớp (ONE_CLASS) hoặc rỗng (SLICE_EMPTY), tập trung ở nhóm UNSEEN, không đưa vào trung bình và cần đọc thận trọng.')
-doc.add_paragraph('Facts F2 của LO PatchTST: LO/L2_facts/fact_exports/lo_patchtst_v0_v16_full_facts_20261109 (bảng audit, cohort, tài nguyên theo run).')
+doc.add_paragraph('Facts F2 của LO PatchTST: LO/L2_facts/fact_exports/lo_patchtst_v0_v16_full_facts_20261109_r2. Bảng trên là bản r2: `s_leak` và `s_leak_probe_auc` lấy từ bảng chuẩn của LO F1 (một giá trị cho mỗi cửa sổ × split × pha), các cột S_san+, AccTEMPO tính lại từ thành phần không đổi; macro-F1 và S_perf không thay đổi.')
 
 # ---- 4. Mantis
 doc.add_heading('4. CQ Mantis (MANTIS_V2, thăm dò)', level=1)
 model_table(doc, mt_san, '4.1 Hiệu năng theo pipeline và cửa sổ',
             'Backbone đóng băng, bộ chuyển kênh PCA8 fit trên TRAIN thật của parent, probe tuyến tính; chọn checkpoint theo MEAN_PHASE_MACRO_F1. Release CQ_V2_2.')
 doc.add_paragraph('V0 (bundle gốc chỉ lưu xác suất): file dự đoán được dựng lại từ đúng mảng xác suất đã lưu (tools/rebuild_mantis_v0_predictions_20261109.py); điểm validation dựng lại khớp cell record ở cả 3 cửa sổ (chênh lệch 0). Thời gian chạy và năng lượng GPU của V0 không được ghi trong bundle gốc nên để null. runner_git_commit của Mantis chưa được ghi (null).')
-mt_c = read(Path('CQ/resuilt/cq_mantis_v2_v0_v16_full_facts_20261109/cohort_slice_status.parquet'))
-cohort_section(doc, mt_c, 2, '4.2 SEEN/UNSEEN × STRICT/OVERLAP (TEST)', 'Cùng định nghĩa như PatchTST. Facts F2: CQ/L2_facts/fact_exports/cq_mantis_v2_v0_v16_full_facts_20261109.')
+mt_c = read(Path('CQ/resuilt/cq_mantis_v2_v0_v16_full_facts_20261109_r2/cohort_slice_status.parquet'))
+cohort_section(doc, mt_c, 2, '4.2 SEEN/UNSEEN × STRICT/OVERLAP (TEST)', 'Cùng định nghĩa như PatchTST. Facts F2: CQ/L2_facts/fact_exports/cq_mantis_v2_v0_v16_full_facts_20261109_r2.')
 
 # ---- 5. pending
 doc.add_heading('5. Việc còn lại', level=1)
