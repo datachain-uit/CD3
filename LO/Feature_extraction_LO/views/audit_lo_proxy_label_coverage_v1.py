@@ -145,10 +145,11 @@ coverage = (base.groupBy("temporal_slice", "rolling_block", "timeline_source", "
 exclusions = (base.groupBy("temporal_slice", "rolling_block", "timeline_source",
                            F.coalesce(F.col("proxy_exclusion_reason"), F.lit("ELIGIBLE")).alias("proxy_status"))
     .agg(F.countDistinct("enrollment_id").alias("n_enrollments")))
-exclusion_totals = exclusions.groupBy("temporal_slice", "rolling_block", "timeline_source").agg(
-    F.sum("n_enrollments").alias("slice_timeline_enrollment_count"))
-exclusions = exclusions.join(exclusion_totals, ["temporal_slice", "rolling_block", "timeline_source"], "inner").withColumn(
-    "share_within_slice_timeline", F.try_divide("n_enrollments", "slice_timeline_enrollment_count"))
+exclusions = (exclusions.withColumn(
+    "slice_timeline_enrollment_count",
+    F.sum("n_enrollments").over(Window.partitionBy("temporal_slice", "rolling_block", "timeline_source")),
+).withColumn(
+    "share_within_slice_timeline", F.try_divide("n_enrollments", "slice_timeline_enrollment_count")))
 
 offering_rare = (base.filter(F.col("temporal_slice") != "UNASSIGNED")
     .groupBy("temporal_slice", "rolling_block", "timeline_source", "offering_id")

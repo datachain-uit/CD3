@@ -43,7 +43,7 @@ try:
 except ImportError:  # Supports ``python LO/registries.py`` as documented.
     from seeds import sha256_of, SEED_PREPROCESS
 
-REGISTRY_REVISION = 'registries_rev_2026-10-31_r22'
+REGISTRY_REVISION = 'registries_rev_2026-11-08_d32_mantis_local'
 
 # ---------------------------------------------------------------------------------------------
 # Pipeline registry V0–V16 (PLAN Table 7 / Table 14)
@@ -233,13 +233,34 @@ MODEL_REGISTRY = [
      'attention_backend': 'math_sdp__scoped_to_encoder_call__flash_and_mem_efficient_rejected_for_large_BxC',
      'implementation_note': 'each dynamic channel is patched and Transformer-encoded independently with shared weights; '
                             'the classification head receives concatenated post-encoder channel embeddings and static features'},
-    {'model_name': 'MOMENT_SMALL', 'model_tier': 'F3_TS_FOUNDATION', 'model_family': 'MOMENT', 'variant_role': 'DEFERRED_UNTIL_F2_COMPLETE', 'is_pretrained': 1,
+    {'model_name': 'MANTIS_V2', 'model_tier': 'F3_TS_FOUNDATION', 'model_family': 'MANTIS', 'variant_role': 'EXPLORATORY',
+     'is_pretrained': 1, 'finetune_mode': 'LINEAR_PROBE', 'encoder_frozen': 1,
+     'pretrained_repo': 'paris-noah/MantisV2', 'pretrained_revision': '8f6ca35cb54ab14b120618943c6fca5ddf5a76a6',
+     'library_revision': 'mantis-tsfm==1.1.0', 'return_transf_layer': 2, 'output_token': 'combined',
+     'input_encoding': 'PCA8_PER_PHASE_THEN_LINEAR_RESIZE_512_v1', 'interp_len': 512,
+     'weight_loading': 'strict key-by-key load of the pinned snapshot (state dict 4,188,690 values); run_cell refuses a random-weight backbone',
+     'channel_adapter': {'method': 'PCA_ACROSS_CHANNELS', 'n_components': 8, 'standardize': True, 'fit_rows': 'REAL_TRAIN_ROWS_ONLY',
+                         'sample_rows_max': 1000000, 'sample_seed': 20260922},
+     'constant_series_guard': 'instance normalisation returns exact zeros when std <= 1e-6 * (|mean| + 1e-6) over the resized series',
+     'embedding_reduction': 'concatenate_component_embeddings (8 x 512)',
+     'embedding_cache': {'level_A': 'per (task, window, imputer pipeline, adapter digest): REAL TRAIN, VALIDATION, TEST',
+                         'level_B': 'per (task, window, balanced pipeline, master seed): SYNTHETIC TRAIN rows only',
+                         'fallback': 'CELL_TRAIN when the real rows of a balanced cell differ from the imputer-only TRAIN',
+                         'dtype': 'float16'},
+     'model_revision': 'mantisv2_frozen_linear_probe_v1_pca8_interp512',
+     'max_seq_len': 4, 'patch_len': 16, 'patch_stride': 16,
+     'param_count_backbone_total': 4188672, 'param_count_backbone_used': 2214144},
+]
+# MOMENT rows retired on 2026-11-06 (decision 37): no F3 cell was run or read, the family_smoke/family_screen runs of 548d4d4
+# never entered L2. Kept for history only; they are not exported and not part of MODEL_REGISTRY.
+RETIRED_MODEL_ROWS = [
+    {'model_name': 'MOMENT_SMALL', 'model_tier': 'F3_TS_FOUNDATION', 'model_family': 'MOMENT', 'variant_role': 'RETIRED_2026-11-06', 'is_pretrained': 1,
      'finetune_mode': 'LINEAR_PROBE', 'pretrained_repo': 'AutonLab/MOMENT-1-small', 'pretrained_revision': '43ee05b',
      'library_revision': 'momentfm @ 38f7310', 'input_encoding': 'PHASE_AS_PATCH_REPEAT_v1_1', 'revin_statistics_fusion': True,
      'constant_channel_guard': 'zero_input_when_prefix_std_below_1e-6_relative',
      'embedding_reduction': 'mean_over_channels_then_mean_over_observed_patches',
      'model_revision': 'moment_frozen_linear_probe_v2_1_phase_patch'},
-    {'model_name': 'MOMENT_BASE', 'model_tier': 'F3_TS_FOUNDATION', 'model_family': 'MOMENT', 'variant_role': 'DEFERRED', 'is_pretrained': 1,
+    {'model_name': 'MOMENT_BASE', 'model_tier': 'F3_TS_FOUNDATION', 'model_family': 'MOMENT', 'variant_role': 'RETIRED_2026-11-06', 'is_pretrained': 1,
      'finetune_mode': 'LINEAR_PROBE', 'pretrained_repo': 'AutonLab/MOMENT-1-base', 'pretrained_revision': 'b0ae575',
      'library_revision': 'momentfm @ 38f7310', 'input_encoding': 'PHASE_AS_PATCH_REPEAT_v1_1', 'revin_statistics_fusion': True,
      'constant_channel_guard': 'zero_input_when_prefix_std_below_1e-6_relative',
@@ -265,17 +286,14 @@ for _m in MODEL_REGISTRY:
                 'micro_batch_size': 512,
                 'accumulation_steps': 4,
             })
-        elif _m['model_name'] in {'MOMENT_SMALL', 'MOMENT_BASE'}:
+        elif _m['model_name'] == 'MANTIS_V2':
             _m.update({
-                'hparam_config_id': 'HP_MOMENT_FROZEN_LINEAR_PROBE_v2_1_phase_patch',
+                'hparam_config_id': 'HP_MANTISV2_FROZEN_LINEAR_PROBE_v1_pca8',
                 'finetune_mode': 'LINEAR_PROBE', 'encoder_frozen': 1,
-                'backbone_repo': ('AutonLab/MOMENT-1-small' if _m['model_name'] == 'MOMENT_SMALL'
-                                  else 'AutonLab/MOMENT-1-base'),
-                'backbone_requested_revision': ('43ee05b' if _m['model_name'] == 'MOMENT_SMALL'
-                                                else 'b0ae575'),
-                # v1 right-padding inside one pretrained patch produced NaN embeddings (review 2026-10-12);
-                # every observed phase now fills one full patch and future phases are masked.
-                'prefix_padding': 'NONE__PHASE_AS_PATCH_REPEAT_v1_1_FUTURE_PHASES_MASKED',
+                'backbone_repo': 'paris-noah/MantisV2',
+                'backbone_requested_revision': '8f6ca35cb54ab14b120618943c6fca5ddf5a76a6',
+                'weight_decay': 1e-5, 'dropout': 0.3,
+                'prefix_padding': 'NONE__PHASE_STEPS_PCA8_THEN_LINEAR_RESIZE_512',
             })
 
 # Locked on 2026-10-12 after the F2/F3 code review.  This is intentionally
@@ -299,20 +317,21 @@ TEMPORAL_FAMILY_POLICY = {
             'decision': 'LOCKED 2026-10-27; D23 v3 remains sensitivity evidence after W3 failed the registered curve criterion',
         },
     },
-    'F3_MOMENT_SMALL': {
-        'role': 'DEFERRED', 'scope': 'AFTER_F2_COMPLETE',
-        # The registered 13-cell exploratory core retains both usable
-        # augmentation families. RadiusSMOTE is deliberately outside this
-        # core because its locked-radius audit has a 56--90% nearest-neighbour
-        # fallback rate; it is a separately labelled sensitivity analysis.
+    'F3_MANTIS_V2': {
+        'models': ['MANTIS_V2'], 'role': 'EXPLORATORY', 'scope': 'AFTER_F2_COMPLETE (full release, phase 2; decision 36)',
         'pipelines': ['V0', 'V1', 'V5', 'V9', 'V13', 'V2', 'V6', 'V10', 'V14', 'V3', 'V7', 'V11', 'V15'],
         'sensitivity_pipeline_ids': ['V4', 'V8', 'V12', 'V16'],
         'windows': ['W1', 'W2', 'W3'], 'master_seeds': [42, 43, 44],
+        'seeds': 'master seeds of the full release (MATCH_MASTER_SEED)',
+        'requires': ['frozen embedding cache (level A per imputer, level B per balanced pipeline x seed)',
+                     'determinism pilot CQ/W1/V0/seed 42 x 2 and LO/W1/V0/seed 42 x 2 (check 37)',
+                     'cost pilot before the core is scheduled (check 37 (c))'],
         'requires_frozen_embedding_cache': True,
         'radius_smote_policy': 'excluded_from_core__sensitivity_only_due_to_registered_fallback_warning',
-        'interpretation': 'P1 primarily evaluates RevIN statistics/static branch; foundation-backbone benefit is not claimed at P1',
+        'export': 'separate folder, variant_role EXPLORATORY; never pooled into primary tables or hypothesis tests',
+        'replaces': 'MOMENT_SMALL (exploratory) and MOMENT_BASE (deferred), decision 37 of 2026-11-06',
     },
-    'F3_MOMENT_BASE': {'role': 'DEFERRED', 'scope': 'NOT_SCHEDULED_GD1'},
+    'F3_MOMENT_RETIRED': {'role': 'RETIRED', 'retired_on': '2026-11-06', 'decision': 37, 'replaced_by': 'F3_MANTIS_V2'},
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -387,16 +406,16 @@ ACCTEMPO_DEF = {'acctempo_def_version': 'acctempo_m3_v1.1', 'alpha': 0.6, 'beta'
                 'decision_status': 'LOCKED 2026-10-05; primary v1, v2 auxiliary sensitivity'}
 EXPERIMENT_SEEDS = {
     'master_seeds': [42, 43, 44],
-    'augmentation_policy': 'FIXED_SEED_42',
-    'rule': 'reuse the seed-42 S2 balanced TRAIN artifact across model master seeds 42, 43 and 44',
+    'augmentation_policy': 'MATCH_MASTER_SEED',
+    'rule': 'use the S2 balanced TRAIN artifact whose augmentation seed matches the model master seed; seed-42 artifacts remain valid for seed-42 runs',
     'role_seeds': {
         'seed_model / seed_dataloader': 'int(sha256("{master}|{role}|{task}|{window}|{pipeline_id}|{model_name}")[:8], 16) mod (2**31 - 1), independent per cell (modal_jobs/model_app._role_seed)',
-        'seed_sampler = seed_augmentation': '42 for balanced pipelines; None for pipelines without a balancer',
+        'seed_sampler = seed_augmentation': 'model master seed for balanced pipelines; None for pipelines without a balancer',
         'seed_preprocess': SEED_PREPROCESS,
         'supersedes': 'PLAN v1.6 §3.1 H(seed, role) = sha256("{seed}:{role}")[:4 bytes] and H(0, "preprocess"); never used by a materialized artifact',
     },
     'run_id_fields': 'seed, augmentation_seed and parent_augmentation_run_id are part of the hashed model run config',
-    'status': 'LOCKED 2026-10-05',
+    'status': 'LOCKED D-32 2026-11-04; supersedes fixed-seed-42 policy for new multi-seed runs',
 }
 REC_RULE = {'rec_rule_version': 'rec_v1.1', 'rec_objective': 'TEST_ACCTEMPO_M3_DELTA', 'rec_eps': 0.005,
             'secondary_objective': 'TEST_MACRO_F1_DELTA', 'utility_lambda_grid': [0, 0.01, 0.02, 0.05],
@@ -662,8 +681,8 @@ PENDING_DECISIONS.extend([
      'resolution': 'LO W2: log_loss + pr_auc_macro. When n_offerings_with_class<=2, also report offering-cluster bootstrap B=2000, CI=95%; applies to LO W1 TEST E and LO W3 TEST G'},
     {'id': 5, 'topic': 'AccTEMPO primary S_san+ version v1 vs v2', 'status': 'CLOSED 2026-10-05',
      'resolution': 'v1 is primary; v2/s_cal is reported only as a calibration sensitivity analysis. Every result table also publishes S_perf and all sanity components.'},
-    {'id': 9, 'topic': 'augmentation seed policy', 'status': 'CLOSED updated 2026-10-31',
-     'resolution': 'reuse augmentation seed 42 across model master seeds 42, 43 and 44; model seeds measure training variability.'},
+    {'id': 9, 'topic': 'augmentation seed policy', 'status': 'CLOSED updated 2026-11-04 D-32',
+     'resolution': 'match augmentation seed to model master seed for new multi-seed runs; seed-42 results remain unchanged.'},
     {'id': 10, 'topic': 'full F1 grid and legacy LO result eligibility', 'status': 'CLOSED 2026-10-05',
      'resolution': 'run the full registered architecture/pipeline/seed grid after L4 acceptance; the 51 pre-lineage LO cells remain quarantined and are ineligible for comparison, export, or meta-observation assembly.'},
     {'id': 11, 'topic': 'F2/F3 experiment scope', 'status': 'CLOSED 2026-10-12',

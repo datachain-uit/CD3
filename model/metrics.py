@@ -134,7 +134,9 @@ def stratified_bootstrap_per_class_ci(y_true: np.ndarray, y_pred: np.ndarray, la
 def calibration_metrics(y_true: np.ndarray, probabilities: np.ndarray, labels: np.ndarray,
                         bins: int = 15) -> dict:
     """Multiclass NLL, Brier score and top-label ECE, with stable semantics."""
-    clipped = np.clip(probabilities, 1e-7, 1.0 - 1e-7)
+    # METRIC_DEF v1.3: clip in float64 and renormalize; historical facts
+    # computed with the former 1e-7 threshold retain their original provenance.
+    clipped = np.clip(np.asarray(probabilities, dtype=np.float64), 1e-12, 1.0 - 1e-12)
     clipped /= clipped.sum(axis=1, keepdims=True)
     one_hot = np.eye(len(labels), dtype=np.float64)[y_true]
     confidence = clipped.max(axis=1)

@@ -34,10 +34,17 @@ ARCHITECTURE_METADATA = {
     # encoder then saw the constant mask embedding and ``reduction="mean"`` divided by zero -> NaN.
     "moment_small": {"model_family": "F3_TS_FOUNDATION", "model_revision": "moment_frozen_linear_probe_v2_1_phase_patch",
                      "input_encoding": "PHASE_AS_PATCH_REPEAT_v1_1", "revin_statistics_fusion": True,
-                     "constant_channel_guard": "zero_input_when_prefix_std_below_1e-6_relative"},
+                     "constant_channel_guard": "zero_input_when_prefix_std_below_1e-6_relative",
+                     "status": "RETIRED_2026-11-06 (decision 37)"},
     "moment_base": {"model_family": "F3_TS_FOUNDATION", "model_revision": "moment_frozen_linear_probe_v2_1_phase_patch",
                     "input_encoding": "PHASE_AS_PATCH_REPEAT_v1_1", "revin_statistics_fusion": True,
-                    "constant_channel_guard": "zero_input_when_prefix_std_below_1e-6_relative"},
+                    "constant_channel_guard": "zero_input_when_prefix_std_below_1e-6_relative",
+                    "status": "RETIRED_2026-11-06 (decision 37)"},
+    # F3 tier, exploratory (decision 37): frozen MantisV2 encoder, cached features, linear probe head (f3_mantis package).
+    "mantis_v2": {"model_family": "F3_TS_FOUNDATION", "model_revision": "mantisv2_frozen_linear_probe_v1_pca8_interp512",
+                  "input_encoding": "PCA8_PER_PHASE_THEN_LINEAR_RESIZE_512_v1",
+                  "constant_series_guard": "exact_zero_instance_norm_when_std_below_1e-6_relative",
+                  "frozen_backbone": True, "cached_features": True},
 }
 MAX_PHASES = 4
 # Relative tolerance below which a channel counts as constant over the prefix (float32 rounding of a

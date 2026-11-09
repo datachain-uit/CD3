@@ -225,7 +225,7 @@ def _require_prediction_context(frame, *, source: str) -> None:
               timeout=60 * 60 * 18)
 def train_temporal(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0",
                     model_name: str = "RNN", seed: int = 42, split_version: str = "",
-                    phase_version: str = "", augmentation_seed: int = 42,
+                    phase_version: str = "", augmentation_seed: int = -1,
                     release_id: str = "", accumulation_steps: int = 1) -> dict:
     """Train one shared-phase temporal checkpoint and test it at P1--P4.
 
@@ -256,6 +256,8 @@ def train_temporal(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0"
     if phase_version and phase_version != spec["phase_version"]:
         raise ValueError(f"phase_version is controlled by {spec['release_id']}; expected {spec['phase_version']!r}")
     volume.reload()
+    if augmentation_seed == -1:
+        augmentation_seed = seed
     if augmentation_seed < 0:
         raise ValueError("augmentation_seed must be non-negative")
     if accumulation_steps < 1 or MODEL["batch_size"] % accumulation_steps:
@@ -559,7 +561,7 @@ def train_temporal(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0"
 @app.local_entrypoint()
 def cli(task: str = "CQ", window: str = "W1", pipeline_id: str = "V0",
         model_name: str = "RNN", seed: int = 42, split_version: str = "", phase_version: str = "",
-        augmentation_seed: int = 42, release_id: str = "", accumulation_steps: int = 1) -> None:
+        augmentation_seed: int = -1, release_id: str = "", accumulation_steps: int = 1) -> None:
     print(json.dumps(train_temporal.remote(
         task, window, pipeline_id, model_name, seed, split_version, phase_version, augmentation_seed, release_id,
         accumulation_steps,

@@ -38,7 +38,7 @@ def test_closed_decisions_have_unique_ids_and_seed_contract_is_locked():
     ids = [item["id"] for item in registries.PENDING_DECISIONS]
     assert len(ids) == len(set(ids))
     assert all(str(item.get("status", "")).startswith("CLOSED") for item in registries.PENDING_DECISIONS)
-    assert registries.EXPERIMENT_SEEDS["augmentation_policy"] == "FIXED_SEED_42"
+    assert registries.EXPERIMENT_SEEDS["augmentation_policy"] == "MATCH_MASTER_SEED"
     assert registries.EXPERIMENT_SEEDS["role_seeds"]["seed_preprocess"] == 20260922
 
 
@@ -57,6 +57,9 @@ def test_model_registry_rows_match_architecture_metadata():
     for architecture, metadata in ARCHITECTURE_METADATA.items():
         if architecture in {"rnn", "lstm", "gru", "bilstm"}:
             continue
+        if str(metadata.get("status", "")).startswith("RETIRED"):
+            assert architecture.upper() not in by_name, architecture   # retired rows live in RETIRED_MODEL_ROWS only
+            continue
         row = by_name[architecture.upper()]
         assert row["model_revision"] == metadata["model_revision"], architecture
         for key in ("input_encoding", "revin_statistics_fusion", "channel_mixing", "channel_aggregation", "attention_backend", "constant_channel_guard"):
@@ -66,17 +69,45 @@ def test_model_registry_rows_match_architecture_metadata():
             assert "RIGHT_ZERO" not in str(row.get("prefix_padding", "")), architecture
 
 
-def test_moment_exploratory_core_excludes_radius_and_keeps_sasmote():
-    policy = registries.TEMPORAL_FAMILY_POLICY["F3_MOMENT_SMALL"]
-    assert policy["role"] == "DEFERRED"
-    assert policy["scope"] == "AFTER_F2_COMPLETE"
+def test_mantis_exploratory_core_excludes_radius_and_keeps_sasmote():
+    policy = registries.TEMPORAL_FAMILY_POLICY["F3_MANTIS_V2"]
+    assert policy["role"] == "EXPLORATORY"
+    assert policy["scope"].startswith("AFTER_F2_COMPLETE")
     assert registries.TEMPORAL_FAMILY_POLICY["determinism_pilot"]["families"] == ["PATCHTST"]
+    assert registries.TEMPORAL_FAMILY_POLICY["F3_MOMENT_RETIRED"]["replaced_by"] == "F3_MANTIS_V2"
     core = set(policy["pipelines"])
     sensitivity = set(policy["sensitivity_pipeline_ids"])
     assert len(core) == 13
     assert {"V3", "V7", "V11", "V15"}.issubset(core)
     assert {"V4", "V8", "V12", "V16"}.isdisjoint(core)
     assert sensitivity == {"V4", "V8", "V12", "V16"}
+
+
+def test_mantis_registry_row_equals_the_f3_mantis_spec_and_moment_rows_are_retired():
+    import importlib.util
+    spec_path = ROOT / "f3_mantis" / "spec.py"     # loaded by path: the package __init__ needs torch and mantis
+    module = importlib.util.spec_from_file_location("f3_mantis_spec_standalone", spec_path)
+    spec_module = importlib.util.module_from_spec(module)
+    module.loader.exec_module(spec_module)
+    spec = spec_module.MANTIS_V2_SPEC
+    row = next(row for row in registries.MODEL_REGISTRY if row["model_name"] == "MANTIS_V2")
+    for key in ("model_tier", "model_family", "variant_role", "is_pretrained", "finetune_mode", "pretrained_repo",
+                "pretrained_revision", "return_transf_layer", "output_token", "input_encoding", "interp_len",
+                "model_revision", "max_seq_len", "patch_len", "patch_stride", "param_count_backbone_total",
+                "param_count_backbone_used"):
+        assert row[key] == spec[key], key
+    assert row["library_revision"] == spec["library"]
+    assert row["hparam_config_id"] == spec["hparam_config_id"]
+    assert row["channel_adapter"]["n_components"] == spec["channel_adapter"]["n_components"]
+    training = spec["training"]
+    for key_row, key_spec in (("lr", "lr"), ("batch_size", "batch_size"), ("max_epochs", "max_epochs"),
+                              ("early_stopping_patience", "early_stopping_patience"), ("loss_name", "loss_name"),
+                              ("class_weighting", "class_weighting"), ("selection_metric", "selection_metric"),
+                              ("selection_tiebreak", "selection_tiebreak")):
+        assert row[key_row] == training[key_spec], key_row
+    names = {item["model_name"] for item in registries.MODEL_REGISTRY}
+    assert not names & {"MOMENT_SMALL", "MOMENT_BASE"}
+    assert {item["model_name"] for item in registries.RETIRED_MODEL_ROWS} == {"MOMENT_SMALL", "MOMENT_BASE"}
 
 
 def test_portable_vastai_release_vocabulary_equals_release_specs():

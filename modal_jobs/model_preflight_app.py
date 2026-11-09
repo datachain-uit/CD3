@@ -174,8 +174,12 @@ def model_status(task: str = "LO", model_name: str = "RNN", seed: int = 42, rele
 
 @app.local_entrypoint()
 def cli(task: str = "LO", mode: str = "inputs", model_name: str = "RNN", seed: int = 42,
-        augmentation_seed: int = 42, release_id: str = "") -> None:
+        augmentation_seed: int = -1, release_id: str = "") -> None:
     if mode == "inputs":
+        if augmentation_seed == -1:
+            augmentation_seed = seed
+        if augmentation_seed < 0:
+            raise ValueError("augmentation_seed must be non-negative or omitted")
         value = preflight.remote(task, augmentation_seed, release_id)
     elif mode == "models":
         value = model_status.remote(task, model_name, seed, release_id)

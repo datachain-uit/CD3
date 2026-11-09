@@ -13,6 +13,7 @@ changing the leakage diagnostic merely by adding synthetic TRAIN rows.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import sys
@@ -61,6 +62,8 @@ def _parse() -> argparse.Namespace:
     parser.add_argument("--bootstrap-repetitions", type=int, default=2000)
     parser.add_argument("--allow-partial", action="store_true",
                         help="For smoke tests only; official exports require all 51 cells.")
+    parser.add_argument("--include-static-ablation", action="store_true",
+                        help="Audit explicitly marked LO no-static ablations without a primary-grid contract.")
     return parser.parse_args()
 
 
@@ -124,10 +127,28 @@ def _selected_runs(args: argparse.Namespace, release: dict) -> dict[tuple[str, s
             path = _run_dir(args.run_root, args.task, window, pipeline, args.model_name, args.seed)
             manifest_path = path / "run_manifest.json"
             contract_path = path / "metadata_contract.json"
-            if not manifest_path.is_file() or not contract_path.is_file():
+            if not manifest_path.is_file():
                 continue
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            contract = json.loads(contract_path.read_text(encoding="utf-8"))
+            if contract_path.is_file():
+                contract = json.loads(contract_path.read_text(encoding="utf-8"))
+            elif args.include_static_ablation:
+                if (args.task != "LO" or manifest.get("run_purpose") != "EXPLORATORY_STATIC_ABLATION"
+                        or manifest.get("static_ablation") != "no_static"):
+                    raise ValueError(f"Not a declared LO no-static ablation: {path}")
+                layout = _read_layout(path)
+                if layout.get("static_columns") or layout.get("mask_static_columns"):
+                    raise ValueError(f"Ablation still contains static columns: {path}")
+                if not manifest.get("reference_layout_sha256"):
+                    raise ValueError(f"Missing reference layout digest: {path}")
+                source_hash = 'sha256:' + hashlib.sha256((args.data_root / 'download_manifest.json').read_bytes()).hexdigest()
+                if manifest.get("input_download_manifest_sha256") != source_hash:
+                    raise ValueError(f"Input manifest digest mismatch: {path}")
+                if manifest.get("data_release_id") != release.get("data_release_id"):
+                    raise ValueError(f"Data release identity mismatch: {path}")
+                contract = {"release": {"release_id": manifest.get("release_id")}}
+            else:
+                continue
             if manifest.get("task") != args.task or manifest.get("window_id") != window or manifest.get("pipeline_id") != pipeline:
                 raise ValueError(f"Run identity mismatch: {path}")
             if contract.get("release", {}).get("release_id") != release["release_id"]:
