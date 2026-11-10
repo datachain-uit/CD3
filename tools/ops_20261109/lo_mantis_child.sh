@@ -7,6 +7,7 @@
 #   /workspace/CD3/lo_mantis_children/train/<W>/<V>/balanced_train.parquet, /workspace/CD3/mantis_lo_<PARENT>_20261109/cache (parent cache)
 set -Eeuo pipefail
 BASE=/workspace/CD3
+if test -e "$BASE/skip_${V}_${WINDOWS// /}"; then echo "SKIPPED_ELSEWHERE $V ${WINDOWS}"; exit 0; fi
 WORK="$BASE/mantis_lo_${V}_20261109"
 DATA="$WORK/data"
 STATE="$WORK/state"
