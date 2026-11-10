@@ -1,4 +1,4 @@
-"""S0 profile v4 (M-13a): v3 without tr_inactive_learner_ratio (Q-28, author decision 2026-11-09).
+"""S0 profile v4 (M-13a): v3 without tr_inactive_learner_ratio (Q-28 (c), writing-side recommendation, applied 2026-11-09, author ratification pending).
 
 The column's candidate definition ("no event before the phase cutoff") equals tr_zero_activity_ratio already in the profile, and every
 inactivity share is 0.96-0.99 because 97-99 % of enrollments have no event; it carried no information, so it leaves the minimum set.
