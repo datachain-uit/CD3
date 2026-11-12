@@ -47,7 +47,7 @@ def test_probe_parameters_are_the_registered_ones():
 
 def test_environment_record_names_the_libraries():
     env = probe_environment()
-    assert {"python", "numpy", "scipy", "scikit_learn", "threadpools"} <= set(env)
+    assert {"python", "numpy", "scipy", "scikit_learn", "platform"} <= set(env)
 
 
 def _canonical(values):

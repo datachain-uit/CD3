@@ -137,15 +137,13 @@ PROBE_CONFIG = {"estimator": "sklearn.linear_model.LogisticRegression", "solver"
 
 
 def probe_environment() -> dict[str, Any]:
-    """Library versions and BLAS/OpenMP pools of the current process (the probe is a numerical optimiser: its result
+    """Library versions and platform of the current process (the probe is a numerical optimiser: its result
     depends on them, so every audit records them)."""
     import platform
     import scipy
     import sklearn
-    from threadpoolctl import threadpool_info
     return {"python": platform.python_version(), "numpy": np.__version__, "scipy": scipy.__version__,
-            "scikit_learn": sklearn.__version__,
-            "threadpools": [{k: pool.get(k) for k in ("user_api", "internal_api", "num_threads", "version")} for pool in threadpool_info()]}
+            "scikit_learn": sklearn.__version__, "platform": platform.platform()}
 
 
 def fit_missingness_probe(train_x: np.ndarray, train_y: np.ndarray, *, seed: int = 42, deterministic: bool = False):
