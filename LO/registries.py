@@ -43,7 +43,7 @@ try:
 except ImportError:  # Supports ``python LO/registries.py`` as documented.
     from seeds import sha256_of, SEED_PREPROCESS
 
-REGISTRY_REVISION = 'registries_rev_2026-11-08_d32_mantis_local'
+REGISTRY_REVISION = 'registries_rev_2026-11-10_d18_mantis_clean'
 
 # ---------------------------------------------------------------------------------------------
 # Pipeline registry V0–V16 (PLAN Table 7 / Table 14)

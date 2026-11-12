@@ -20,7 +20,7 @@ import pandas as pd
 
 ap = argparse.ArgumentParser()
 ap.add_argument('--source-hashes', type=Path, required=True, help='TSV: drive path, bytes, sha256, md5')
-ap.add_argument('--host-hashes', type=Path, required=True, help='sha256 (LF-normalised) and relative path of the files of lo_patchtst_seed42_code')
+ap.add_argument('--host-hashes', type=Path, required=True, nargs='+', help='one file per host: sha256 (LF-normalised) and relative path of the files of lo_patchtst_seed42_code; the first file is the reference for the commit match')
 args = ap.parse_args()
 LO = Path('LO/resuilt/lo_patchtst_v0_v16_full_facts_20261109_r2')
 MT = Path('CQ/resuilt/cq_mantis_v2_v0_v16_full_facts_20261109_r2')
@@ -45,10 +45,19 @@ def write_sums(d):
 
 
 # ---- LO PatchTST: tree match of the host code directory against the repository history
-host = {}
-for line in args.host_hashes.read_text(encoding='utf-8').splitlines():
-    h, p = line.strip().split(' ', 1)
-    host[p[2:] if p.startswith('./') else p] = h
+def read_host(path):
+    out = {}
+    for line in path.read_text(encoding='utf-8').splitlines():
+        if line.strip():
+            h, p = line.strip().split(' ', 1)
+            out[(p.strip()[2:] if p.strip().startswith('./') else p.strip())] = h
+    return out
+
+
+host_maps = [read_host(p) for p in args.host_hashes]
+host = host_maps[0]
+common = set.intersection(*(set(m) for m in host_maps))
+n_identical_hosts = sum(1 for m in host_maps if {p: m[p] for p in common} == {p: host_maps[0][p] for p in common})
 matches = []
 for entry in git('log', '--since=2026-10-10', '--format=%H %ad', '--date=short').stdout.decode().splitlines():
     c = entry.split()[0]
@@ -67,9 +76,9 @@ if not matches:
     raise SystemExit('no repository commit matches the host code directory')
 lo_commit = matches[-1]['commit']          # git log is newest first: the last element is the earliest matching commit
 lo_evidence = {'basis': 'CODE_DIR_TREE_MATCH', 'runner': 'tools/vastai_train_shared.py', 'host_code_dir': 'lo_patchtst_seed42_code',
-               'files_compared': len(host), 'line_endings': 'CRLF/LF normalised', 'hosts_with_identical_37_file_set': 12,
+               'files_compared': len(host), 'line_endings': 'CRLF/LF normalised', 'hosts_compared': len(host_maps), 'files_present_on_every_host': len(common), 'hosts_with_identical_common_file_set': n_identical_hosts,
                'earliest_matching_commit': lo_commit, 'all_matching_commits': matches,
-               'note': 'file check_gpu.py exists in the code dir of one host and not in the repository; the other files are equal. The commit mapping is retroactive.'}
+               'note': 'files that exist in the code dir of some hosts only (for example check_gpu.py) are not part of the common set and are not in the repository; the other files are equal. The commit mapping is retroactive.'}
 lo = pd.read_parquet(LO / 'resource_per_run.parquet')
 lo['runner_git_commit'] = lo_commit
 lo['runner_git_commit_basis'] = 'CODE_DIR_TREE_MATCH_RETROACTIVE'
@@ -92,7 +101,14 @@ mt_evidence = {'basis': 'RUNNER_BLOB_SHA256_MATCH', 'runner': runner, 'runner_sh
                'code_tar': 'mantis_grid_code_20261108.tar', 'code_tar_sha256': code_tar_sha,
                'code_tar_note': 'the launch scripts of the child cells check this sha256 before running; the standardised manifests carry runner_sha256 and code_tar_sha256',
                'tar_model_files_equal_commit': '5872cac (model/architectures.py, model/config.py, model/metrics.py; later commits changed them)',
-               'v0_cells': 'run by the earlier single-pipeline script; runner hash not recorded -> runner_git_commit NULL',
+               'v0_cells': {'runner_git_commit': None,
+                            'decision': 'left NULL (writing-side recommendation Q-32 (a), applied 2026-11-10, author ratification pending): the runner hash was not recorded and no copy used for the runs exists',
+                            'runner': 'tools/run_mantis_v0_cq_zstd_20261107.py (started by tools/mantis_v0_cq_full_20261107.sh), not the grid runner',
+                            'indirect_evidence_not_a_hash_match': {
+                                'git_versions_of_the_runner_file': 1, 'only_commit': '6a69b7f (made after the runs)',
+                                'file_last_modified': '2026-11-07 09:18 (UTC+7), before the first V0 cell finished',
+                                'v0_cells_completed': {'W1': '2026-11-08 02:44', 'W2': '2026-11-08 05:45', 'W3': '2026-11-08 11:15'},
+                                'code_tar_of_the_runs': 'mantis_v0_code_20261107.tar.gz does not contain the runner file; no host keeps a copy'}},
                'note': 'the commit was made after the runs (blob identity, retroactive)'}
 mt = pd.read_parquet(MT / 'resource_per_run.parquet')
 is_v0 = mt.pipeline_id == 'V0'
