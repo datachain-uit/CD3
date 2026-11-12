@@ -25,6 +25,8 @@ A, B = json.loads(args.a.read_text()), json.loads(args.b.read_text())
 
 def cls(path):
     n = path.rsplit('/', 1)[-1]
+    if n == 'manifest.json' and '/split=' in path:
+        return None  # cache manifests carry created_at_utc (creation time): not part of the determinism claim
     if n.startswith('channel_adapter'):
         return 'adapter'
     if '/split=REAL_TRAIN/' in path or '/split=VALIDATION/' in path or '/split=TEST/' in path:
@@ -51,7 +53,7 @@ for p in sorted(set(A) | set(B)):
         g['identical'] += 1
     else:
         g['differing'].append(p)
-out = {'task': args.task, 'cell': f'{args.task}/W1/V0/seed42', 'groups': {k: {kk: (vv if not isinstance(vv, list) else vv[:6]) for kk, vv in v.items()} for k, v in groups.items()}}
+out = {'excluded_from_claim': ['cache split manifest.json (created_at_utc)', 'timing and metadata files'], 'task': args.task, 'cell': f'{args.task}/W1/V0/seed42', 'groups': {k: {kk: (vv if not isinstance(vv, list) else vv[:6]) for kk, vv in v.items()} for k, v in groups.items()}}
 for name, pa, pb in (('env', args.env_a, args.env_b), ('cell_record', args.cell_a, args.cell_b)):
     if pa and pb:
         ta, tb = pa.read_text().strip(), pb.read_text().strip()
