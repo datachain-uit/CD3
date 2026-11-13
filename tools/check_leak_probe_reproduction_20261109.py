@@ -59,7 +59,7 @@ def run(label, deterministic):
     else:
         ME.fit_missingness_probe = real_fit
     t = time.time()
-    frame = A._canonical_s_leak(args, selected)
+    frame = A._canonical_s_leak(args, selected, deterministic=deterministic)
     ME.fit_missingness_probe = real_fit
     ref_cols = [c for c in ('window_id', 'eval_split', 'phase_id', 's_leak', 's_leak_probe_auc') if c in reference.columns]
     merged = frame.merge(reference[ref_cols], on=['window_id', 'eval_split', 'phase_id'], suffixes=('', '_reference'))
@@ -67,7 +67,8 @@ def run(label, deterministic):
     out = {'label': label, 'seconds': round(time.time() - t, 1), 'cells': len(frame), 'probe_fit_rows': int(frame.probe_fit_rows.iloc[0]),
            'probe_n_iter': int(frame.probe_n_iter.iloc[0]) if 'probe_n_iter' in frame else None,
            'max_abs_diff_vs_reference': float(diff.max()), 'mean_abs_diff_vs_reference': float(diff.mean()),
-           'within_1e-9': bool((diff <= 1e-9).all())}
+           'within_1e-9': bool((diff <= 1e-9).all()), 'within_1e-3': bool((diff <= 1e-3).all()),  # Q-31 (a), 2026-11-13: probe reproduction tolerance (check 41) is 1e-3
+           'probe_mode': str(frame.probe_mode.iloc[0]) if 'probe_mode' in frame else None, 'probe_threads': (int(frame.probe_threads.iloc[0]) if 'probe_threads' in frame and frame.probe_threads.iloc[0] is not None else None)}
     print(json.dumps(out), flush=True)
     return frame, out
 
