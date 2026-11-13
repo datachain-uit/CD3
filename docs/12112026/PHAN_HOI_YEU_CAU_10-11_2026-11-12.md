@@ -34,3 +34,7 @@
 
 - **Đủ điều kiện:** 6 gói (hai gói PatchTST CQ, hai release, M-18, M-15 p1). Với hai gói PatchTST CQ, `runner_git_commit` (29da3b2) do runner ghi vào manifest lúc chạy: đã mở đối chiếu 9 manifest của ba bundle gốc (V1, V7, V10).
 - **Có ngoại lệ, chờ tác giả quyết định:** 3 gói (Mantis CQ r3, Mantis LO, PatchTST LO r2) có `runner_git_commit` ánh xạ hồi tố từ nội dung runner, không ghi lúc chạy như mục 6.1 đòi. Manifest Mantis ghi lúc chạy `runner_sha256` và `code_tar_sha256` (nhận diện theo nội dung); PatchTST LO chỉ khớp theo cây mã trên 12 máy. Các lượt chạy đã xong, nên khắc phục thật sự là chạy lại cả lưới seed 42. Ba cell V0 của Mantis CQ để NULL theo Q-32 (a).
+
+### Đề xuất cho tác giả về `runner_git_commit` hồi tố
+
+Ba gói có ngoại lệ không sửa được bằng cách làm thêm trên dữ liệu đã chạy: lúc chạy runner không ghi commit. Đội code đề xuất để tác giả cân nhắc: chấp nhận `runner_git_commit_basis = *_RETROACTIVE` làm cơ sở ingest khi có nhận diện nội dung đi kèm (Mantis: `runner_sha256` và `code_tar_sha256` ghi trong manifest lúc chạy; PatchTST LO: khớp cây mã trên 12 máy), và ghi nhãn cơ sở trong manifest. Nếu tác giả đồng ý, ba ngoại lệ chuyển thành đạt kèm nhãn; nếu không, cách khắc phục duy nhất là chạy lại lưới seed 42 của ba gói. Trong lúc chờ quyết định, trạng thái giữ là `L2_INGEST_WITH_EXCEPTIONS`.
