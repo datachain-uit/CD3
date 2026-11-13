@@ -26,6 +26,8 @@ PACKAGES = [
     ('meta_release_CQ_LO_p1_F2V0V16_20261112', 'CQ/resuilt', 'cross_task_meta/accepted', 'release'),
     ('meta_release_CQ_LO_full42_F1F2F3_20261112', 'CQ/resuilt', 'cross_task_meta/accepted', 'release'),
     ('m18_training_history_seed42_20261111', 'CQ/resuilt', 'cross_task_meta/accepted', 'other'),
+    ('mm_runs_CQ_LO_p1_20261113', 'CQ/resuilt', 'cross_task_meta/accepted', 'other'),
+    ('mm_runs_CQ_LO_full42_20261113', 'CQ/resuilt', 'cross_task_meta/accepted', 'other'),
 ]
 
 

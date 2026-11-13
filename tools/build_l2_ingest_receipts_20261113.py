@@ -31,6 +31,7 @@ PACKAGES = [
     ('meta_release_CQ_LO_full42_F1F2F3_20261112', None, 'cross_task_meta/accepted', 'release', 'CQ/resuilt'),
     ('m18_training_history_seed42_20261111', None, 'cross_task_meta/accepted', 'other', 'CQ/resuilt'),
     ('mm_runs_CQ_LO_p1_20261113', None, 'cross_task_meta/accepted', 'mm_runs', 'CQ/resuilt'),
+    ('mm_runs_CQ_LO_full42_20261113', None, 'cross_task_meta/accepted', 'mm_runs', 'CQ/resuilt'),
 ]
 RUNTIME_MANIFEST_EVIDENCE = {name: ('verified on the original run manifests: the runner wrote runner_git_commit = 29da3b252dde9ed96f42f7bda7f886b11ae1efa1 into each run_manifest.json at run time '
                                     '(checked on 9 manifests of the bundles V1, V7 and V10 of the Drive copy, created 2026-10-31 to 2026-11-06; the other manifests were not opened, the package value is one commit for all runs)')
