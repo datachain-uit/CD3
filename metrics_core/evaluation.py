@@ -142,8 +142,28 @@ def probe_environment() -> dict[str, Any]:
     import platform
     import scipy
     import sklearn
-    return {"python": platform.python_version(), "numpy": np.__version__, "scipy": scipy.__version__,
-            "scikit_learn": sklearn.__version__, "platform": platform.platform()}
+    env = {"python": platform.python_version(), "numpy": np.__version__, "scipy": scipy.__version__,
+           "scikit_learn": sklearn.__version__, "platform": platform.platform()}
+    try:
+        from threadpoolctl import threadpool_info
+        env["threadpools"] = [{"user_api": item.get("user_api"), "internal_api": item.get("internal_api"), "num_threads": item.get("num_threads"),
+                               "version": item.get("version")} for item in threadpool_info()]
+    except Exception:  # threadpoolctl is optional for this record
+        env["threadpools"] = None
+    return env
+
+
+def probe_mode_record(deterministic: bool) -> dict[str, Any]:
+    """Thread mode of the missingness probe (2026-11-13 request 1.2): the mode decides the last digits of s_leak (up to 9.6e-4 on LO W2),
+    so every audit manifest states it together with the number of BLAS/OpenMP threads the fit could use."""
+    if deterministic:
+        return {"probe_mode": "deterministic_single_thread", "probe_threads": 1}
+    try:
+        from threadpoolctl import threadpool_info
+        threads = max((int(item.get("num_threads") or 1) for item in threadpool_info()), default=1)
+    except Exception:
+        threads = None
+    return {"probe_mode": "default_multithread", "probe_threads": threads}
 
 
 def fit_missingness_probe(train_x: np.ndarray, train_y: np.ndarray, *, seed: int = 42, deterministic: bool = False):

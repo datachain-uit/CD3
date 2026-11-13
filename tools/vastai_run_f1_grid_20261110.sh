@@ -3,7 +3,9 @@
 # Generalised from tools/vastai_run_lo_static_v2_grid.sh (task and seed are parameters; the training flags are those of that script).
 #   TASK=CQ|LO SEED=43 ROOT=<repo checkout> DATA_ROOT=<seed data root> OUTPUT_ROOT=<run root> SALT_FILE=<private salt> FAMILIES="RNN LSTM GRU BILSTM" bash tools/vastai_run_f1_grid_20261110.sh
 # Parents (V0 V1 V5 V9 V13) are trained first, then the balanced children, which wait for $DATA_ROOT/READY_CHILDREN.
-# The audit (bootstrap 2000, deterministic probe, --s-leak-reference) is run per family at the end of the family.
+# The audit (bootstrap 2000, --s-leak-reference) is run per family at the end of the family. Request 2026-11-13 items 1.1/1.2: the audit copies
+# the reference s_leak into canonical_s_leak (S_LEAK_SOURCE=copy-reference, default; the refit probe value is kept as a diagnostic) or, with
+# S_LEAK_SOURCE=check, requires the refit within S_LEAK_TOLERANCE; PROBE_MODE records the probe thread mode (deterministic_single_thread|default_multithread).
 set -uo pipefail
 
 TASK="${TASK:?TASK=CQ|LO}"
@@ -14,9 +16,15 @@ OUTPUT_ROOT="${OUTPUT_ROOT:?OUTPUT_ROOT}"
 SALT_FILE="${SALT_FILE:?SALT_FILE}"
 FAMILIES="${FAMILIES:-RNN LSTM GRU BILSTM}"
 S_LEAK_REFERENCE="${S_LEAK_REFERENCE:-}"
+S_LEAK_SOURCE="${S_LEAK_SOURCE:-copy-reference}"
+S_LEAK_TOLERANCE="${S_LEAK_TOLERANCE:-1e-9}"
+PROBE_MODE="${PROBE_MODE:-deterministic_single_thread}"
 MIN_FREE_GB="${MIN_FREE_GB:-4}"
 LAYOUT_POLICY="${LAYOUT_POLICY:-current}"
+SKIP_LIST="${SKIP_LIST:-}"   # optional file with lines "<window> <pipeline> <family>" of cells already finished elsewhere (e.g. moved to Drive and deleted)
 
+# the audit at the end of each family stops without a reference table: fail now, before hours of training
+test -s "${S_LEAK_REFERENCE:-/nonexistent}" || { echo "S_LEAK_REFERENCE must name the s_leak reference table (s_leak_reference_<TASK>.csv); the audit cannot run without it" >&2; exit 2; }
 test -s "$SALT_FILE" || { echo "Missing private prediction salt: $SALT_FILE" >&2; exit 2; }
 test -s "$DATA_ROOT/download_manifest.json" || { echo "Missing input manifest: $DATA_ROOT/download_manifest.json" >&2; exit 2; }
 cd "$ROOT"
@@ -36,6 +44,7 @@ for family in $FAMILIES; do
         if test -f "$run_dir/run_manifest.json" && test -f "$run_dir/metadata_contract.json"; then
           echo "[$(date -Is)] SKIP $TASK/$window/$pipeline/$family/seed$SEED"; continue
         fi
+        if [ -n "$SKIP_LIST" ] && grep -qx "$window $pipeline $family" "$SKIP_LIST"; then continue; fi
         free_gb=$(df -Pk "$ROOT" | awk 'NR==2 {print int($4 / 1024 / 1024)}')
         if [ "$free_gb" -lt "$MIN_FREE_GB" ]; then echo "[$(date -Is)] STOP free=${free_gb}GB below guard=${MIN_FREE_GB}GB" >&2; exit 75; fi
         echo "[$(date -Is)] START $TASK/$window/$pipeline/$family/seed$SEED"
@@ -50,8 +59,7 @@ for family in $FAMILIES; do
     done
   done
   echo "[$(date -Is)] AUDIT $TASK/$family seed$SEED"
-  ref_args=()
-  if [ -n "$S_LEAK_REFERENCE" ]; then ref_args=(--s-leak-reference "$S_LEAK_REFERENCE"); fi
+  ref_args=(--s-leak-reference "$S_LEAK_REFERENCE" --s-leak-source "$S_LEAK_SOURCE" --s-leak-tolerance "$S_LEAK_TOLERANCE" --probe-mode "$PROBE_MODE")
   python -u tools/vastai_audit_shared.py --task "$TASK" --data-root "$DATA_ROOT" --run-root "$OUTPUT_ROOT" --audit-root "$OUTPUT_ROOT/audits" \
     --model-name "$family" --seed "$SEED" --bootstrap-repetitions 2000 "${ref_args[@]}" \
     > "$OUTPUT_ROOT/logs/audit_${family}.log" 2>&1 && echo "[$(date -Is)] AUDIT_DONE $family" || echo "[$(date -Is)] AUDIT_FAILED $family"

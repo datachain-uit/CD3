@@ -40,6 +40,9 @@ RETRO_NOTE = {
     'lo_mantis_v2_v0_v16_full_facts_20261110': 'Run-time record in the manifests: runner_sha256 and code_tar_sha256 (content identity); the commit is mapped from the runner blob (identical after LF normalisation).',
     'lo_patchtst_v0_v16_full_facts_20261109_r2': 'The run manifests carry no commit; the code directory of the hosts equals the repository tree of the mapped commit (38 files compared, 12 hosts with the identical file set). Closing it needs a re-run of the grid.',
 }
+AUTHOR_DECISION_Q32 = ('cq_mantis_v2_v0_v16_full_facts_20261109_r3', 'lo_mantis_v2_v0_v16_full_facts_20261110', 'lo_patchtst_v0_v16_full_facts_20261109_r2')
+Q32_TEXT = ('accepted by the author on 2026-11-13 (decision Q-32 (a)): basis *_RETROACTIVE is accepted with its label for the Mantis CQ r3, Mantis LO and PatchTST LO r2 packages; '
+            'the three Mantis V0 cells of the CQ package stay NULL; new F1/F2 runs write the commit at run time')
 CONFIGS = ('main_cal_time', 'sens_v1', 'sens_energy', 'sens_conservative', 'obj_perf', 'obj_macrof1')
 
 
@@ -82,6 +85,9 @@ for name, task, dbase, kind, base in PACKAGES:
     checks = []
 
     def add(cid, ok, detail, exception=False):
+        if not ok and exception and name in AUTHOR_DECISION_Q32 and cid in ('runner_git_commit_filled', 'runner_git_commit_written_at_run_time'):
+            checks.append({'check': cid, 'result': 'ACCEPTED_BY_AUTHOR', 'detail': detail + ' | ' + Q32_TEXT})
+            return
         checks.append({'check': cid, 'result': 'PASS' if ok else ('EXCEPTION' if exception else 'FAIL'), 'detail': detail})
 
     add('single_location_on_drive', locations == [drive], f'locations: {locations}')
@@ -132,10 +138,17 @@ for name, task, dbase, kind, base in PACKAGES:
         add('six_configurations_complete', all((local / c / 'mm_hypotheses.parquet').exists() for c in CONFIGS), '19 files per configuration')
         add('run_log_present', (local / 'RUN_LOG.md').exists() and (local / 'pip_freeze.txt').exists(), 'RUN_LOG.md, pip_freeze.txt')
     results = [c['result'] for c in checks]
-    status = 'L2_INGEST_CONDITIONS_MET' if all(r == 'PASS' for r in results) else ('L2_INGEST_WITH_EXCEPTIONS' if 'FAIL' not in results else 'L2_INGEST_BLOCKED')
+    if all(r == 'PASS' for r in results):
+        status = 'L2_INGEST_CONDITIONS_MET'
+    elif 'FAIL' in results:
+        status = 'L2_INGEST_BLOCKED'
+    elif 'EXCEPTION' in results:
+        status = 'L2_INGEST_WITH_EXCEPTIONS'
+    else:
+        status = 'L2_INGEST_CONDITIONS_MET_WITH_LABEL'
     rec = {'receipt_type': 'L2_INGEST_RECEIPT_CODE_TEAM', 'status': status, 'package': name, 'drive_path': drive, 'created_utc': datetime.now(timezone.utc).isoformat(),
            'note': 'Issued by the code team after checking the Drive copy against the repository copy and the objectively checkable ingest conditions of the 10/11 request. '
-                   'EXCEPTION entries are conditions that the package does not meet as written; whether they block ingest is a decision of the author.',
+                   'EXCEPTION entries are conditions that the package does not meet as written; whether they block ingest is a decision of the author. ACCEPTED_BY_AUTHOR entries cite the signed decision.',
            'checks': checks}
     (args.out / f'l2_ingest_receipt_{name}.json').write_text(json.dumps(rec, indent=1, default=str) + '\n', encoding='utf-8')
     exc = [c['check'] for c in checks if c['result'] == 'EXCEPTION']
