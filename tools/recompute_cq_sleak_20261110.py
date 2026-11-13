@@ -1,4 +1,4 @@
-"""Q-31 (a) (writing-side recommendation, applied 2026-11-10, ratification pending): copy s_leak from the registered reference table into a facts package and
+"""Q-31 (a) (writing-side recommendation, applied 2026-11-10, ratified by the author on 2026-11-13): copy s_leak from the registered reference table into a facts package and
 recompute the leak-dependent columns (generalised from the LO r2 tool of 2026-11-09).
 
 s_leak is a property of (task, window, split, phase): the F1 export holds ONE value per (window, split, phase) for all 68

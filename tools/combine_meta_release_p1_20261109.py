@@ -83,7 +83,7 @@ manifest = {
     'phase': 1, 'planned_seeds': [42], 'synthetic': False,
     'n_rows_seed_level': int(len(sl)), 'n_rows_seed_agg': int(len(ag)),
     'rows_by_task': sl.task.value_counts().to_dict(),
-    'f2_scope': 'CQ PatchTST V0-V16 (Q-30 (b), writing-side recommendation, applied 2026-11-09, author ratification pending)',
+    'f2_scope': 'CQ PatchTST V0-V16 (Q-30 (b), writing-side recommendation, applied 2026-11-09, ratified by the author on 2026-11-13)',
     'lo_f0': 'NOT_AVAILABLE_PHASE1', 's0_profile': 'v4 (tr_inactive_learner_ratio removed, Q-28)',
     'excluded_by_design': ['lo_patchtst_v0_v16_full_facts_20261109 (MIXED_LEAK_PROBE, Q-27)', 'CQ MANTIS_V2 (EXPLORATORY)'],
     'registry': 'tempo_fix/examples/registries_v1.6 (registries_rev_2026-11-09)',

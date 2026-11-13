@@ -102,7 +102,7 @@ mt_evidence = {'basis': 'RUNNER_BLOB_SHA256_MATCH', 'runner': runner, 'runner_sh
                'code_tar_note': 'the launch scripts of the child cells check this sha256 before running; the standardised manifests carry runner_sha256 and code_tar_sha256',
                'tar_model_files_equal_commit': '5872cac (model/architectures.py, model/config.py, model/metrics.py; later commits changed them)',
                'v0_cells': {'runner_git_commit': None,
-                            'decision': 'left NULL (writing-side recommendation Q-32 (a), applied 2026-11-10, author ratification pending): the runner hash was not recorded and no copy used for the runs exists',
+                            'decision': 'left NULL (writing-side recommendation Q-32 (a), applied 2026-11-10, ratified by the author on 2026-11-13): the runner hash was not recorded and no copy used for the runs exists',
                             'runner': 'tools/run_mantis_v0_cq_zstd_20261107.py (started by tools/mantis_v0_cq_full_20261107.sh), not the grid runner',
                             'indirect_evidence_not_a_hash_match': {
                                 'git_versions_of_the_runner_file': 1, 'only_commit': '6a69b7f (made after the runs)',

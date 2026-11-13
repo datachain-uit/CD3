@@ -1,4 +1,4 @@
-"""S0 profile v4 (M-13a): v3 without tr_inactive_learner_ratio (Q-28 (c), writing-side recommendation, applied 2026-11-09, author ratification pending).
+"""S0 profile v4 (M-13a): v3 without tr_inactive_learner_ratio (Q-28 (c), writing-side recommendation, applied 2026-11-09, ratified by the author on 2026-11-13).
 
 The column's candidate definition ("no event before the phase cutoff") equals tr_zero_activity_ratio already in the profile, and every
 inactivity share is 0.96-0.99 because 97-99 % of enrollments have no event; it carried no information, so it leaves the minimum set.
@@ -29,7 +29,7 @@ nulls = {c: int(f4[c].isna().sum()) for c in req if c in f4}
 bad = {c: n for c, n in nulls.items() if n}
 summary = json.loads((V3 / 'summary.json').read_text(encoding='utf-8'))
 summary.update({'version': 'v4', 'rows': len(f4), 'required_minimum_set_null_counts': nulls, 'unexpected_nulls': bad, 'missing_required_columns': missing_cols,
-                'removed_columns': DROP, 'removal_reason': 'Q-28 (c) (writing-side recommendation, applied 2026-11-09, author ratification pending): tr_inactive_learner_ratio left the minimum set; the "no event before cutoff" definition equals tr_zero_activity_ratio and all inactivity shares are 0.96-0.99',
+                'removed_columns': DROP, 'removal_reason': 'Q-28 (c) (writing-side recommendation, applied 2026-11-09, ratified by the author on 2026-11-13): tr_inactive_learner_ratio left the minimum set; the "no event before cutoff" definition equals tr_zero_activity_ratio and all inactivity shares are 0.96-0.99',
                 'status': 'MINIMUM_SET_COMPLETE_V4' if not bad and not missing_cols else 'INCOMPLETE'})
 summary['conventions'].pop('tr_inactive_learner_ratio', None)
 f4.to_csv(OUT / 's0_profile.csv', index=False)
