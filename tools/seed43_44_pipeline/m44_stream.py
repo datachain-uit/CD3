@@ -107,14 +107,11 @@ for (task, kind), prefix in SRC.items():
                             continue
                         w, v, fam, fn = parts[1], parts[2], fam_from_path, mm2.group(1)
                     local.setdefault((w, v, fam), {})[fn] = tf.extractfile(m).read()
-                    if kind == 'F1' and len(local[(w, v, fam)]) == 2:
-                        break          # a bundle holds one cell: nothing more to read
             if kind == 'MANTIS':
                 while h.read(1 << 22):      # read to the end for the hashes
                     pass
         except Exception as ex:
-            log(f'{key}: SKIP unreadable archive {rel}: {type(ex).__name__}')
-            local = {}
+            log(f'{key}: archive {rel} unreadable after some members ({type(ex).__name__}): keeping the cells read before the cut')
         finally:
             p.kill()
         for k, d in local.items():
