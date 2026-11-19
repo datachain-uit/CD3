@@ -15,7 +15,9 @@ from pathlib import Path
 
 ap = argparse.ArgumentParser()
 ap.add_argument('--code-tar', type=Path, required=True)
-ap.add_argument('--tars-dir', type=Path, required=True)
+ap.add_argument('--tars-dir', type=Path, help='local result tars (hashed here); alternatively give --inventory')
+ap.add_argument('--inventory', type=Path, help='JSON list of tar records (file, task, window, pipeline, parent, seed, bytes, sha256, md5) computed while streaming from Drive')
+ap.add_argument('--task', choices=('CQ', 'LO'), default='CQ')
 ap.add_argument('--out', type=Path, required=True)
 ap.add_argument('--host-tar-sha256', required=True)
 ap.add_argument('--hosts-checked', type=int, required=True)
@@ -57,23 +59,27 @@ with open(args.out / 'code_tar_file_to_commit.csv', 'w', newline='', encoding='u
 runner = 'tools/run_mantis_grid_zstd_20261109.py'
 rr = next(r for r in rows if r['file'] == runner)
 inv = []
-for t in sorted(args.tars_dir.rglob('mantis_cq43_*_results.tar.gz')):
-    with tarfile.open(t) as tf:
-        man = next(m for m in tf.getmembers() if m.name.endswith('run_manifest.json'))
-        d = json.loads(tf.extractfile(man).read())
-    inv.append({'file': t.name, 'task': d['task'], 'window': d['window'], 'pipeline': d['pipeline'], 'parent': d.get('parent'), 'seed': d['seed'], 'bytes': t.stat().st_size,
-                'sha256': sha(t.read_bytes()), 'md5': hashlib.md5(t.read_bytes()).hexdigest()})
+if args.inventory:
+    inv = [r for r in json.loads(args.inventory.read_text(encoding='utf-8')) if r['task'] == args.task]
+    inv.sort(key=lambda r: r['file'])
+else:
+    for t in sorted(args.tars_dir.rglob(f'mantis_{args.task.lower()}43_*_results.tar.gz')):
+        with tarfile.open(t) as tf:
+            man = next(m for m in tf.getmembers() if m.name.endswith('run_manifest.json'))
+            d = json.loads(tf.extractfile(man).read())
+        inv.append({'file': t.name, 'task': d['task'], 'window': d['window'], 'pipeline': d['pipeline'], 'parent': d.get('parent'), 'seed': d['seed'], 'bytes': t.stat().st_size,
+                    'sha256': sha(t.read_bytes()), 'md5': hashlib.md5(t.read_bytes()).hexdigest()})
 evidence = {'basis': 'CODE_TAR_FILE_BLOB_MATCH_RETROACTIVE', 'runner': runner, 'runner_sha256_lf': rr['sha256_lf'], 'runner_earliest_matching_commit': rr['earliest_matching_commit'],
             'runner_matches_head': rr['matches_head'], 'code_tar': args.code_tar.name, 'code_tar_sha256': tar_sha, 'hosts_checked_with_identical_code_tar': args.hosts_checked,
             'files_in_code_tar': len(rows), 'files_found_in_repo_history': sum(r['in_repo_history'] for r in rows),
             'files_not_equal_to_any_commit': [r['file'] for r in rows if not r['in_repo_history']], 'cells_in_inventory': len(inv),
             'note': 'the commits were made after the runs (blob identity, retroactive); the cell manifests carry no runner commit'}
-(args.out / 'runner_commit_evidence_cq_seed43.json').write_text(json.dumps(evidence, indent=2) + '\n', encoding='utf-8')
-(args.out / 'source_inventory_cq_seed43.json').write_text(json.dumps({'scope': 'CQ Mantis seed 43 result tars', 'archives': inv}, indent=2) + '\n', encoding='utf-8')
+(args.out / f'runner_commit_evidence_{args.task.lower()}_seed43.json').write_text(json.dumps(evidence, indent=2) + '\n', encoding='utf-8')
+(args.out / f'source_inventory_{args.task.lower()}_seed43.json').write_text(json.dumps({'scope': f'{args.task} Mantis seed 43 result tars', 'archives': inv}, indent=2) + '\n', encoding='utf-8')
 (args.out / 'README.md').write_text(
-    '# Runner commit evidence, Mantis CQ seed 43\n\nThe cell manifests of this grid carry no runner commit. `runner_commit_evidence_cq_seed43.json` maps the runner and every file of the code tar used for the runs '
+    f'# Runner commit evidence, Mantis {args.task} seed 43\n\nThe cell manifests of this grid carry no runner commit. `runner_commit_evidence_{args.task.lower()}_seed43.json` maps the runner and every file of the code tar used for the runs '
     '(`mantis_lo_code_20261109.tar`, same sha256 on every host that ran a cell) to the git commits with identical content (`code_tar_file_to_commit.csv`). The mapping is retroactive: '
-    'the commits were made after the runs. `source_inventory_cq_seed43.json` lists the result tars covered (cell identity, bytes, sha256, MD5).\n', encoding='utf-8')
+    f'the commits were made after the runs. `source_inventory_{args.task.lower()}_seed43.json` lists the result tars covered (cell identity, bytes, sha256, MD5).\n', encoding='utf-8')
 lines = [f'{sha(p.read_bytes())}  {p.name}\n' for p in sorted(args.out.iterdir()) if p.name != 'sha256sums.txt']
 (args.out / 'sha256sums.txt').write_bytes(''.join(lines).encode())
 print(json.dumps(evidence, indent=1))

@@ -14,12 +14,15 @@ from pathlib import Path
 import pandas as pd
 
 ap = argparse.ArgumentParser()
-ap.add_argument('--kind', choices=('mantis', 'lo', 'lo_mantis'), required=True)
+ap.add_argument('--kind', choices=('mantis', 'lo', 'lo_mantis', 'patchtst'), required=True)
 ap.add_argument('--audit-roots', type=Path, nargs='+', required=True)
 ap.add_argument('--cohort-roots', type=Path, nargs='+', required=True, help='dirs holding V<n>/ cohort audits (later wins)')
-ap.add_argument('--std-roots', type=Path, nargs='*', default=[], help='mantis: standardized run roots with CQ/W*/V*/MANTIS_V2/seed=42')
+ap.add_argument('--std-roots', type=Path, nargs='*', default=[], help='mantis: standardized run roots with CQ/W*/V*/MANTIS_V2/seed=<seed>')
 ap.add_argument('--lo-resources', type=Path, help='lo: dir holding V<n>/run_manifests.parquet')
 ap.add_argument('--out', type=Path, required=True)
+ap.add_argument('--task', choices=('CQ', 'LO'), help='required for --kind patchtst')
+ap.add_argument('--model', default='PATCHTST', help='model name for --kind patchtst (e.g. RNN, LSTM, GRU, BILSTM)')
+ap.add_argument('--seed', type=int, default=42, help='master seed of the audited runs (default 42)')
 args = ap.parse_args()
 
 TABLES = ['sanity_components', 'evaluation_slices', 'metrics_per_class', 'bootstrap_metrics_per_class', 'checkpoint_selection']
@@ -29,6 +32,8 @@ if args.kind == 'mantis':
     TASK, MODEL, RELEASE, PIPES = 'CQ', 'MANTIS_V2', 'CQ_V2_2', [f'V{i}' for i in range(17)]
 elif args.kind == 'lo_mantis':
     TASK, MODEL, RELEASE, PIPES = 'LO', 'MANTIS_V2', 'LO_V3_1', [f'V{i}' for i in range(17)]
+elif args.kind == 'patchtst':
+    TASK, MODEL, RELEASE, PIPES = args.task, args.model, ('CQ_V2_2' if args.task == 'CQ' else 'LO_V3_1'), [f'V{i}' for i in range(17)]
 else:
     TASK, MODEL, RELEASE, PIPES = 'LO', 'PATCHTST', 'LO_V3_1', [f'V{i}' for i in range(17)]
 N = len(PIPES)
@@ -75,10 +80,10 @@ for n, frame in combined.items():
     save(frame, n)
 
 # resources
-if args.kind in ('mantis', 'lo_mantis'):
+if args.kind in ('mantis', 'lo_mantis', 'patchtst'):
     rows = []
     for root in args.std_roots:
-        for mp in sorted(root.glob(f'{TASK}/W*/V*/{MODEL}/seed=42/run_manifest.json')):
+        for mp in sorted(root.glob(f'{TASK}/W*/V*/{MODEL}/seed={args.seed}/run_manifest.json')):
             m = json.loads(mp.read_text(encoding='utf-8'))
             m['train_seconds'] = float(pd.read_parquet(mp.parent / 'train_history.parquet').train_seconds.sum())
             rows.append(m)
@@ -128,7 +133,7 @@ c.loc[n.eq(1), 'status'] = 'ONE_CLASS'
 c.loc[c.n_eval.eq(0), 'status'] = 'SLICE_EMPTY'
 save(c, 'cohort_slice_status')
 
-summary = {'created_at_utc': datetime.now(timezone.utc).isoformat(), 'task': TASK, 'model': MODEL, 'seed': 42, 'release_id': RELEASE,
+summary = {'created_at_utc': datetime.now(timezone.utc).isoformat(), 'task': TASK, 'model': MODEL, 'seed': args.seed, 'release_id': RELEASE,
            'versions': PIPES, 'sanity_cells': len(sanity), 'slice_rows': len(combined['evaluation_slices']),
            'per_class_rows': len(combined['metrics_per_class']), 'bootstrap_rows': len(combined['bootstrap_metrics_per_class']),
            'resource_runs': len(res), 'cohort_status_rows': len(c), 'cohort_status': 'COMPLETE_FULL_JOIN',
@@ -137,14 +142,19 @@ summary = {'created_at_utc': datetime.now(timezone.utc).isoformat(), 'task': TAS
 (args.out / 'summary.json').write_text(json.dumps(summary, indent=2) + '\n', encoding='utf-8')
 extra = ('Mantis is an EXPLORATORY frozen-backbone linear-probe run (MANTIS_V2), not the primary model grid. V0 predictions were rebuilt from stored '
          'probabilities (validation score equals the cell record); its elapsed time and GPU energy were not recorded and are null. runner_git_commit is null.'
+         if args.kind == 'mantis' and args.seed == 42 else
+         ('Mantis is an EXPLORATORY frozen-backbone linear-probe run (MANTIS_V2) on task CQ, not the primary model grid. All 51 cells were run with the grid runner of '
+          'tools/run_mantis_grid_zstd_20261109.py; elapsed time, peak RAM and GPU energy come from the run manifests. runner_git_commit is mapped retroactively by blob match (see runner_commit_evidence.json).')
          if args.kind == 'mantis' else
          ('Mantis is an EXPLORATORY frozen-backbone linear-probe run (MANTIS_V2) on task LO, not the primary model grid. All 51 cells were run with the grid runner of '
           'tools/run_mantis_grid_zstd_20261109.py; elapsed time, peak RAM and GPU energy come from the run manifests. runner_git_commit is mapped retroactively by blob match (see runner_commit_evidence.json).')
          if args.kind == 'lo_mantis' else
+         f'{TASK} {MODEL} seed {args.seed}, labels from the {TASK} release. Audit tables come from the standard audit of the result trees (s_leak copied from the reference table, no probe refit); resources come from the run manifests and training histories.'
+         if args.kind == 'patchtst' else
          'LO PatchTST seed 42, labels LO_performance_label_3 (I/D, G, E). Audit tables come from the standard audit of the result trees; '
          'pipelines V5, V6, V8-V10, V13-V16 use the audit stored in their bundles.')
 (args.out / 'README.md').write_text(
-    f"# {TASK} {MODEL} V0–V16, seed 42\n\n{summary['sanity_cells']} split/window/phase sanity cells; {summary['slice_rows']} ALL/STRICT/OVERLAP rows; "
+    f"# {TASK} {MODEL} V0–V16, seed {args.seed}\n\n{summary['sanity_cells']} split/window/phase sanity cells; {summary['slice_rows']} ALL/STRICT/OVERLAP rows; "
     f"{summary['per_class_rows']} per-class rows; {summary['bootstrap_rows']} bootstrap rows with B=2,000; {summary['resource_runs']} run-resource rows. "
     "`acctempo_m4` is S_perf^0.6 × S_san_plus_v2^0.4 with floor 0.001.\n\n"
     f"`cohort_slice_status` contains {len(c)} audited SEEN/UNSEEN × STRICT/OVERLAP facts with OK/ONE_CLASS/SLICE_EMPTY flags "

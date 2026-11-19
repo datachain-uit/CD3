@@ -72,6 +72,9 @@ def _parse() -> argparse.Namespace:
                              "deviation is written to the manifest. check: the fitted probe must match the reference within --s-leak-tolerance.")
     parser.add_argument("--probe-mode", choices=("deterministic_single_thread", "default_multithread"), default="deterministic_single_thread",
                         help="thread mode of the missingness probe fit; recorded in the manifest and in canonical_s_leak (probe_mode, probe_threads)")
+    parser.add_argument("--skip-probe-refit", action="store_true",
+                        help="2026-11-15: with --s-leak-reference and copy-reference, do not fit the missingness probe at all: canonical_s_leak is built straight from the reference table "
+                             "(no refit diagnostic columns). s_leak is fixed by the reference, so the refit only served as a diagnostic.")
     parser.add_argument("--no-s-leak-reference", action="store_true",
                         help="explicit opt-out (only for the audit that PRODUCES a reference table); recorded in the manifest")
     parser.add_argument("--include-static-ablation", action="store_true",
@@ -352,6 +355,32 @@ def _run_facts(args: argparse.Namespace, selected: dict[tuple[str, str], Path], 
             pd.DataFrame(bootstrap), pd.DataFrame(selection))
 
 
+def canonical_from_reference(args: argparse.Namespace, selected: dict[tuple[str, str], Path], reference: pd.DataFrame) -> pd.DataFrame:
+    """canonical_s_leak without fitting the probe (--skip-probe-refit): one row per window x parent pipeline x split x phase, s_leak copied from the reference table,
+    s_leak_probe_auc = 1 - s_leak / 2 (exact where s_leak < 1)."""
+    keys = ["window_id", "eval_split", "phase_id"]
+    ref = reference[keys + ["s_leak"]].drop_duplicates()
+    if ref.duplicated(keys).any():
+        raise RuntimeError("s_leak reference holds several values for one window x split x phase")
+    lookup = {(r.window_id, r.eval_split, r.phase_id): float(r.s_leak) for r in ref.itertuples()}
+    parent_pipelines = sorted(set(PARENT_PIPELINES.get(pipeline, pipeline) for _, pipeline in selected))
+    records = []
+    for window in ("W1", "W2", "W3"):
+        for parent in parent_pipelines:
+            if not any(item_window == window and PARENT_PIPELINES.get(pipeline, pipeline) == parent for (item_window, pipeline) in selected):
+                continue
+            for split in SPLITS:
+                for phase in PHASES:
+                    if (window, split, phase) not in lookup:
+                        raise RuntimeError(f"s_leak reference lacks {window}/{split}/{phase}")
+                    value = lookup[(window, split, phase)]
+                    records.append({"task": args.task, "feature_regime": REGIMES[args.task], "window_id": window, "parent_pipeline": parent,
+                                    "eval_split": split, "phase_id": phase, "probe_seed": 42, "s_leak": value,   # seed of the reference probe fit (value copied, not refitted)
+                                    "s_leak_probe_auc": (1.0 - value / 2.0) if value < 1.0 else float("nan"),
+                                    "s_leak_source": "REFERENCE_TABLE_COPY_NO_REFIT", "probe_fit_scope": "NOT_REFIT"})
+    return pd.DataFrame(records)
+
+
 def apply_reference_s_leak(canonical: pd.DataFrame, reference: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     """Request 2026-11-13 item 1.1 (a): s_leak is a property of (task, window, split, phase). Copy the reference value into ``s_leak`` and the matching
     ``s_leak_probe_auc`` (auc = 1 - s_leak / 2, exact where s_leak < 1; the refit auc is kept where the reference is 1), and keep the fitted probe
@@ -408,12 +437,17 @@ def main() -> None:
     selected = _selected_runs(args, download)
     root = args.audit_root / args.task / args.model_name / f"seed={args.seed}"
     root.mkdir(parents=True, exist_ok=True)
-    canonical = _canonical_s_leak(args, selected)
+    if args.skip_probe_refit and (args.s_leak_reference is None or args.s_leak_source != "copy-reference"):
+        raise SystemExit("--skip-probe-refit needs --s-leak-reference and --s-leak-source copy-reference")
+    canonical = None if args.skip_probe_refit else _canonical_s_leak(args, selected)
     if args.s_leak_reference is not None:
         ref_path = args.s_leak_reference
         reference = pd.read_parquet(ref_path) if ref_path.suffix == ".parquet" else pd.read_csv(ref_path)
         leak_check = {"checked": True, "reference_file": ref_path.name, "reference_sha256": hashlib.sha256(ref_path.read_bytes()).hexdigest()}
-        if args.s_leak_source == "copy-reference":
+        if args.skip_probe_refit:
+            canonical = canonical_from_reference(args, selected, reference)
+            leak_check.update({"mode": "COPY_REFERENCE_NO_REFIT", "checked_cells": int(len(canonical)), "refit_max_abs_diff": None, "refit_mean_abs_diff": None, "max_abs_diff": 0.0})
+        elif args.s_leak_source == "copy-reference":
             canonical, copy_report = apply_reference_s_leak(canonical, reference)
             leak_check.update(copy_report)
             leak_check.update(assert_s_leak_matches_reference(canonical, reference, 1e-9))
