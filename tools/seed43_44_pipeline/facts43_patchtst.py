@@ -1,12 +1,13 @@
 """Seed-43 PatchTST facts package (CQ|LO): re-download+extract the cells, cohort audit per V, build package with tools/build_facts_package_mantis_lo_20261109.py --kind patchtst.  usage: facts43_patchtst.py TASK"""
+from tempo_paths import A43, REPO
 import os, shutil, subprocess, sys, tarfile, time
 from pathlib import Path
 TASK = sys.argv[1]
 RC = ['rclone', '--drive-root-folder-id', '1GWiedVROrxp8jvGbd0xmvVmWriZUkpOn']
-REPO = Path('D:/Source_code/myself'); BASE = Path(f'D:/audit43/pt_facts_{TASK}'); TARS = BASE / 'tars'; RUNS = BASE / 'runs'; DATA = Path(f'D:/audit43/data_{TASK}')
+REPO = Path(f'{REPO}'); BASE = Path(f'{A43}/pt_facts_{TASK}'); TARS = BASE / 'tars'; RUNS = BASE / 'runs'; DATA = Path(f'{A43}/data_{TASK}')
 SRC = {'CQ': 'CQ/L1_runs/S3_model/staging_incoming/patchtst_seed43_cells_20261112', 'LO': 'LO/L1_runs/S3_model/staging_incoming/patchtst_seed43_cells_20261114'}[TASK]
 SALT = REPO / 'downloads/private' / ('lo_grid_prediction_salt' if TASK == 'LO' else 'cq_patchtst_prediction_salt')
-AUD = Path(f'D:/audit43/out_{TASK}_PATCHTST'); OUTPKG = Path(f'D:/audit43/facts43/{TASK}_patchtst_v0_v16_seed43')
+AUD = Path(f'{A43}/out_{TASK}_PATCHTST'); OUTPKG = Path(f'{A43}/facts43/{TASK}_patchtst_v0_v16_seed43')
 env = dict(os.environ, PYTHONPATH=str(REPO), PYTHONIOENCODING='utf-8')
 def log(m): print(time.strftime('%H:%M:%S'), m, flush=True)
 def run(cmd):

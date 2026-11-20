@@ -1,6 +1,7 @@
 """Build the M-18 seed-44 package (training histories) from the collection pass: one long table (one row per epoch), one per-cell summary, README, scripts, sha256sums.
 Same layout as m18_training_history_seed42_20261111. Also writes the runner-commit check (every cell's run_manifest runner_git_commit).
-usage: m44_build_m18.py   (inputs D:/audit44/m44_collect/*.pkl, outputs D:/audit44/m18_44/ and D:/audit44/m44_collect/runner_commit_check_seed44.*)"""
+usage: m44_build_m18.py   (inputs $TEMPO_A44_ROOT/m44_collect/*.pkl, outputs $TEMPO_A44_ROOT/m18_44/ and $TEMPO_A44_ROOT/m44_collect/runner_commit_check_seed44.*)"""
+from tempo_paths import A44, S2
 import hashlib
 import json
 import shutil
@@ -8,8 +9,8 @@ from pathlib import Path
 
 import pandas as pd
 
-C = Path('D:/audit44/m44_collect')
-OUT = Path('D:/audit44/m18_44/m18_training_history_seed44_20261119')
+C = Path(f'{A44}/m44_collect')
+OUT = Path(f'{A44}/m18_44/m18_training_history_seed44_20261119')
 OUT.mkdir(parents=True, exist_ok=True)
 hist = pd.read_pickle(C / 'all_histories.pkl')
 man = pd.read_pickle(C / 'all_manifests.pkl')
@@ -51,7 +52,7 @@ bad = {k: v for k, v in cells.items() if v != 51}
     "Cột `n_sources` và `sources_identical` cho biết ô nào có hơn một nguồn trên Drive và các nguồn đó có trùng nhau không.\n"
     + (f"\nLưu ý phạm vi: các tổ hợp không đủ 51 ô: {bad}\n" if bad else ''), encoding='utf-8', newline='\n')
 for f in ('m44_stream.py', 'm44_build_m18.py'):
-    shutil.copy2(Path('C:/tmp_aud/s2') / f, OUT / f)
+    shutil.copy2(Path(f'{S2}') / f, OUT / f)
 lines = []
 for p in sorted(x for x in OUT.iterdir() if x.name != 'sha256sums.txt'):
     lines.append(f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n')

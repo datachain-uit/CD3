@@ -1,11 +1,12 @@
 """Seed-44 F1 facts packages -> `_r2` format (port of finalize_facts43.py, F1 only), then upload to Drive with md5 check and delete the local copy.
-usage: finalize44_f1.py TASK        (packages in D:/audit44/facts44/<TASK>_f1_recurrent_v0_v16_seed44/<FAM>)"""
+usage: finalize44_f1.py TASK        (packages in $TEMPO_A44_ROOT/facts44/<TASK>_f1_recurrent_v0_v16_seed44/<FAM>)"""
+from tempo_paths import A44, REPO
 import hashlib, json, subprocess, sys, shutil
 from pathlib import Path
 import pandas as pd
 TASK = sys.argv[1]
 RC = ['rclone', '--drive-root-folder-id', '1GWiedVROrxp8jvGbd0xmvVmWriZUkpOn']
-ROOT = Path(f'D:/audit44/facts44/{TASK}_patchtst_v0_v16_seed44'); R = Path('D:/Source_code/myself')
+ROOT = Path(f'{A44}/facts44/{TASK}_patchtst_v0_v16_seed44'); R = Path(f'{REPO}')
 SRCDIR = {'CQ': 'CQ/L1_runs/S3_model/staging_incoming/patchtst_seed44_cells_20261116', 'LO': 'LO/L1_runs/S3_model/staging_incoming/patchtst_seed44_20261117'}[TASK]
 DEST = f'gdrive:{TASK}/L2_facts/fact_exports/{TASK.lower()}_patchtst_v0_v16_full_facts_seed44_20261119'
 TIER = 'F2_TS_TRANSFORMER'

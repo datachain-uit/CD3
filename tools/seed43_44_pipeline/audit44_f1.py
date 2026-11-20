@@ -1,14 +1,15 @@
 """Seed-44 F1 audit on this PC (port of audit43_local.py): per family download the flat host tars from Drive, extract, standard audit (s_leak copied from the reference table, no probe refit), keep audit output, delete the runs.
 usage: audit44_f1.py TASK FAMILY [BOOTSTRAP]"""
+from tempo_paths import A43, A44, REPO
 import os, subprocess, sys, tarfile, time, shutil
 from pathlib import Path
 TASK, FAM = sys.argv[1], sys.argv[2]
 BOOT = sys.argv[3] if len(sys.argv) > 3 else '2000'
 RC = ['rclone', '--drive-root-folder-id', '1GWiedVROrxp8jvGbd0xmvVmWriZUkpOn']
-REPO = Path('D:/Source_code/myself')
-BASE = Path(f'D:/audit44/{TASK}_{FAM}'); RUNS = BASE / 'runs'; TARS = BASE / 'tars'
-DATA = Path(f'D:/audit43/data_{TASK}')            # same real-data root (junctions to the seed-42 clean-grain data) as for seed 43
-OUT = Path(f'D:/audit44/out_{TASK}_{FAM}')
+REPO = Path(f'{REPO}')
+BASE = Path(f'{A44}/{TASK}_{FAM}'); RUNS = BASE / 'runs'; TARS = BASE / 'tars'
+DATA = Path(f'{A43}/data_{TASK}')            # same real-data root (junctions to the seed-42 clean-grain data) as for seed 43
+OUT = Path(f'{A44}/out_{TASK}_{FAM}')
 SRCDIR = f'{TASK}/L1_runs/S3_model/staging_incoming/f1_recurrent_seed44_20261115'
 def log(m): print(time.strftime('%H:%M:%S'), m, flush=True)
 assert DATA.exists(), 'data root missing'

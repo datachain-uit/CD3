@@ -1,14 +1,15 @@
 """PatchTST LO seed 44, incremental pass: usage pt44_pass2.py TAG   (TAG = pass2, pass3 ...)
 Fetch the Drive tars newer than 09:20 local on 19/11, add the cells not yet in the run root, audit only the new cells (standard audit, --allow-partial, own audit dir), cohort audit for every V that now has 3 windows, and when all 51 cells exist build the package from all audit dirs."""
+from tempo_paths import A44, REPO, WORK
 import json, os, shutil, subprocess, sys, tarfile, time
 from pathlib import Path
 TAG = sys.argv[1]; TASK = 'LO'
 RC = ['rclone', '--drive-root-folder-id', '1GWiedVROrxp8jvGbd0xmvVmWriZUkpOn']
-REPO = Path('D:/Source_code/myself'); BASE = Path('C:/tmp_aud/pt44_LO'); RUNS = BASE / 'runs'; DATA = Path('D:/audit44/data_LO')
+REPO = Path(f'{REPO}'); BASE = Path(f'{WORK}/pt44_LO'); RUNS = BASE / 'runs'; DATA = Path(f'{A44}/data_LO')
 SRC = 'LO/L1_runs/S3_model/staging_incoming/patchtst_seed44_20261117'
 SALT = REPO / 'downloads/private/lo_grid_prediction_salt'; REF = REPO / 'CQ/resuilt/s_leak_reference_20261109/s_leak_reference_LO.csv'
-AUDS = [Path('D:/audit44/out_LO_PATCHTST_pass1')]; AUDS += sorted(Path('D:/audit44').glob('out_LO_PATCHTST_pass[2-9]'))
-AUDN = Path(f'D:/audit44/out_LO_PATCHTST_{TAG}'); OUTPKG = Path('D:/audit44/facts44/LO_patchtst_v0_v16_seed44')
+AUDS = [Path(f'{A44}/out_LO_PATCHTST_pass1')]; AUDS += sorted(Path(f'{A44}').glob('out_LO_PATCHTST_pass[2-9]'))
+AUDN = Path(f'{A44}/out_LO_PATCHTST_{TAG}'); OUTPKG = Path(f'{A44}/facts44/LO_patchtst_v0_v16_seed44')
 env = dict(os.environ, PYTHONPATH=str(REPO), PYTHONIOENCODING='utf-8')
 def log(m): print(time.strftime('%H:%M:%S'), m, flush=True)
 def run(cmd, name=None):

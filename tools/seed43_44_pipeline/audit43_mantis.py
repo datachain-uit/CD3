@@ -1,11 +1,12 @@
 """Seed-43 Mantis audit (CQ|LO): per window extract -> standardise -> standard audit (s_leak copied from the reference table, no probe refit) -> cohort audit per V.
 usage: audit43_mantis.py TASK"""
+from tempo_paths import A43, LOM, REPO
 import os, shutil, subprocess, sys, tarfile, time
 from pathlib import Path
 TASK = sys.argv[1]
-REPO = Path('D:/Source_code/myself'); SRC = Path(f'D:/audit43/mantis/{TASK}'); W = Path(f'D:/audit43/mantis_work_{TASK}'); OUT = Path(f'D:/audit43/out_{TASK}_MANTIS')
-DATA = Path(f'D:/audit43/data_{TASK}')
-CODE = Path('C:/tmp_aud/lom/mantis_lo_code_20261109.tar')
+REPO = Path(f'{REPO}'); SRC = Path(f'{A43}/mantis/{TASK}'); W = Path(f'{A43}/mantis_work_{TASK}'); OUT = Path(f'{A43}/out_{TASK}_MANTIS')
+DATA = Path(f'{A43}/data_{TASK}')
+CODE = Path(f'{LOM}/mantis_lo_code_20261109.tar')
 REF = REPO / 'CQ/resuilt/s_leak_reference_20261109' / f's_leak_reference_{TASK}.csv'
 SALT = REPO / 'downloads/private' / ('lo_grid_prediction_salt' if TASK == 'LO' else 'cq_patchtst_prediction_salt')
 W.mkdir(parents=True, exist_ok=True); OUT.mkdir(parents=True, exist_ok=True)

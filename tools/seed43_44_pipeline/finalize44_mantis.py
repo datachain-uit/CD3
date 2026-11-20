@@ -1,14 +1,15 @@
 """Seed-44 F1 facts packages -> `_r2` format (Mantis), then upload to Drive with md5 check and delete the local copy.
-usage: finalize44_f1.py TASK        (packages in D:/audit44/facts44/<TASK>_f1_recurrent_v0_v16_seed44/<FAM>)"""
+usage: finalize44_f1.py TASK        (packages in $TEMPO_A44_ROOT/facts44/<TASK>_f1_recurrent_v0_v16_seed44/<FAM>)"""
+from tempo_paths import A44, REPO
 import hashlib, json, subprocess, sys, shutil
 from pathlib import Path
 import pandas as pd
 TASK = sys.argv[1]
 RC = ['rclone', '--drive-root-folder-id', '1GWiedVROrxp8jvGbd0xmvVmWriZUkpOn']
-ROOT = Path(f'D:/audit44/facts44/{TASK}_mantis_v2_v0_v16_seed44'); R = Path('D:/Source_code/myself')
+ROOT = Path(f'{A44}/facts44/{TASK}_mantis_v2_v0_v16_seed44'); R = Path(f'{REPO}')
 SRCDIR = {'CQ': 'CQ/L1_runs/S3_model/staging_incoming/mantis_v2_seed44_exploratory_20261116', 'LO': 'LO/L1_runs/S3_model/staging_incoming/mantis_v2_seed44_exploratory_20261118'}[TASK]
-EVD = Path(f'D:/audit44/evidence44/runner_commit_evidence_{TASK.lower()}_seed44_20261119'); EV = json.loads((EVD / f'runner_commit_evidence_{TASK.lower()}_seed44.json').read_text())
-INV = [r for r in json.loads(Path('D:/audit44/mantis44_inventory.json').read_text()) if r['task'] == TASK]; assert len(INV) == 51, len(INV)
+EVD = Path(f'{A44}/evidence44/runner_commit_evidence_{TASK.lower()}_seed44_20261119'); EV = json.loads((EVD / f'runner_commit_evidence_{TASK.lower()}_seed44.json').read_text())
+INV = [r for r in json.loads(Path(f'{A44}/mantis44_inventory.json').read_text()) if r['task'] == TASK]; assert len(INV) == 51, len(INV)
 DEST = f'gdrive:{TASK}/L2_facts/fact_exports/{TASK.lower()}_mantis_v2_v0_v16_full_facts_seed44_20261119'
 TIER = 'F3_TS_FOUNDATION'
 ref = []

@@ -3,6 +3,7 @@ flag, so the donor chain never starts them), (2) Mantis LO groups = one parent p
 One worker thread per host; a host takes work only when nothing runs on it (3 looks) and its own chain has no unstarted flagged cell. Uplink transfers are serialised (global lock).
 Mantis group: stage data -> lo44_mantis_parent.sh V W -> lo44_mantis_child.sh child V W for each child -> tars in /workspace/CD3/runs/mantis_lo44_*_results.tar.gz (kept; upload later) -> remove the group's work dirs.
 Never touches a running training. Log: lo_workers44.log, state: lo_workers44_state.json.   usage: lo_workers44.py PORT [PORT ...]"""
+from tempo_paths import S2
 import json
 import subprocess
 import sys
@@ -10,16 +11,16 @@ import threading
 import time
 from pathlib import Path
 
-sys.path.insert(0, 'C:/tmp_aud/s2')
+sys.path.insert(0, f'{S2}')
 import phaseB_orch as B  # noqa: E402
 import steal44 as S  # noqa: E402
 
-D = Path('C:/tmp_aud/s2')
+B.IP.update(S.IP)   # host addresses of steal44 (TEMPO_HOSTS_JSON) are also the ones phaseB_orch uses
+
+D = Path(f'{S2}')
 LOGF = D / 'lo_workers44.log'
 STATEF = D / 'lo_workers44_state.json'
 W = '/workspace/CD3'
-S.IP['46039'] = B.IP['46039'] = '31.24.109.158'
-S.IP['37835'] = B.IP['37835'] = '81.27.69.179'                      # new host (2026-11-16): fresh image, driver 550 -> CUDA-13 compat package + venv as on 37901
 B.ENV['37835'] = '/workspace/cuda13_probe/venv'
 B.LDD['37835'] = '/workspace/cuda13_probe/extracted/usr/local/cuda-13.0/compat'
 NO_PT = set()

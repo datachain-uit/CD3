@@ -4,6 +4,7 @@
  - resource_per_run: resource_null_reason, runner_git_commit_basis (+ the retroactive commit for Mantis)
  - source_inventory.json, runner_commit_evidence.json, summary.json (revision r2 + r2_changes), README note, sha256sums.txt
 Nothing is invented: a field that is not recorded stays empty and gets a reason."""
+from tempo_paths import A43, REPO
 import hashlib
 import json
 import subprocess
@@ -12,10 +13,10 @@ from pathlib import Path
 import pandas as pd
 
 RC = ['rclone', '--drive-root-folder-id', '1GWiedVROrxp8jvGbd0xmvVmWriZUkpOn']
-F43 = Path('D:/audit43/facts43')
-R = Path('D:/Source_code/myself')
-COLL = Path('D:/audit43/m43_collect')
-EV_LO = Path('D:/audit43/evidence43/runner_commit_evidence_lo_seed43_20261116')
+F43 = Path(f'{A43}/facts43')
+R = Path(f'{REPO}')
+COLL = Path(f'{A43}/m43_collect')
+EV_LO = Path(f'{A43}/evidence43/runner_commit_evidence_lo_seed43_20261116')
 TIER = {'RNN': 'F1_RECURRENT', 'LSTM': 'F1_RECURRENT', 'GRU': 'F1_RECURRENT', 'BILSTM': 'F1_RECURRENT', 'PATCHTST': 'F2_TS_TRANSFORMER', 'MANTIS_V2': 'F3_TS_FOUNDATION'}
 SRC = {('CQ', 'F1'): 'CQ/L1_runs/S3_model/staging_incoming/f1_recurrent_seed43_20261110', ('LO', 'F1'): 'LO/L1_runs/S3_model/staging_incoming/f1_recurrent_seed43_20261110',
        ('CQ', 'PT'): 'CQ/L1_runs/S3_model/staging_incoming/patchtst_seed43_cells_20261112', ('LO', 'PT'): 'LO/L1_runs/S3_model/staging_incoming/patchtst_seed43_cells_20261114'}

@@ -2,17 +2,17 @@
  17804 (CQ data and all CQ children already staged): steals the LAST not-yet-started child cell of the busiest PatchTST CQ host (renames its 'staged44' flag so the donor chain never starts it), runs it, repeats.
  17429 (LO data and all LO children already staged): runs the PatchTST LO seed-44 cells (parents first), cell by cell, skipping cells with a run_manifest.json.
 Never touches a running training. Log: steal44.log.   usage: steal44.py cq_17804 | lo_17429"""
+from tempo_paths import S2, SSH_KEY, hosts
 import json
 import subprocess
 import sys
 import time
 from pathlib import Path
 
-D = Path('C:/tmp_aud/s2')
+D = Path(f'{S2}')
 LOG = D / 'steal44.log'
-K = ['-i', 'C:/Users/manndm/.ssh/id_vastai', '-o', 'ConnectTimeout=25', '-o', 'ServerAliveInterval=30', '-o', 'StrictHostKeyChecking=no', '-q']
-IP = {'17429': '185.101.222.14', '17804': '185.101.222.14', '37740': '81.27.69.179', '37774': '81.27.69.179', '37901': '81.27.69.179', '37939': '81.27.69.179',
-      '40066': '162.210.22.189', '40077': '162.210.22.189', '40081': '162.210.22.189', '40106': '162.210.22.189', '44016': '118.100.13.19'}
+K = ['-i', f'{SSH_KEY}', '-o', 'ConnectTimeout=25', '-o', 'ServerAliveInterval=30', '-o', 'StrictHostKeyChecking=no', '-q']
+IP = hosts()   # {port: ip} of the rented hosts, from TEMPO_HOSTS_JSON (not committed)
 W = '/workspace/CD3'
 PLAN = json.load(open(D / 'dispatch_plan_seed44_ptcq.json'))
 SALT = {'LO': 'lo_static_v2_prediction_salt', 'CQ': 'mantis_cq_prediction_salt'}
@@ -132,5 +132,3 @@ if __name__ == '__main__':
             time.sleep(300)
         log('17429 free -> PatchTST LO seed 44')
         run_lo('17429')
-IP['37835'] = '81.27.69.179'
-IP['46039'] = '31.24.109.158'

@@ -1,7 +1,8 @@
 """Delivery receipts (byte level) and L2 ingest receipts (code team) for the seed-43 deliverables uploaded on 2026-11-16: the six facts packages (12 sub-packages), M-18 seed 43,
 the Mantis LO runner-commit evidence and the runner-commit check.  Same conditions as tools/build_l2_ingest_receipts_20261113.py and tools/build_delivery_receipts_20261112.py.
 The receipts are issued by the code team; they are NOT an independent verification by the writing side (the status says so).
-Usage: python tools/build_seed43_receipts_20261116.py --out DIR   (run from the repository root; needs rclone and D:/audit43)"""
+Usage: python tools/build_seed43_receipts_20261116.py --out DIR   (run from the repository root; needs rclone and $TEMPO_A43_ROOT)"""
+from tempo_paths import A43
 import argparse
 import hashlib
 import json
@@ -13,7 +14,7 @@ import pandas as pd
 
 ap = argparse.ArgumentParser()
 ap.add_argument('--out', type=Path, required=True)
-ap.add_argument('--local-root', type=Path, default=Path('D:/audit43'))
+ap.add_argument('--local-root', type=Path, default=Path(f'{A43}'))
 args = ap.parse_args()
 RC = ['rclone', '--drive-root-folder-id', '1GWiedVROrxp8jvGbd0xmvVmWriZUkpOn']
 L = args.local_root

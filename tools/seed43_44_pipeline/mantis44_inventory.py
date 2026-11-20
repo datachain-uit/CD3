@@ -1,9 +1,10 @@
-"""Seed-44 Mantis result-tar inventory by streaming from Drive (name, bytes, sha256, md5, cell identity from the native run manifest). usage: mantis44_inventory.py  -> D:/audit44/mantis44_inventory.json (restartable)"""
+"""Seed-44 Mantis result-tar inventory by streaming from Drive (name, bytes, sha256, md5, cell identity from the native run manifest). usage: mantis44_inventory.py  -> $TEMPO_A44_ROOT/mantis44_inventory.json (restartable)"""
+from tempo_paths import A44
 import hashlib, json, subprocess, tarfile, time
 from pathlib import Path
 RC = ['rclone', '--drive-root-folder-id', '1GWiedVROrxp8jvGbd0xmvVmWriZUkpOn']
 SRC = {'CQ': 'CQ/L1_runs/S3_model/staging_incoming/mantis_v2_seed44_exploratory_20261116', 'LO': 'LO/L1_runs/S3_model/staging_incoming/mantis_v2_seed44_exploratory_20261118'}
-OUT = Path('D:/audit44/mantis44_inventory.json'); done = json.loads(OUT.read_text()) if OUT.exists() else []
+OUT = Path(f'{A44}/mantis44_inventory.json'); done = json.loads(OUT.read_text()) if OUT.exists() else []
 have = {r['drive_path'] for r in done}
 class H:
     def __init__(s, f): s.f, s.sha, s.md5, s.n = f, hashlib.sha256(), hashlib.md5(), 0

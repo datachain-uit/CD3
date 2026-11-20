@@ -2,7 +2,8 @@
  - M-18: train_history.parquet of every cell (F1 RNN/LSTM/GRU/BILSTM, PatchTST) and the history of every Mantis cell (f3_cell_record.json 'history')
  - runner commit check: run_manifest.json of every cell -> runner_git_commit
  - Mantis result-tar inventory (name, bytes, sha256, md5, cell identity) for the runner evidence of Mantis LO (and CQ)
-usage: m43_stream.py     outputs in D:/audit44/m44_collect/  (state: done list, restartable)"""
+usage: m43_stream.py     outputs in $TEMPO_A44_ROOT/m44_collect/  (state: done list, restartable)"""
+from tempo_paths import A44
 import hashlib
 import io
 import json
@@ -16,7 +17,7 @@ from pathlib import Path
 import pandas as pd
 
 RC = ['rclone', '--drive-root-folder-id', '1GWiedVROrxp8jvGbd0xmvVmWriZUkpOn']
-OUT = Path('D:/audit44/m44_collect')
+OUT = Path(f'{A44}/m44_collect')
 OUT.mkdir(parents=True, exist_ok=True)
 STATE = OUT / 'state.json'
 LOG = OUT / 'm44_stream.log'

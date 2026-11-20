@@ -1,13 +1,14 @@
 """Seed-44 PatchTST audit + facts package (CQ|LO): download the cell tars from Drive, normalise to RUNS/<TASK>/<W>/<V>/PATCHTST/seed=44, standard audit (s_leak copied from the reference table, no probe refit),
 cohort audit per V, package via tools/build_facts_package_mantis_lo_20261109.py --kind patchtst. usage: pt44.py TASK"""
+from tempo_paths import A44, REPO
 import os, shutil, subprocess, sys, tarfile, time
 from pathlib import Path
 TASK = sys.argv[1]
 RC = ['rclone', '--drive-root-folder-id', '1GWiedVROrxp8jvGbd0xmvVmWriZUkpOn']
-REPO = Path('D:/Source_code/myself'); BASE = Path(f'D:/audit44/pt_{TASK}'); TARS = BASE / 'tars'; RUNS = BASE / 'runs'; DATA = Path(f'D:/audit44/data_{TASK}')
+REPO = Path(f'{REPO}'); BASE = Path(f'{A44}/pt_{TASK}'); TARS = BASE / 'tars'; RUNS = BASE / 'runs'; DATA = Path(f'{A44}/data_{TASK}')
 SRC = {'CQ': ['CQ/L1_runs/S3_model/staging_incoming/patchtst_seed44_cells_20261116'], 'LO': ['LO/L1_runs/S3_model/staging_incoming/patchtst_seed44_20261117']}[TASK]
 SALT = REPO / 'downloads/private' / ('lo_grid_prediction_salt' if TASK == 'LO' else 'cq_patchtst_prediction_salt')
-AUD = Path(f'D:/audit44/out_{TASK}_PATCHTST'); OUTPKG = Path(f'D:/audit44/facts44/{TASK}_patchtst_v0_v16_seed44')
+AUD = Path(f'{A44}/out_{TASK}_PATCHTST'); OUTPKG = Path(f'{A44}/facts44/{TASK}_patchtst_v0_v16_seed44')
 REF = REPO / 'CQ' / 'resuilt' / 's_leak_reference_20261109' / f's_leak_reference_{TASK}.csv'
 env = dict(os.environ, PYTHONPATH=str(REPO), PYTHONIOENCODING='utf-8')
 def log(m): print(time.strftime('%H:%M:%S'), m, flush=True)

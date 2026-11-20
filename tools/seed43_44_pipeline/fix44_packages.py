@@ -1,6 +1,7 @@
 """Seed-44 facts packages on Drive: fix README title (seed), duplicate '## r2', probe_seed (= seed of the reference probe fit, 42; s_leak is copied, not refitted), record the builder commit.
 Each Drive folder is first copied server-side to the superseded folder (the verified version stays), then the fixed files overwrite the originals; rclone check at the end.
 usage: fix44_packages.py BUILDER_COMMIT [--only SUBSTRING]"""
+from tempo_paths import A44
 import hashlib, json, re, shutil, subprocess, sys
 from pathlib import Path
 import pandas as pd
@@ -9,7 +10,7 @@ RC = ['rclone', '--drive-root-folder-id', '1GWiedVROrxp8jvGbd0xmvVmWriZUkpOn']
 FE = 'L2_facts/fact_exports'
 PK = {'CQ': ['cq_f1_recurrent_v0_v16_full_facts_seed44_20261118', 'cq_patchtst_v0_v16_full_facts_seed44_20261119', 'cq_mantis_v2_v0_v16_full_facts_seed44_20261119'],
       'LO': ['lo_f1_recurrent_v0_v16_full_facts_seed44_20261118', 'lo_patchtst_v0_v16_full_facts_seed44_20261119', 'lo_mantis_v2_v0_v16_full_facts_seed44_20261119']}
-WORK = Path('D:/audit44/fix'); WORK.mkdir(parents=True, exist_ok=True)
+WORK = Path(f'{A44}/fix'); WORK.mkdir(parents=True, exist_ok=True)
 NOTE = ('\n## r2 fix 2026-11-19\n\nThe title of this README now names seed 44. `probe_seed` in `sanity_components` is 42, the seed of the reference probe fit: `s_leak` of this package is copied from the reference table '
         '(audit mode COPY_REFERENCE, no probe refit at seed 44), so no probe was fitted with seed 44. The numbers of the package are unchanged. Builder: tools/build_facts_package_mantis_lo_20261109.py at commit `' + COMMIT + '`.\n')
 def sha(p): return hashlib.sha256(p.read_bytes()).hexdigest()
