@@ -23,7 +23,7 @@
 | B.4 Release năm subgroup | Chưa làm | Cần B.2 đủ 36 đơn vị và B.3. |
 | B.5 Kiểm lặp lại trên lát ALL | Chưa làm | Cần B.4. |
 | B.6 Đóng gói, commit ba builder | Một phần | Ba builder đã commit (commit "Review 20/11 item A.7"); gói theo B.6 làm cùng B.2 đủ 36 đơn vị. |
-| Pha C | Không làm | Khai báo ở mục 11. |
+| Pha C | Không làm | Khai báo lần chạy thăm dò E1 theo từng task ở mục 11. |
 
 ## 2. A.2 — release `…_20261120_mm026`
 
@@ -116,9 +116,22 @@ Tám run CQ seed 44 thiếu năng lượng (PatchTST W1/V5, W1/V16, W2/V7, W2/V1
 - **Chưa làm:** bảng đối chiếu 48 dòng (task × window × split × pha) giữa cờ `seen_course` theo quy tắc trên và cờ SEEN_COURSE của `audit_prediction_course_cohort.py`; cần salt/nối `course_id` theo hai định nghĩa. Sẽ làm cùng lượt 35 đơn vị còn lại.
 - Xin phía viết kiểm hợp đồng bằng `assemble --require-subgroups` trên thư mục chạy thử; xác nhận xong thì đội code chạy 35 đơn vị còn lại.
 
-## 11. Khai báo về pha C
+## 11. Khai báo về pha C: lần chạy thăm dò E1 theo từng task
 
-E1 theo từng task đã được chạy thăm dò trước khi đội code đọc bản 2 (mục 5 của bản 2 yêu cầu không chạy trước khi nhận bản gói kế tiếp): E1-A và E1-B, từng task, sáu cấu hình, release 20261120, bằng bộ mã 0.2.4 không đổi, tách task bằng cách lọc bảng gộp seed. Kết quả đã được **đọc** (so hối tiếc CQ và LO với bản gộp). Bộ ở `mm_runs_CQ_LO_full_F1F2F3_seeds42_43_44_20261119/e1_per_task_20261120`. Đội code đề nghị coi nó là thăm dò, không dùng cho kết luận về C2, và sẽ chuyển sang thư mục có nhãn nếu phía viết yêu cầu. Từ nay không chạy E1 theo từng task hay huấn luyện năm subgroup cho tới khi nhận bản gói kế tiếp.
+E1 theo từng task đã được chạy thăm dò trước khi đội code đọc bản 2 (mục 5 của bản 2 yêu cầu không chạy trước khi nhận bản gói kế tiếp). Cách chạy: bảng gộp seed của release 20261120 (không phải `_mm026`) được lọc theo task (`CQ` hoặc `LO`, mỗi bảng 2 448 dòng) rồi chạy `metamodel.cli run` 0.2.4 không đổi, chỉ với E1-A (W1→W2) và E1-B (W1W2→W3), cùng learner, mục tiêu, cờ, 50 lần thử Optuna và 5 hạt giống learner như M-15; mỗi tiến trình một luồng. Vì bảng chỉ còn một task, mỗi fold chỉ chứa task đó. Không chạy E2, E3, không đổi tham số nào đã đăng ký.
+
+| Cấu hình | CQ: dòng registry (OK / SKIPPED) | CQ: MQ08 đạt | LO: dòng registry (OK / SKIPPED) | LO: MQ08 đạt | Thời gian mỗi lần chạy (giờ) |
+|---|---|---|---|---|---|
+| `main_cal_time` | 68 (68 / 0) | 2/2 | 68 (68 / 0) | 0/2 | 0,41 |
+| `sens_v1` | 68 (68 / 0) | 1/2 | 68 (68 / 0) | 2/2 | 0,40–0,41 |
+| `sens_energy` | 68 (68 / 0) | 2/2 | 68 (68 / 0) | 0/2 | 0,41 |
+| `sens_conservative` | 68 (68 / 0) | 1/2 | 68 (68 / 0) | 0/2 | 0,41 |
+| `obj_perf` | 68 (66 / 2) | 0/2 | 68 (66 / 2) | 0/2 | 0,38–0,39 |
+| `obj_macrof1` | 68 (66 / 2) | 0/2 | 68 (66 / 2) | 1/2 | 0,38–0,39 |
+
+12 lần chạy đều kết thúc mã thoát 0, không dùng phương án dự phòng. Các dòng SKIPPED của `obj_perf` và `obj_macrof1` có cùng lý do như bản gộp (thiếu thành phần phân rã khi mục tiêu không phải M3). Bộ ở `mm_runs_CQ_LO_full_F1F2F3_seeds42_43_44_20261119/e1_per_task_20261120` (254 file, kiểm khớp trên Drive, kèm `README.txt`).
+
+Kết quả hối tiếc và giả thuyết **không được đưa vào phản hồi này**, để giữ phép so của C2 chưa bị chạm; chúng nằm trong các tệp `mm_*` của bộ trên. Các kết quả đó đã được đội code **đọc** (so hối tiếc CQ và LO với bản gộp). Đội code đề nghị coi bộ này là thăm dò, không dùng cho kết luận về C2, và sẽ chuyển sang thư mục có nhãn nếu phía viết yêu cầu. Từ nay không chạy E1 theo từng task hay huấn luyện năm subgroup cho tới khi nhận bản gói kế tiếp.
 
 ## 12. Cần phía viết
 
