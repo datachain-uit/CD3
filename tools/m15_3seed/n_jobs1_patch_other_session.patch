@@ -1,0 +1,21 @@
+diff -ru -x __pycache__ metamodel/learners.py metamodel/learners.py
+--- metamodel/learners.py	2026-11-19 20:14:14.732871700 +0700
++++ metamodel/learners.py	2026-11-19 22:37:57.247009300 +0700
+@@ -114,7 +114,7 @@
+                 self.model_.fit(Xn, (yn - self.y_loc_) / self.y_scale_)
+         elif self.name == "L2":
+             self.model_ = ExtraTreesRegressor(n_estimators=500, max_features=self.params.get("max_features", "sqrt"),
+-                                              min_samples_leaf=self.params.get("min_samples_leaf", 10), random_state=self.seed, n_jobs=-1)
++                                              min_samples_leaf=self.params.get("min_samples_leaf", 10), random_state=self.seed, n_jobs=1)
+             self.model_.fit(Xn, yn)
+         elif self.name == "L3":
+             self.model_ = self._fit_regressor(Xn, yn, X_val, y_val)
+@@ -139,7 +139,7 @@
+         p = {"objective": objective, "num_leaves": int(self.params.get("num_leaves", 15)),
+              "learning_rate": float(self.params.get("learning_rate", 0.05)), "min_data_in_leaf": int(self.params.get("min_data_in_leaf", 20)),
+              "feature_fraction": float(self.params.get("feature_fraction", 0.9)), "lambda_l2": float(self.params.get("lambda_l2", 1.0)),
+-             "n_estimators": self.n_estimators, "random_state": self.seed, "verbose": -1, "n_jobs": -1}
++             "n_estimators": self.n_estimators, "random_state": self.seed, "verbose": -1, "n_jobs": 1}
+         p.update(extra or {})
+         return p
+ 

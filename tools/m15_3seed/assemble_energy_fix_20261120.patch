@@ -1,0 +1,18 @@
+--- metamodel/assemble.py	2026-11-19 20:14:14.722137300 +0700
++++ metamodel/assemble.py	2026-11-20 11:33:20.404742300 +0700
+@@ -294,8 +294,13 @@
+     res["model_name"] = res["model_name"].astype(str).str.upper()
+     res = res.drop(columns=[c for c in res.columns if c in out.columns and c not in C.RUN_FIELDS])
+     ren = {"train_seconds": "time_train_s", "elapsed_seconds": "time_run_total_s"}
+-    if "energy_gpu_run_kwh" not in res.columns and "energy_gpu_estimated_kwh" in res.columns:
+-        ren["energy_gpu_estimated_kwh"] = "energy_gpu_run_kwh"
++    if "energy_gpu_estimated_kwh" in res.columns:
++        if "energy_gpu_run_kwh" not in res.columns:
++            ren["energy_gpu_estimated_kwh"] = "energy_gpu_run_kwh"
++        elif res["energy_gpu_run_kwh"].isna().all():
++            # an all-empty energy_gpu_run_kwh column (LO seed 42 resource table) must not hide the estimated column
++            res = res.drop(columns=["energy_gpu_run_kwh"])
++            ren["energy_gpu_estimated_kwh"] = "energy_gpu_run_kwh"
+     res = res.rename(columns=ren)
+     join = [k for k in C.RUN_FIELDS if k in res.columns]
+     keep = join + [c for c in ("time_train_s", "time_run_total_s", "energy_gpu_run_kwh", "energy_measurement_type", "gpu",
