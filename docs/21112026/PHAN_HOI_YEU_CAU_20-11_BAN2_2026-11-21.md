@@ -68,7 +68,7 @@ Cả sáu cấu hình chạy trên release ở mục 2 bằng metamodel 0.2.6, c
 4. `tools/m15_3seed/run_assemble_3seed.sh`.
 5. Bản vá `assemble.py` của 20261120: `tools/m15_3seed/assemble_energy_fix_20261120.patch`.
 6. Script chạy M-15 ba seed (`run_local_all_1t.sh`, `m15_run_logged.py`, `run_six_mm026.sh`, `run_e1_per_task.sh`) và bản vá `n_jobs=1` của phiên khác (`n_jobs1_patch_other_session.patch`).
-7. **Chưa commit được:** script tạo `energy_proposal_seed44_20261119`. Đề xuất được tạo bằng một đoạn mã tạm không lưu lại; thư mục Drive có `README.md` mô tả phương pháp (công suất trung vị của các ô cùng họ nhân thời gian chạy) và CSV kết quả. Nếu cần, đội code viết lại script từ mô tả đó.
+7. `tools/seed43_44_pipeline/build_energy_proposal_seed44.py`: đã viết lại theo mô tả phương pháp của thư mục `energy_proposal_seed44_20261119` (công suất trung vị của các ô đã đo cùng họ, và cùng GPU với PatchTST, nhân thời gian chạy; khoảng p5–p95 của công suất). Chạy trên dữ liệu seed 44 cho đúng 8 ô, `elapsed_seconds` và công suất cơ sở giống hệt bản đã giao; `proposed_kwh` và hai cột khoảng lệch tối đa 0,001 kWh (làm tròn chữ số cuối), nên script tái tạo gần đúng chứ chưa trùng từng chữ số. Script gốc không còn bản lưu.
 8. `tools/seed43_44_pipeline/m44_stream_repair.py`, `m44_build_m18_repair.py`.
 
 Cũng commit: `tools/m15_3seed/scan_release_ids.py`, `verify_err_tars.py`, ba builder pha B và hai script quét danh mục (`tools/subgroups_phaseB/`), `tools/combine_meta_release_3seed_mm026.py`.
