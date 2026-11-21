@@ -56,6 +56,62 @@ Cả sáu cấu hình chạy trên release ở mục 2 bằng metamodel 0.2.6, c
 - **`mm_cost_basis` của `sens_energy`** (số nhóm theo task × mô hình × cơ sở): CQ cả sáu mô hình TIME (12 nhóm mỗi mô hình); LO ENERGY ở BILSTM, GRU, LSTM, RNN (12 nhóm mỗi mô hình) và MANTIS_V2 (8 nhóm); LO TIME ở PATCHTST (12 nhóm) và MANTIS_V2 (4 nhóm).
 - Không chạy E1 theo từng task ở pha này (nhưng xem mục 11).
 
+### Kết quả của lần chạy lại (lấy từ báo cáo tổng hợp, mục 5.3)
+
+Các bảng dưới đây là bản sao từ `BAO_CAO_TONG_HOP_SEED42_43_44_2026-11-20` (mục 5.3), tính từ các tệp `mm_*` của gói `mm_runs_CQ_LO_full_F1F2F3_seeds42_43_44_20261120_mm026`: trung bình trên các fold của E1-A, E1-B, E2 và E3, trên lát (ALL, ALL), E1 gộp hai task; đây là biến thể độ vững của Bảng 42. Bảng giả thuyết lấy trung bình trên các fold có phép thử, không thay cho phân tích đầy đủ của tác giả. Hối tiếc và tỉ lệ có hại của các chiến lược B0–B7 và L1–L6 ở cấu hình `main_cal_time` và `obj_perf`; kết quả bốn cấu hình còn lại nằm trong gói.
+
+**Hối tiếc trung bình theo chiến lược, cấu hình `main_cal_time`** (trung bình trên các fold; thấp hơn là tốt hơn):
+
+| Chiến lược | Hối tiếc trung bình | Tỉ lệ có hại | Top-1 trúng |
+|---|---|---|---|
+| B0 | 0.0000 | 0.000 | 1.000 |
+| B1 | 0.0326 | 0.000 | 0.402 |
+| B2 | 0.0113 | 0.135 | 0.382 |
+| B3 | 0.0161 | 0.147 | 0.363 |
+| B4 | 0.0208 | 0.190 | 0.298 |
+| B5 | 0.0141 | 0.165 | 0.274 |
+| B6 | 0.0126 | 0.042 | 0.574 |
+| B7 | 0.0166 | 0.036 | 0.408 |
+| L1-FS3 | 0.0123 | 0.170 | 0.400 |
+| L2-FS3 | 0.0175 | 0.216 | 0.299 |
+| L3-FS3 | 0.0146 | 0.179 | 0.314 |
+| L4-FS3 | 0.0183 | 0.179 | 0.292 |
+| L5-FS3 | 0.0139 | 0.177 | 0.347 |
+| L6-FS3 | 0.0134 | 0.132 | 0.353 |
+
+**Hối tiếc trung bình theo chiến lược, cấu hình `obj_perf`** (trung bình trên các fold; thấp hơn là tốt hơn):
+
+| Chiến lược | Hối tiếc trung bình | Tỉ lệ có hại | Top-1 trúng |
+|---|---|---|---|
+| B0 | 0.0000 | 0.000 | 1.000 |
+| B1 | 0.0559 | 0.000 | 0.219 |
+| B2 | 0.0192 | 0.125 | 0.247 |
+| B3 | 0.0286 | 0.179 | 0.241 |
+| B4 | 0.0357 | 0.244 | 0.158 |
+| B5 | 0.0236 | 0.210 | 0.116 |
+| B6 | 0.0213 | 0.118 | 0.461 |
+| B7 | 0.0289 | 0.039 | 0.204 |
+| L1-FS3 | 0.0240 | 0.234 | 0.216 |
+| L2-FS3 | 0.0300 | 0.226 | 0.186 |
+| L3-FS3 | 0.0250 | 0.225 | 0.198 |
+| L4-FS3 | 0.0313 | 0.207 | 0.201 |
+| L5-FS3 | 0.0241 | 0.126 | 0.402 |
+
+**Giả thuyết H1–H8 (cấu hình `main_cal_time`; ước lượng trung bình trên các fold có phép thử, khoảng tin cậy trung bình):**
+
+| Giả thuyết | Số phép thử | Ước lượng | Cận dưới | Cận trên |
+|---|---|---|---|---|
+| H1 | 1 | 0.0029 | 0.0006 | 0.0057 |
+| H2 | 1 | 0.0010 | -0.0015 | 0.0041 |
+| H3 | 1 | 0.0625 | -0.0417 | 0.1875 |
+| H4 | 1 | 0.0087 | 0.0019 | 0.0165 |
+| H5 | 3 | -0.0031 | -0.0060 | -0.0003 |
+| H6 | 1 | -0.3326 | -0.4162 | -0.2525 |
+| H7 | 1 | -0.0011 | -0.0016 | -0.0007 |
+| H8 | 2 | -0.2378 | -0.6475 | 0.1915 |
+
+
+
 ## 4. A.6 — dòng `rc=127`
 
 `pc_one_thread/m15_progress.log` có hai lần chạy `sens_energy_rel20261120`: lần 1 bắt đầu 11:34:55 ngày 20/11, được dừng theo quyết định của người vận hành ở khoảng 60% tiến độ, dòng `END … rc=127` là của lần này; lần 2 bắt đầu 13:37:28 và kết thúc `rc=0`. Các file trong thư mục `sens_energy/` do lần 2 tạo ra. Nguồn chính xác của mã 127 chưa xác định: nhiều khả năng do script bao quanh ghi mã thoát sau khi tiến trình bị dừng. Bản `pc_one_thread/sens_energy` lúc đó dùng kết quả chạy trên release 20261119; bộ mới ở mục 3 thay thế nó.
