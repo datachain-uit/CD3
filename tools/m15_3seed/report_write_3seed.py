@@ -12,26 +12,28 @@ import numpy as np
 import pandas as pd
 
 T = Path(os.environ.get('TEMPO_REPORT_TABLES', f'{A44}/report_s42_43_44'))
-REL = Path(os.environ.get('TEMPO_RELEASE', f'{REPO}/CQ/resuilt/meta_release_CQ_LO_full_F1F2F3_seeds42_43_44_20261120'))
+REL = Path(os.environ.get('TEMPO_RELEASE', f'{REPO}/CQ/resuilt/meta_release_CQ_LO_full_F1F2F3_seeds42_43_44_20261120_mm026'))
 DOC = Path(os.environ.get('TEMPO_REPORT_DIR', f'{REPO}/docs/20112026'))
 M18 = Path(f'{A44}/m18_44/m18_training_history_seed44_20261119')
 ENERGY = Path(f'{A44}/energy_note_seed44_20261119/energy_proposal_seed44.csv')
-M15_DIRS = [Path(p) for p in os.environ.get('TEMPO_M15_DIRS', f'{WORK}/m15_3seed/mm_runs_pc_final;{WORK}/m15_3seed/results/17429/x/mm_runs_full3seed').split(';')]
+M15_DIRS = [Path(p) for p in os.environ.get('TEMPO_M15_DIRS', f'{WORK}/m15_026/mm_runs_phaseA').split(';')]
 M15_ALT = Path(f'{REPO}/CQ/resuilt/m15_full3seed_local_1thread_20261119_223831')
 def _se_sentence():
-    a_ = M15_DIRS[0] / 'sens_energy'
-    b_ = M15_DIRS[0] / 'main_cal_time'
-    if not ((a_ / 'mm_metrics.parquet').exists() and (b_ / 'mm_metrics.parquet').exists()):
-        return 'Kết quả `sens_energy` chưa có tại thời điểm viết.'
     import pandas as _pd
-    x, y = _pd.read_parquet(a_ / 'mm_metrics.parquet'), _pd.read_parquet(b_ / 'mm_metrics.parquet')
+    d_ = M15_DIRS[0]
+    f_ = d_ / 'sens_energy' / 'mm_cost_basis.parquet'
+    if not f_.exists() or not (d_ / 'main_cal_time' / 'mm_metrics.parquet').exists():
+        return 'Kết quả `sens_energy` chưa có tại thời điểm viết.'
+    cb = _pd.read_parquet(f_)
+    tot = cb.groupby(['task', 'cost_basis']).n_groups.sum().unstack(fill_value=0)
+    parts = '; '.join(f"{t}: {int(r.get('ENERGY', 0))} nhóm theo năng lượng, {int(r.get('TIME', 0))} nhóm theo thời gian" for t, r in tot.iterrows())
+    x, y = _pd.read_parquet(d_ / 'sens_energy' / 'mm_metrics.parquet'), _pd.read_parquet(d_ / 'main_cal_time' / 'mm_metrics.parquet')
     num = [c for c in x.columns if x[c].dtype.kind == 'f']
     nd = int((_pd.DataFrame({c: (x[c] - y[c]).abs() for c in num}).max(axis=1) > 1e-9).sum())
-    rx, ry = _pd.read_parquet(a_ / 'mm_recommendations.parquet'), _pd.read_parquet(b_ / 'mm_recommendations.parquet')
+    rx, ry = _pd.read_parquet(d_ / 'sens_energy' / 'mm_recommendations.parquet'), _pd.read_parquet(d_ / 'main_cal_time' / 'mm_recommendations.parquet')
     nr = int((rx.pipeline_recommended.values != ry.pipeline_recommended.values).sum())
-    return (f'So với `main_cal_time`, `sens_energy` khác ở {nd}/{len(x)} dòng metrics và {nr}/{len(rx)} khuyến nghị pipeline. '
-            + ('Suy ra không nhóm nào có đủ tỉ lệ năng lượng được chấp nhận cho mọi ứng viên (suy luận từ kết quả trùng, không phải số đếm từ kết quả của bộ chạy), nên mọi nhóm dùng cơ sở thời gian; '
-               'thiếu số đo năng lượng ở CQ F1 seed 43 (0/204 run) và ở các ô được nêu ở mục 3.2 là lý do chính khả dĩ.' if nd == 0 and nr == 0 else 'Phần khác biệt do các nhóm đủ năng lượng dùng cơ sở năng lượng.'))
+    return (f'Theo bảng `mm_cost_basis` (12 nhóm mỗi task × mô hình): {parts}. Nhóm thiếu tỉ lệ năng lượng ở một seed tự về cơ sở thời gian. '
+            f'So với `main_cal_time`, `sens_energy` khác ở {nd}/{len(x)} dòng `mm_metrics` (các cột chi phí và Pareto) và {nr}/{len(rx)} khuyến nghị pipeline.')
 
 
 SE_SENT = _se_sentence()
@@ -220,19 +222,17 @@ w('**Khóa quan sát** (mỗi dòng là một meta-observation): task, nhãn và
   'Mỗi dòng giữ giá trị trước can thiệp (V0), sau can thiệp (V1–V16), chênh lệch và các tham chiếu (imputer-only, F0), ghép cặp theo cùng seed. Bảng gộp seed bỏ trục seed và thêm trung bình, độ lệch chuẩn, trung vị, p90, p95, số seed dương và độ nhất quán dấu của chênh lệch.\n')
 w('**Đối chiếu với release một seed (`full42`, 12/11):** phần seed 42 của release mới trùng 2.448/2.448 dòng mỗi task. CQ: 58 cột F1 trước đây rỗng nay đã điền (đúng kết luận nghiệm thu metamodel 0.2.4); '
   'LO: một cột chẩn đoán `probe_n_iter` khác ở 408 dòng Mantis, giá trị mới khớp tệp nguồn. Đây không phải mục tiêu của meta-model.\n')
-w('**Sửa cột năng lượng LO (release 20261120).** Release 20261119 và release `full42` có cột năng lượng của LO (`energy_gpu_run_kwh_*`) rỗng: tệp tài nguyên LO của seed 42 có sẵn cột `energy_gpu_run_kwh` rỗng nên bộ lắp không đổi tên cột `energy_gpu_estimated_kwh`. '
-  'Bộ lắp được sửa để dùng cột ước lượng khi cột chính rỗng hoàn toàn; nửa LO được lắp lại và ghép với nửa CQ cũ thành release 20261120. Ngoài các cột năng lượng, tỉ lệ, chênh lệch của chúng, `null_reason_map` và mã release, không cột nào đổi. '
-  'Giá trị năng lượng LO là ước lượng từ lấy mẫu công suất NVML (`NVML_POWER_SAMPLING_ESTIMATE`), khớp 918/918 run LO với gói nguồn; 10 run không có số đo là Mantis seed 42 (5) và PatchTST seed 43 (5).' + chr(10))
-w('**M-15 và release.** Năm cấu hình dùng cơ sở chi phí thời gian chạy trên release 20261119; các cột năng lượng không đi vào các cấu hình đó nên kết quả không đổi khi đổi sang release 20261120. '
-  '`sens_energy` (cơ sở chi phí là năng lượng nếu mọi ứng viên của nhóm đều có tỉ lệ năng lượng được chấp nhận, ngược lại dùng thời gian) được chạy lại trên release 20261120 sau khi sửa cột năng lượng LO.' + chr(10))
-w('**Kết quả `sens_energy` giống `main_cal_time`.** ' + SE_SENT + chr(10))
+w('**Cột năng lượng và phiên bản lắp.** Release lắp bằng metamodel 0.2.6 (registry `registries_rev_2026-11-20b`) từ cùng 70 đầu vào của bản trước. Tệp tài nguyên LO của seed 42 có sẵn cột `energy_gpu_run_kwh` rỗng; từ 0.2.5 bộ lắp lấy giá trị ước lượng theo từng dòng mà cột chính rỗng, nên cột năng lượng LO đầy đủ (khớp 918/918 run LO với gói nguồn; 10 run không có số đo là Mantis seed 42 (5) và PatchTST seed 43 (5)). '
+  'So với release 20261120 (bản vá cục bộ của bộ lắp 0.2.4), mọi cột chung trùng tuyệt đối trừ `meta_release_id` và `builder_version`; cột mới: `rec_energy_measured_types` (bảng mức seed) cùng sáu cột (bảng gộp seed) về kích thước lát và kiểu đo năng lượng. Giá trị năng lượng là ước lượng từ lấy mẫu công suất NVML (`NVML_POWER_SAMPLING_ESTIMATE`).' + chr(10))
+w('**M-15 và release.** Cả sáu cấu hình chạy trên đúng release này bằng metamodel 0.2.6. Năm cấu hình dùng cơ sở chi phí thời gian cho kết quả trùng bộ chạy trước trên release 20261120 (so từng bảng `mm_*`: không bảng nào khác). `sens_energy` chạy với `--accept-energy-estimates` trên chính release này.' + chr(10))
+w('**Cơ sở chi phí của `sens_energy`.** ' + SE_SENT + chr(10))
 
 # ---- 5 meta-model
 w('## 5. Cấu hình meta-model (M-15)\n')
 w('### 5.1 Cấu hình chạy\n')
 w(tab(['Mục', 'Giá trị'], [
     ['Đầu vào', f'`meta_dataset_seed_agg.parquet` của release ba seed ({man["n_rows_seed_agg"]:,} dòng; sha256 `8fc29ce4…`)'],
-    ['Mã', 'metamodel 0.2.4 (lệnh `metamodel.cli run`), tempo_fix rev 2026-11-16'],
+    ['Mã', 'metamodel 0.2.6 (2026-11-20; lệnh `metamodel.cli run`), tempo_fix registry rev 2026-11-20b'],
     ['Giao thức', 'E1-A (W1→W2), E1-B (W1W2→W3), E2 (CQ→LO, LO→CQ), E3 (giữ lại từng họ F1, F2, F3): 7 fold'],
     ['Meta-learner chính', 'L1 (elastic net, tương tác can thiệp–trạng thái), L2 (ExtraTrees), L3 (LightGBM hồi quy, learner chính), L4 (LightGBM LambdaRank)'],
     ['Meta-learner phụ', 'L5 (LightGBM ba lớp HARM/NEUTRAL/BENEFIT), L6 (hai LightGBM cho phần hiệu năng và phần sanity)'],
@@ -269,7 +269,7 @@ else:
         reg = pd.read_parquet(d / 'mm_run_registry.parquet')
         nc = pd.read_parquet(d / 'mm_negative_control.parquet')
         el = float(reg.elapsed_s_total.iloc[0]) / 3600
-        src_lbl = ('đội code (mã gốc, một luồng bằng biến môi trường), chạy trên release 20261120' if name == 'sens_energy' else 'đội code (mã gốc, một luồng bằng biến môi trường), release 20261119') if base in M15_DIRS else 'chạy một luồng bằng mã sửa hai dòng `n_jobs=1` (phiên khác)'
+        src_lbl = 'đội code (mã 0.2.6, một luồng bằng biến môi trường)'
         rows.append([f'`{name}`', src_lbl, len(reg), ', '.join(f'{k} {v}' for k, v in reg.status.value_counts().items()), 'không' if not reg.fallback_models.astype(bool).any() else 'có',
                      f'{int(nc.MQ08_pass.sum())}/{len(nc)}', f(el, 2)])
     w(tab(['Cấu hình', 'Nguồn kết quả', 'Dòng registry', 'Trạng thái', 'Dùng phương án dự phòng', 'MQ08 đạt (fold)', 'Thời gian (giờ)'], rows) + '\n')
@@ -312,7 +312,7 @@ w('## 8. Giới hạn của báo cáo' + chr(10))
 w('- Chỉ số mục 2 là trung bình trên tập TEST, không có khoảng tin cậy; độ lệch giữa seed và giữa các nhóm pipeline chỉ mang tính mô tả.' + chr(10) +
   '- **Meta-dataset chưa theo đúng cách chia của tài liệu gốc**: release hiện chỉ có nhóm con `ALL/ALL` (cohort `FIXED`), chưa có các nhóm con bắt buộc; E1-A và E1-B gộp CQ và LO trong cùng fold (cả train và test chứa hai task), chưa chia E1 theo từng task như tài liệu mô tả. E2 là chuyển task (CQ→LO, LO→CQ) và E3 giữ lại từng họ mô hình.' + chr(10) +
   '- **M-15**: số cấu hình có kết quả và nguồn của chúng ghi ở bảng mục 5.3; cấu hình chưa có trong bảng chưa xong tại thời điểm viết. Kết quả chạy mỗi tiến trình một luồng, có thể khác lần 13/11 ở mức nhiễu dấu phẩy động. Kiểm âm tính MQ08 chưa đạt ở một số fold (số fold đạt ở bảng 5.3); không kết luận gì thêm ngoài việc ghi nhận. Thống kê giả thuyết lấy trung bình trên fold, không thay cho phân tích đầy đủ của tác giả.' + chr(10) +
-  '- `sens_energy` (release 20261120) cho kết quả trùng `main_cal_time` ở mọi dòng (mục 4); 8 ô CQ seed 44 không có số đo năng lượng (mục 3.2). Đề xuất năng lượng chỉ để báo cáo, không áp dụng vào dữ liệu.' + chr(10) +
+  '- `sens_energy` về cơ sở thời gian ở mọi nhóm CQ và ở một phần nhóm LO (PatchTST và 4 nhóm Mantis), vì thiếu tỉ lệ năng lượng ở ít nhất một seed (mục 4); 8 ô CQ seed 44 không có số đo năng lượng (mục 3.2). Đề xuất năng lượng chỉ để báo cáo, không áp dụng vào dữ liệu.' + chr(10) +
   '- Mantis chạy ở chế độ thăm dò (`EXPLORATORY`); commit runner của Mantis được ánh xạ hồi tố, việc phía review chấp nhận cho seed 43 và 44 còn chờ.' + chr(10) +
   '- Tổng thời gian run của một số tổ hợp tính trên ít ô hơn số ô (bảng 3.2 ghi mẫu số), vì có ô thiếu `time_run_total_s`.' + chr(10))
 
