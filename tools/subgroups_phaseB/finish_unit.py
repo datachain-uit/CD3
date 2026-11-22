@@ -27,4 +27,4 @@ with (Path(WORK) / 'phaseB' / 'units' / 'run_units.log').open('a', encoding='utf
     h.write(line + '\n')
 print(line)
 if chk.returncode == 0:
-    shutil.rmtree(Path('D:/phaseB_tmp') / unit, ignore_errors=True)
+    shutil.rmtree(Path(sys.argv[4] if len(sys.argv) > 4 else f'{WORK}/phaseB_tmp') / unit, ignore_errors=True)
