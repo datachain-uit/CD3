@@ -17,6 +17,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from sklearn.metrics import roc_auc_score
 
 import sys as _sys, pathlib as _pl; _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1] / 'seed43_44_pipeline'))
 from tempo_paths import REPO, WORK
@@ -43,7 +44,7 @@ VIEW = {'CQ': 'CQ/phase_views_v2_2', 'LO': 'LO/phase_views_v3_1_scored_signal_ex
 REGIME = {'CQ': 'CQ_RAW_EARLY', 'LO': 'LO_FULL_EARLY'}[TASK]
 COPY_COLS = ['parent_pipeline', 's_eff', 's_leak', 's_leak_probe_auc', 's_eff_definition_version', 's_eff_train_source', 's_eff_observed_rate', 's_eff_availability_rate', 's_leak_probe_fit_once',
              'probe_seed', 's_leak_source', 'probe_fit_scope', 'probe_fit_rows', 's_leak_probe_n_eval', 'probe_score_scope', 'probe_fit_rows_source', 'model_tier', 'variant_role', 'run_purpose']
-REPORT_ONLY = {'log_loss', 'pr_auc_macro'}   # metrics whose accepted values come from an older implementation (probability clip 1e-7; older average-precision): difference reported, not an error
+REPORT_ONLY = {'log_loss', 'pr_auc_macro', 'top_label_ece_15', 'multiclass_nll', 'cross_entropy', 'multiclass_brier'}   # metrics whose accepted values come from an older implementation (probability clip 1e-7; older average-precision): difference reported, not an error
 out = Path(args.out); out.mkdir(parents=True, exist_ok=True)
 SALTS = [(Path(f).name, Path(f).read_bytes().decode('utf-8').rstrip(chr(10))) for f in args.salt_files if Path(f).exists()]
 
@@ -60,6 +61,8 @@ if 'task' in facts:
     facts = facts[facts.task == TASK]
 facts = facts[(facts.model_name == args.model) & (facts.seed == args.seed)]
 FACT_COLS = list(facts.columns)
+LEGACY = 'f1_macro' in FACT_COLS      # facts of the first F1 runs (R4, static-v2) carry the older column names
+COPY_COLS = list(dict.fromkeys(COPY_COLS + [c for c in FACT_COLS if c.startswith('probe_') or c.startswith('s_leak')] + [c for c in ('calibration_bins',) if c in FACT_COLS]))
 fidx = {(r['window_id'], r['pipeline_id'], r['eval_split'], r['phase_id']): r for r in facts.to_dict('records')}
 flags_all = pd.read_parquet(args.flags.format(task=TASK), columns=['window_id', 'split_name', 'phase_id', 'enrollment_id', 'seen_learner', 'seen_course', 'seen_offering'])   # only the columns needed (memory)
 hash_cache = {}
@@ -98,6 +101,24 @@ def metric_row(y, probs, w, s_eff, s_leak):
     v['acctempo_m3'] = float((max(v['s_perf'], COMPOSITE_EPS) ** .6) * (max(v['s_san_plus'], COMPOSITE_EPS) ** .4))
     v['acctempo_m4'] = float((max(v['s_perf'], COMPOSITE_EPS) ** .6) * (max(v['s_san_plus_v2'], COMPOSITE_EPS) ** .4))
     return v
+
+
+def legacy_cols(y, probs, vals, strict_flags, w):
+    """columns of the older fact schema (accuracy, f1_weighted, per_class_*, roc_auc_macro_ovr, strict shares ...), recomputed on the rows given; only the columns the accepted ALL row carries are returned"""
+    cm = np.array([list(x) for x in vals['confusion_matrix']], dtype=float)
+    n = cm.sum(); d = np.diag(cm); sup = cm.sum(1); pred = cm.sum(0)
+    prec = np.divide(d, pred, out=np.zeros(3), where=pred > 0)
+    rec = np.divide(d, sup, out=np.zeros(3), where=sup > 0)
+    f1 = np.divide(2 * prec * rec, prec + rec, out=np.zeros(3), where=(prec + rec) > 0)
+    try:
+        auc = float(roc_auc_score(y, probs, multi_class='ovr', average='macro', labels=[0, 1, 2]))
+    except ValueError:
+        auc = float('nan')
+    ss = float(np.mean(strict_flags)) if len(strict_flags) else float('nan')
+    out = {'accuracy': float(d.sum() / n), 'f1_weighted': float((f1 * sup).sum() / n), 'per_class_f1': f1, 'per_class_precision': prec, 'per_class_recall': rec, 'per_class_support': sup, 'n_rows': int(n),
+           'roc_auc_macro_ovr': auc, 'top_label_ece_15': vals['ece'], 'balanced_accuracy': vals['balanced_acc'], 'cohen_kappa': vals['kappa'], 'gmean_recall': vals['gmean'], 'f1_macro': vals['macro_f1'],
+           'multiclass_nll': vals['log_loss'], 'cross_entropy': vals['log_loss'], 'multiclass_brier': vals['brier'], 'strict_share': ss, 'w2_strict_share': ss if w == 'W2' else float('nan')}
+    return {k: v for k, v in out.items() if k in FACT_COLS}
 
 
 def git_commit():
@@ -140,8 +161,19 @@ for w in ('W1', 'W2', 'W3'):
                 probs = p[['prob_c0', 'prob_c1', 'prob_c2']].to_numpy(float)
                 s_eff, s_leak = float(fr['s_eff']), float(fr['s_leak'])
                 allv = metric_row(y, probs, w, s_eff, s_leak)
+                strict_all = p[f'temporal_strict_{phase}'].to_numpy(float) if f'temporal_strict_{phase}' in p else np.array([])
+                if LEGACY:
+                    allv.update(legacy_cols(y, probs, allv, strict_all, w))
                 for c, x in allv.items():
-                    if c in fr and isinstance(x, (int, float, np.floating, np.integer)) and not isinstance(x, bool) and pd.notna(fr[c]):
+                    if c in fr and isinstance(x, np.ndarray):
+                        try:
+                            d = float(np.max(np.abs(np.asarray(x, float) - np.asarray(fr[c], float))))
+                        except (TypeError, ValueError):
+                            continue
+                        qa['all_row_max_abs_diff_by_column'][c] = max(qa['all_row_max_abs_diff_by_column'].get(c, 0.0), d)
+                        if d > 1e-12 and c not in REPORT_ONLY:
+                            qa['all_row_mismatch'].append([w, v_, split, phase, c, d])
+                    elif c in fr and isinstance(x, (int, float, np.floating, np.integer)) and not isinstance(x, bool) and pd.notna(fr[c]):
                         try:
                             d = abs(float(x) - float(fr[c]))
                         except (TypeError, ValueError):
@@ -172,6 +204,10 @@ for w in ('W1', 'W2', 'W3'):
                             row['confusion_matrix'] = str(vals['confusion_matrix'])
                             for k, x in vals.items():
                                 if k != 'confusion_matrix' and not isinstance(x, (list, dict, np.ndarray)):
+                                    row[k] = x
+                            if LEGACY:
+                                sl_strict = strict_all[sel] if len(strict_all) == len(sel) else np.array([])
+                                for k, x in legacy_cols(yy, pp, vals, sl_strict, w).items():
                                     row[k] = x
                         else:
                             cm = np.zeros((3, 3), dtype=np.int64)
