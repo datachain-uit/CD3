@@ -1,0 +1,579 @@
+- pipeline_id: V0
+  pipeline_name: V0-Raw
+  imputer: NONE
+  balancer: NONE
+  imputer_family: NONE
+  balancer_family: NONE
+  is_no_intervention: 1
+  has_imputation: 0
+  has_balancing: 0
+  before_ref: V0
+  imputer_only_ref: V0
+  fit_scope: TRAIN_POOLED_P1_P4
+  impute_scope: OBSERVED_MISSING_ONLY
+  v0_fill_rule: ZERO_RAW_PRE_TRANSFORM
+  seed_preprocess: 20260922
+  synthetic_phase_rule: SAME_PHASE_ONLY
+  synthetic_mask_rule: INTERSECTION_OF_PARENTS
+  sampling_strategy_id: null
+  imputer_params:
+    rule_id: ZERO_RAW_PRE_TRANSFORM
+    fill_value: 0.0
+    fill_space: RAW
+    applies_to: OBSERVED_MISSING_ONLY
+    future_unavailable:
+      fill_value: 0.0
+      mask: M_available=0
+    note: Filled before log transform and RobustScaler; carries "no activity" semantics
+      for counts; M_missing=1 keeps the cell distinguishable from a real zero.
+  balancer_params: null
+  imputer_params_hash: 43b42110b56242fbca3df254fd4d4f70525c061a5c9509cc2a181ccf774b1722
+  balancer_params_hash: null
+- pipeline_id: V1
+  pipeline_name: V1-Median
+  imputer: MEDIAN
+  balancer: NONE
+  imputer_family: UNIVARIATE
+  balancer_family: NONE
+  is_no_intervention: 0
+  has_imputation: 1
+  has_balancing: 0
+  before_ref: V0
+  imputer_only_ref: V1
+  fit_scope: TRAIN_POOLED_P1_P4
+  impute_scope: OBSERVED_MISSING_ONLY
+  v0_fill_rule: ZERO_RAW_PRE_TRANSFORM
+  seed_preprocess: 20260922
+  synthetic_phase_rule: SAME_PHASE_ONLY
+  synthetic_mask_rule: INTERSECTION_OF_PARENTS
+  sampling_strategy_id: null
+  imputer_params:
+    strategy: median
+  balancer_params: null
+  imputer_params_hash: d7bb62a0e727f588d06f19740256007d8c86f8186a71a97d947b5e79eeef6c98
+  balancer_params_hash: null
+- pipeline_id: V2
+  pipeline_name: V2-Median-CDSMOTE
+  imputer: MEDIAN
+  balancer: CDSMOTE
+  imputer_family: UNIVARIATE
+  balancer_family: SMOTE_VARIANT
+  is_no_intervention: 0
+  has_imputation: 1
+  has_balancing: 1
+  before_ref: V0
+  imputer_only_ref: V1
+  fit_scope: TRAIN_POOLED_P1_P4
+  impute_scope: OBSERVED_MISSING_ONLY
+  v0_fill_rule: ZERO_RAW_PRE_TRANSFORM
+  seed_preprocess: 20260922
+  synthetic_phase_rule: SAME_PHASE_ONLY
+  synthetic_mask_rule: INTERSECTION_OF_PARENTS
+  sampling_strategy_id: IR10_K10
+  imputer_params:
+    strategy: median
+  balancer_params:
+    n_clusters: 5
+    within_cluster_interpolation: true
+    source: '[RT] BALANCERS.CDSMOTE; k-means clusters of the minority class, interpolation
+      inside a cluster'
+    sampling_strategy_id: IR10_K10
+    type: IR_TARGET_WITH_CAP
+    ir_target: 10
+    max_expansion_per_class: 10
+    rule: n_target_c = min(max(n_c, ceil(n_max / ir_target)), max_expansion_per_class
+      * n_c); majority never undersampled
+    decided_on: '2026-09-27'
+    basis: Phuong_an_sampling_strategy.docx; tempo_fix.sampling.plan_targets
+  imputer_params_hash: d7bb62a0e727f588d06f19740256007d8c86f8186a71a97d947b5e79eeef6c98
+  balancer_params_hash: 5440bcde0618c244228b8b18f0050dba93bf7b0186c5186fe0b980f4a0850abd
+- pipeline_id: V3
+  pipeline_name: V3-Median-SASMOTE
+  imputer: MEDIAN
+  balancer: SASMOTE
+  imputer_family: UNIVARIATE
+  balancer_family: SMOTE_VARIANT
+  is_no_intervention: 0
+  has_imputation: 1
+  has_balancing: 1
+  before_ref: V0
+  imputer_only_ref: V1
+  fit_scope: TRAIN_POOLED_P1_P4
+  impute_scope: OBSERVED_MISSING_ONLY
+  v0_fill_rule: ZERO_RAW_PRE_TRANSFORM
+  seed_preprocess: 20260922
+  synthetic_phase_rule: SAME_PHASE_ONLY
+  synthetic_mask_rule: INTERSECTION_OF_PARENTS
+  sampling_strategy_id: IR10_K10
+  imputer_params:
+    strategy: median
+  balancer_params:
+    visible_k: 16
+    max_inspectors: 4
+    inspector_trees: 16
+    inspector_n_jobs: 8
+    uncertainty_threshold: 0.5
+    candidate_batch_size: 262144
+    max_candidate_rounds: 32
+    neighbour_rule: n_neighbors = min(visible_k, n_minority - 1)
+    source: '[RT] BALANCERS.SASMOTE'
+    sampling_strategy_id: IR10_K10
+    type: IR_TARGET_WITH_CAP
+    ir_target: 10
+    max_expansion_per_class: 10
+    rule: n_target_c = min(max(n_c, ceil(n_max / ir_target)), max_expansion_per_class
+      * n_c); majority never undersampled
+    decided_on: '2026-09-27'
+    basis: Phuong_an_sampling_strategy.docx; tempo_fix.sampling.plan_targets
+  imputer_params_hash: d7bb62a0e727f588d06f19740256007d8c86f8186a71a97d947b5e79eeef6c98
+  balancer_params_hash: d8b7b3e699d84439b302d74cc8af60e0422a7ca0a0259794dbd6d737ebe7165b
+- pipeline_id: V4
+  pipeline_name: V4-Median-RadiusSMOTE
+  imputer: MEDIAN
+  balancer: RADIUS_SMOTE
+  imputer_family: UNIVARIATE
+  balancer_family: SMOTE_VARIANT
+  is_no_intervention: 0
+  has_imputation: 1
+  has_balancing: 1
+  before_ref: V0
+  imputer_only_ref: V1
+  fit_scope: TRAIN_POOLED_P1_P4
+  impute_scope: OBSERVED_MISSING_ONLY
+  v0_fill_rule: ZERO_RAW_PRE_TRANSFORM
+  seed_preprocess: 20260922
+  synthetic_phase_rule: SAME_PHASE_ONLY
+  synthetic_mask_rule: INTERSECTION_OF_PARENTS
+  sampling_strategy_id: IR10_K10
+  imputer_params:
+    strategy: median
+  balancer_params:
+    radius: 0.092
+    radius_space: scaled_numeric_model_input
+    fallback_audit: fallback_nearest_neighbour_rate recorded per run; > 0.50 raises
+      a warning in the ledger (radius too small for that class), see POST_MATERIALIZE_CHECKS[5]
+    source: '[RT] BALANCERS.RADIUS_SMOTE; supersedes PLAN v1.6 radius_quantile 0.5'
+    sampling_strategy_id: IR10_K10
+    type: IR_TARGET_WITH_CAP
+    ir_target: 10
+    max_expansion_per_class: 10
+    rule: n_target_c = min(max(n_c, ceil(n_max / ir_target)), max_expansion_per_class
+      * n_c); majority never undersampled
+    decided_on: '2026-09-27'
+    basis: Phuong_an_sampling_strategy.docx; tempo_fix.sampling.plan_targets
+  imputer_params_hash: d7bb62a0e727f588d06f19740256007d8c86f8186a71a97d947b5e79eeef6c98
+  balancer_params_hash: 25adddf00bccd9d3df032d2168aa315204dcba23cc0d6f55c81b024dd08c5772
+- pipeline_id: V5
+  pipeline_name: V5-Mean
+  imputer: MEAN
+  balancer: NONE
+  imputer_family: UNIVARIATE
+  balancer_family: NONE
+  is_no_intervention: 0
+  has_imputation: 1
+  has_balancing: 0
+  before_ref: V0
+  imputer_only_ref: V5
+  fit_scope: TRAIN_POOLED_P1_P4
+  impute_scope: OBSERVED_MISSING_ONLY
+  v0_fill_rule: ZERO_RAW_PRE_TRANSFORM
+  seed_preprocess: 20260922
+  synthetic_phase_rule: SAME_PHASE_ONLY
+  synthetic_mask_rule: INTERSECTION_OF_PARENTS
+  sampling_strategy_id: null
+  imputer_params:
+    strategy: mean
+  balancer_params: null
+  imputer_params_hash: e63d1f19ce9f73cbad38aa9355b46378c56f47cdf169f03369e50644d1117ccd
+  balancer_params_hash: null
+- pipeline_id: V6
+  pipeline_name: V6-Mean-CDSMOTE
+  imputer: MEAN
+  balancer: CDSMOTE
+  imputer_family: UNIVARIATE
+  balancer_family: SMOTE_VARIANT
+  is_no_intervention: 0
+  has_imputation: 1
+  has_balancing: 1
+  before_ref: V0
+  imputer_only_ref: V5
+  fit_scope: TRAIN_POOLED_P1_P4
+  impute_scope: OBSERVED_MISSING_ONLY
+  v0_fill_rule: ZERO_RAW_PRE_TRANSFORM
+  seed_preprocess: 20260922
+  synthetic_phase_rule: SAME_PHASE_ONLY
+  synthetic_mask_rule: INTERSECTION_OF_PARENTS
+  sampling_strategy_id: IR10_K10
+  imputer_params:
+    strategy: mean
+  balancer_params:
+    n_clusters: 5
+    within_cluster_interpolation: true
+    source: '[RT] BALANCERS.CDSMOTE; k-means clusters of the minority class, interpolation
+      inside a cluster'
+    sampling_strategy_id: IR10_K10
+    type: IR_TARGET_WITH_CAP
+    ir_target: 10
+    max_expansion_per_class: 10
+    rule: n_target_c = min(max(n_c, ceil(n_max / ir_target)), max_expansion_per_class
+      * n_c); majority never undersampled
+    decided_on: '2026-09-27'
+    basis: Phuong_an_sampling_strategy.docx; tempo_fix.sampling.plan_targets
+  imputer_params_hash: e63d1f19ce9f73cbad38aa9355b46378c56f47cdf169f03369e50644d1117ccd
+  balancer_params_hash: 5440bcde0618c244228b8b18f0050dba93bf7b0186c5186fe0b980f4a0850abd
+- pipeline_id: V7
+  pipeline_name: V7-Mean-SASMOTE
+  imputer: MEAN
+  balancer: SASMOTE
+  imputer_family: UNIVARIATE
+  balancer_family: SMOTE_VARIANT
+  is_no_intervention: 0
+  has_imputation: 1
+  has_balancing: 1
+  before_ref: V0
+  imputer_only_ref: V5
+  fit_scope: TRAIN_POOLED_P1_P4
+  impute_scope: OBSERVED_MISSING_ONLY
+  v0_fill_rule: ZERO_RAW_PRE_TRANSFORM
+  seed_preprocess: 20260922
+  synthetic_phase_rule: SAME_PHASE_ONLY
+  synthetic_mask_rule: INTERSECTION_OF_PARENTS
+  sampling_strategy_id: IR10_K10
+  imputer_params:
+    strategy: mean
+  balancer_params:
+    visible_k: 16
+    max_inspectors: 4
+    inspector_trees: 16
+    inspector_n_jobs: 8
+    uncertainty_threshold: 0.5
+    candidate_batch_size: 262144
+    max_candidate_rounds: 32
+    neighbour_rule: n_neighbors = min(visible_k, n_minority - 1)
+    source: '[RT] BALANCERS.SASMOTE'
+    sampling_strategy_id: IR10_K10
+    type: IR_TARGET_WITH_CAP
+    ir_target: 10
+    max_expansion_per_class: 10
+    rule: n_target_c = min(max(n_c, ceil(n_max / ir_target)), max_expansion_per_class
+      * n_c); majority never undersampled
+    decided_on: '2026-09-27'
+    basis: Phuong_an_sampling_strategy.docx; tempo_fix.sampling.plan_targets
+  imputer_params_hash: e63d1f19ce9f73cbad38aa9355b46378c56f47cdf169f03369e50644d1117ccd
+  balancer_params_hash: d8b7b3e699d84439b302d74cc8af60e0422a7ca0a0259794dbd6d737ebe7165b
+- pipeline_id: V8
+  pipeline_name: V8-Mean-RadiusSMOTE
+  imputer: MEAN
+  balancer: RADIUS_SMOTE
+  imputer_family: UNIVARIATE
+  balancer_family: SMOTE_VARIANT
+  is_no_intervention: 0
+  has_imputation: 1
+  has_balancing: 1
+  before_ref: V0
+  imputer_only_ref: V5
+  fit_scope: TRAIN_POOLED_P1_P4
+  impute_scope: OBSERVED_MISSING_ONLY
+  v0_fill_rule: ZERO_RAW_PRE_TRANSFORM
+  seed_preprocess: 20260922
+  synthetic_phase_rule: SAME_PHASE_ONLY
+  synthetic_mask_rule: INTERSECTION_OF_PARENTS
+  sampling_strategy_id: IR10_K10
+  imputer_params:
+    strategy: mean
+  balancer_params:
+    radius: 0.092
+    radius_space: scaled_numeric_model_input
+    fallback_audit: fallback_nearest_neighbour_rate recorded per run; > 0.50 raises
+      a warning in the ledger (radius too small for that class), see POST_MATERIALIZE_CHECKS[5]
+    source: '[RT] BALANCERS.RADIUS_SMOTE; supersedes PLAN v1.6 radius_quantile 0.5'
+    sampling_strategy_id: IR10_K10
+    type: IR_TARGET_WITH_CAP
+    ir_target: 10
+    max_expansion_per_class: 10
+    rule: n_target_c = min(max(n_c, ceil(n_max / ir_target)), max_expansion_per_class
+      * n_c); majority never undersampled
+    decided_on: '2026-09-27'
+    basis: Phuong_an_sampling_strategy.docx; tempo_fix.sampling.plan_targets
+  imputer_params_hash: e63d1f19ce9f73cbad38aa9355b46378c56f47cdf169f03369e50644d1117ccd
+  balancer_params_hash: 25adddf00bccd9d3df032d2168aa315204dcba23cc0d6f55c81b024dd08c5772
+- pipeline_id: V9
+  pipeline_name: V9-ExtraTrees
+  imputer: EXTRATREES
+  balancer: NONE
+  imputer_family: MULTIVARIATE_MODEL
+  balancer_family: NONE
+  is_no_intervention: 0
+  has_imputation: 1
+  has_balancing: 0
+  before_ref: V0
+  imputer_only_ref: V9
+  fit_scope: TRAIN_POOLED_P1_P4
+  impute_scope: OBSERVED_MISSING_ONLY
+  v0_fill_rule: ZERO_RAW_PRE_TRANSFORM
+  seed_preprocess: 20260922
+  synthetic_phase_rule: SAME_PHASE_ONLY
+  synthetic_mask_rule: INTERSECTION_OF_PARENTS
+  sampling_strategy_id: null
+  imputer_params: &id001
+    n_estimators: 1
+    max_depth: 5
+    max_iter: 1
+    n_jobs: -1
+    initial_strategy: median
+    source: '[RT] EXTRA_TREES = TEMPO extra-trees light baseline; supersedes PLAN
+      v1.6 100 trees / depth None'
+  balancer_params: null
+  imputer_params_hash: f9693199a9db50b6a4b723cc71d092ba1b0b938353e64e71e05f2014c8a0d2bc
+  balancer_params_hash: null
+- pipeline_id: V10
+  pipeline_name: V10-ExtraTrees-CDSMOTE
+  imputer: EXTRATREES
+  balancer: CDSMOTE
+  imputer_family: MULTIVARIATE_MODEL
+  balancer_family: SMOTE_VARIANT
+  is_no_intervention: 0
+  has_imputation: 1
+  has_balancing: 1
+  before_ref: V0
+  imputer_only_ref: V9
+  fit_scope: TRAIN_POOLED_P1_P4
+  impute_scope: OBSERVED_MISSING_ONLY
+  v0_fill_rule: ZERO_RAW_PRE_TRANSFORM
+  seed_preprocess: 20260922
+  synthetic_phase_rule: SAME_PHASE_ONLY
+  synthetic_mask_rule: INTERSECTION_OF_PARENTS
+  sampling_strategy_id: IR10_K10
+  imputer_params: *id001
+  balancer_params:
+    n_clusters: 5
+    within_cluster_interpolation: true
+    source: '[RT] BALANCERS.CDSMOTE; k-means clusters of the minority class, interpolation
+      inside a cluster'
+    sampling_strategy_id: IR10_K10
+    type: IR_TARGET_WITH_CAP
+    ir_target: 10
+    max_expansion_per_class: 10
+    rule: n_target_c = min(max(n_c, ceil(n_max / ir_target)), max_expansion_per_class
+      * n_c); majority never undersampled
+    decided_on: '2026-09-27'
+    basis: Phuong_an_sampling_strategy.docx; tempo_fix.sampling.plan_targets
+  imputer_params_hash: f9693199a9db50b6a4b723cc71d092ba1b0b938353e64e71e05f2014c8a0d2bc
+  balancer_params_hash: 5440bcde0618c244228b8b18f0050dba93bf7b0186c5186fe0b980f4a0850abd
+- pipeline_id: V11
+  pipeline_name: V11-ExtraTrees-SASMOTE
+  imputer: EXTRATREES
+  balancer: SASMOTE
+  imputer_family: MULTIVARIATE_MODEL
+  balancer_family: SMOTE_VARIANT
+  is_no_intervention: 0
+  has_imputation: 1
+  has_balancing: 1
+  before_ref: V0
+  imputer_only_ref: V9
+  fit_scope: TRAIN_POOLED_P1_P4
+  impute_scope: OBSERVED_MISSING_ONLY
+  v0_fill_rule: ZERO_RAW_PRE_TRANSFORM
+  seed_preprocess: 20260922
+  synthetic_phase_rule: SAME_PHASE_ONLY
+  synthetic_mask_rule: INTERSECTION_OF_PARENTS
+  sampling_strategy_id: IR10_K10
+  imputer_params: *id001
+  balancer_params:
+    visible_k: 16
+    max_inspectors: 4
+    inspector_trees: 16
+    inspector_n_jobs: 8
+    uncertainty_threshold: 0.5
+    candidate_batch_size: 262144
+    max_candidate_rounds: 32
+    neighbour_rule: n_neighbors = min(visible_k, n_minority - 1)
+    source: '[RT] BALANCERS.SASMOTE'
+    sampling_strategy_id: IR10_K10
+    type: IR_TARGET_WITH_CAP
+    ir_target: 10
+    max_expansion_per_class: 10
+    rule: n_target_c = min(max(n_c, ceil(n_max / ir_target)), max_expansion_per_class
+      * n_c); majority never undersampled
+    decided_on: '2026-09-27'
+    basis: Phuong_an_sampling_strategy.docx; tempo_fix.sampling.plan_targets
+  imputer_params_hash: f9693199a9db50b6a4b723cc71d092ba1b0b938353e64e71e05f2014c8a0d2bc
+  balancer_params_hash: d8b7b3e699d84439b302d74cc8af60e0422a7ca0a0259794dbd6d737ebe7165b
+- pipeline_id: V12
+  pipeline_name: V12-ExtraTrees-RadiusSMOTE
+  imputer: EXTRATREES
+  balancer: RADIUS_SMOTE
+  imputer_family: MULTIVARIATE_MODEL
+  balancer_family: SMOTE_VARIANT
+  is_no_intervention: 0
+  has_imputation: 1
+  has_balancing: 1
+  before_ref: V0
+  imputer_only_ref: V9
+  fit_scope: TRAIN_POOLED_P1_P4
+  impute_scope: OBSERVED_MISSING_ONLY
+  v0_fill_rule: ZERO_RAW_PRE_TRANSFORM
+  seed_preprocess: 20260922
+  synthetic_phase_rule: SAME_PHASE_ONLY
+  synthetic_mask_rule: INTERSECTION_OF_PARENTS
+  sampling_strategy_id: IR10_K10
+  imputer_params: *id001
+  balancer_params:
+    radius: 0.092
+    radius_space: scaled_numeric_model_input
+    fallback_audit: fallback_nearest_neighbour_rate recorded per run; > 0.50 raises
+      a warning in the ledger (radius too small for that class), see POST_MATERIALIZE_CHECKS[5]
+    source: '[RT] BALANCERS.RADIUS_SMOTE; supersedes PLAN v1.6 radius_quantile 0.5'
+    sampling_strategy_id: IR10_K10
+    type: IR_TARGET_WITH_CAP
+    ir_target: 10
+    max_expansion_per_class: 10
+    rule: n_target_c = min(max(n_c, ceil(n_max / ir_target)), max_expansion_per_class
+      * n_c); majority never undersampled
+    decided_on: '2026-09-27'
+    basis: Phuong_an_sampling_strategy.docx; tempo_fix.sampling.plan_targets
+  imputer_params_hash: f9693199a9db50b6a4b723cc71d092ba1b0b938353e64e71e05f2014c8a0d2bc
+  balancer_params_hash: 25adddf00bccd9d3df032d2168aa315204dcba23cc0d6f55c81b024dd08c5772
+- pipeline_id: V13
+  pipeline_name: V13-MICE
+  imputer: MICE
+  balancer: NONE
+  imputer_family: MULTIVARIATE_MODEL
+  balancer_family: NONE
+  is_no_intervention: 0
+  has_imputation: 1
+  has_balancing: 0
+  before_ref: V0
+  imputer_only_ref: V13
+  fit_scope: TRAIN_POOLED_P1_P4
+  impute_scope: OBSERVED_MISSING_ONLY
+  v0_fill_rule: ZERO_RAW_PRE_TRANSFORM
+  seed_preprocess: 20260922
+  synthetic_phase_rule: SAME_PHASE_ONLY
+  synthetic_mask_rule: INTERSECTION_OF_PARENTS
+  sampling_strategy_id: null
+  imputer_params: &id002
+    max_iter: 3
+    tol: 0.001
+    fit_sample_rows: 1000000
+    initial_strategy: constant
+    fill_value: 0.0
+    sample_posterior: false
+    internal_scaler: RobustScaler(train_only, inverse_transform_before_output)
+    sparse_predictor_fallback: train_median (0 if all missing)
+    report: trpool_post_fallback_rate
+    fit_sample_rule: IterativeImputer fitted on a seeded sample of at most 1,000,000
+      TRAIN rows (seed_preprocess), then transform applied to every row; locked for
+      the whole grid [RESP]
+    source: '[RT] MICE; supersedes PLAN v1.6 max_iter 10 / constant_zero_first_round_only'
+  balancer_params: null
+  imputer_params_hash: 53eeca62262c2136aab0161611f25f1a721675f0020598f50bf0dce9112c7f09
+  balancer_params_hash: null
+- pipeline_id: V14
+  pipeline_name: V14-MICE-CDSMOTE
+  imputer: MICE
+  balancer: CDSMOTE
+  imputer_family: MULTIVARIATE_MODEL
+  balancer_family: SMOTE_VARIANT
+  is_no_intervention: 0
+  has_imputation: 1
+  has_balancing: 1
+  before_ref: V0
+  imputer_only_ref: V13
+  fit_scope: TRAIN_POOLED_P1_P4
+  impute_scope: OBSERVED_MISSING_ONLY
+  v0_fill_rule: ZERO_RAW_PRE_TRANSFORM
+  seed_preprocess: 20260922
+  synthetic_phase_rule: SAME_PHASE_ONLY
+  synthetic_mask_rule: INTERSECTION_OF_PARENTS
+  sampling_strategy_id: IR10_K10
+  imputer_params: *id002
+  balancer_params:
+    n_clusters: 5
+    within_cluster_interpolation: true
+    source: '[RT] BALANCERS.CDSMOTE; k-means clusters of the minority class, interpolation
+      inside a cluster'
+    sampling_strategy_id: IR10_K10
+    type: IR_TARGET_WITH_CAP
+    ir_target: 10
+    max_expansion_per_class: 10
+    rule: n_target_c = min(max(n_c, ceil(n_max / ir_target)), max_expansion_per_class
+      * n_c); majority never undersampled
+    decided_on: '2026-09-27'
+    basis: Phuong_an_sampling_strategy.docx; tempo_fix.sampling.plan_targets
+  imputer_params_hash: 53eeca62262c2136aab0161611f25f1a721675f0020598f50bf0dce9112c7f09
+  balancer_params_hash: 5440bcde0618c244228b8b18f0050dba93bf7b0186c5186fe0b980f4a0850abd
+- pipeline_id: V15
+  pipeline_name: V15-MICE-SASMOTE
+  imputer: MICE
+  balancer: SASMOTE
+  imputer_family: MULTIVARIATE_MODEL
+  balancer_family: SMOTE_VARIANT
+  is_no_intervention: 0
+  has_imputation: 1
+  has_balancing: 1
+  before_ref: V0
+  imputer_only_ref: V13
+  fit_scope: TRAIN_POOLED_P1_P4
+  impute_scope: OBSERVED_MISSING_ONLY
+  v0_fill_rule: ZERO_RAW_PRE_TRANSFORM
+  seed_preprocess: 20260922
+  synthetic_phase_rule: SAME_PHASE_ONLY
+  synthetic_mask_rule: INTERSECTION_OF_PARENTS
+  sampling_strategy_id: IR10_K10
+  imputer_params: *id002
+  balancer_params:
+    visible_k: 16
+    max_inspectors: 4
+    inspector_trees: 16
+    inspector_n_jobs: 8
+    uncertainty_threshold: 0.5
+    candidate_batch_size: 262144
+    max_candidate_rounds: 32
+    neighbour_rule: n_neighbors = min(visible_k, n_minority - 1)
+    source: '[RT] BALANCERS.SASMOTE'
+    sampling_strategy_id: IR10_K10
+    type: IR_TARGET_WITH_CAP
+    ir_target: 10
+    max_expansion_per_class: 10
+    rule: n_target_c = min(max(n_c, ceil(n_max / ir_target)), max_expansion_per_class
+      * n_c); majority never undersampled
+    decided_on: '2026-09-27'
+    basis: Phuong_an_sampling_strategy.docx; tempo_fix.sampling.plan_targets
+  imputer_params_hash: 53eeca62262c2136aab0161611f25f1a721675f0020598f50bf0dce9112c7f09
+  balancer_params_hash: d8b7b3e699d84439b302d74cc8af60e0422a7ca0a0259794dbd6d737ebe7165b
+- pipeline_id: V16
+  pipeline_name: V16-MICE-RadiusSMOTE
+  imputer: MICE
+  balancer: RADIUS_SMOTE
+  imputer_family: MULTIVARIATE_MODEL
+  balancer_family: SMOTE_VARIANT
+  is_no_intervention: 0
+  has_imputation: 1
+  has_balancing: 1
+  before_ref: V0
+  imputer_only_ref: V13
+  fit_scope: TRAIN_POOLED_P1_P4
+  impute_scope: OBSERVED_MISSING_ONLY
+  v0_fill_rule: ZERO_RAW_PRE_TRANSFORM
+  seed_preprocess: 20260922
+  synthetic_phase_rule: SAME_PHASE_ONLY
+  synthetic_mask_rule: INTERSECTION_OF_PARENTS
+  sampling_strategy_id: IR10_K10
+  imputer_params: *id002
+  balancer_params:
+    radius: 0.092
+    radius_space: scaled_numeric_model_input
+    fallback_audit: fallback_nearest_neighbour_rate recorded per run; > 0.50 raises
+      a warning in the ledger (radius too small for that class), see POST_MATERIALIZE_CHECKS[5]
+    source: '[RT] BALANCERS.RADIUS_SMOTE; supersedes PLAN v1.6 radius_quantile 0.5'
+    sampling_strategy_id: IR10_K10
+    type: IR_TARGET_WITH_CAP
+    ir_target: 10
+    max_expansion_per_class: 10
+    rule: n_target_c = min(max(n_c, ceil(n_max / ir_target)), max_expansion_per_class
+      * n_c); majority never undersampled
+    decided_on: '2026-09-27'
+    basis: Phuong_an_sampling_strategy.docx; tempo_fix.sampling.plan_targets
+  imputer_params_hash: 53eeca62262c2136aab0161611f25f1a721675f0020598f50bf0dce9112c7f09
+  balancer_params_hash: 25adddf00bccd9d3df032d2168aa315204dcba23cc0d6f55c81b024dd08c5772

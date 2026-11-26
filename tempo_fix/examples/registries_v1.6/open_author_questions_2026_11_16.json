@@ -1,0 +1,22 @@
+{
+  "Q-35": {
+    "decision": 46,
+    "recommended": "(a)",
+    "executed_by_team": null,
+    "needs": "how seed 43 (and 44) enter the phase-1 submission; blocks the seed-robustness paragraph and the wording of best-pipeline claims"
+  },
+  "Q-36": {
+    "decision": 47,
+    "recommended": "(a)",
+    "executed_by_team": "the team left variant_role NULL and delivered a registry overlay",
+    "needs": "acceptance of NULL variant_role on PRIMARY_GRID facts (check 39 wording)"
+  },
+  "still_open": [
+    "Q-20",
+    "Q-21",
+    "Q-22",
+    "Q-23",
+    "Q-24",
+    "Q-26"
+  ]
+}

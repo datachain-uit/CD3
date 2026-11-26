@@ -1,0 +1,33 @@
+{
+  "Q-37": {
+    "decision": 48,
+    "summary": "position of C2, C3, C4 after the three-seed M-15: H1 not supported on the registered analysis, H6 supported in 6/6 configurations",
+    "recommendation": "(a) fallback of decisions 36/44: C1, C3, C4 (descriptive), C5 as contributions; C2 as a registered negative result"
+  },
+  "Q-38": {
+    "decision": 49,
+    "summary": "energy of the 8 seed-44 CQ cells without a measurement: keep empty, accept the labelled imputation, or re-run",
+    "recommendation": "(a) keep empty"
+  },
+  "Q-39": {
+    "decision": 50,
+    "summary": "environment of record of the meta-tier runs (Windows PC against Linux host: learner rows differ, verdicts do not)",
+    "recommendation": "(a) the pinned PC environment"
+  },
+  "Q-40": {
+    "decision": 51,
+    "summary": "design scope of the meta tier: one subgroup instead of the five registered ones, task-pooled E1 folds, no replication or pooled rows in the hypothesis table",
+    "recommendation": "(c) per-task E1 runs in the re-issue now; (b) completing the five subgroups before concluding on C2 if the team confirms the export needs no training"
+  },
+  "still_open": [
+    "Q-20",
+    "Q-21",
+    "Q-22",
+    "Q-23",
+    "Q-24",
+    "Q-26",
+    "Q-35",
+    "Q-36"
+  ],
+  "note": "Q-40 is answered before Q-37. Q-35: the recommendation of the writing side moved from (a) to (b) on 2026-11-20 (three seeds complete; the meta tier is analysed on the three-seed aggregate)"
+}

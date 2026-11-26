@@ -1,0 +1,61 @@
+master_seeds:
+- 42
+- 43
+- 44
+augmentation_policy: MATCH_MASTER_SEED
+rule: materialise one S2 balanced TRAIN artifact per master seed; the S3 model cell
+  with master seed s consumes the S2 artifact created with the same s; no balanced
+  artifact with a hidden fixed seed is reused across model seeds [DEC §1]
+s2_plan:
+  cells: 2 tasks x 3 windows x 4 imputer parents (V1, V5, V9, V13) x 3 balancers x
+    3 seeds
+  n_runs: 216
+  runner: modal_jobs/run_augmentation_grid.ps1 -Task CQ|LO -Seeds 42,43,44 (sequential;
+    plan.json + run_summary.csv)
+  artifact_path: meta_release=imputation-v1/L1_runs/task=*/feature_regime=*/window_id=*/phase_id=P4/pipeline_id=V*/model_name=BALANCED_TRAIN_ONLY/seed=<master
+    seed>/run_id=*/attempt_id=*
+  scope: the full P1-P4 TRAIN sequence of the window is balanced once (phase_id=P4);
+    prefixes are never balanced separately
+s3_rule:
+  runner: modal_jobs/run_model_grid.ps1 -AugmentationSeedPolicy match_model_seed (default)
+  fixed_policy: 'opt-in only: -AugmentationSeedPolicy fixed -AugmentationSeed <s>;
+    mixing the two flags is rejected'
+  parent_resolution: model_app._latest_balanced_train requires manifest.seed == augmentation_seed,
+    the registered parent imputation run/attempt, the parent-manifest sha256 and the
+    full release identity
+  run_id_fields: seed, augmentation_seed and parent_augmentation_run_id are part of
+    the hashed run config
+role_seeds:
+  seed_model / seed_dataloader: int(sha256("{master}|{role}|{task}|{window}|{pipeline_id}|{model_name}")[:8],
+    16) mod (2^31 - 1); independent per cell [SEEDS]
+  seed_sampler = seed_augmentation: the master seed itself (None for pipelines without
+    a balancer)
+  seed_preprocess: 20260922
+  superseded_plan_v1_6_rule: H(seed, role) = sha256("{seed}:{role}")[:4 bytes]; H(0,
+    "preprocess") = 4072383768; never used by a materialised artifact
+manifest_fields:
+- seed
+- augmentation_seed
+- augmentation_seed_policy
+- master_seed
+- seed_model
+- seed_sampler
+- seed_augmentation
+- seed_dataloader
+- seed_preprocess
+- parent_augmentation_run_id
+status: LOCKED 2026-10-05 [DEC §1]
+team_change_2026-10-31: 'LO/registries.py @ df2a867: augmentation_policy FIXED_SEED_42,
+  rule "reuse the seed-42 S2 balanced TRAIN artifact across model master seeds 42,
+  43 and 44", seed_sampler = seed_augmentation = 42 for balanced pipelines; decision
+  9 rewritten "CLOSED updated 2026-10-31: model seeds measure training variability";
+  the runner, the launcher default and modal_jobs/README.md were not changed (CODE_REFERENCE.seed_policy_consistency_2026-11-03)'
+status_2026-11-03: this registry keeps MATCH_MASTER_SEED until the author decides
+  PENDING_DECISIONS[32]; no seed-43/44 S2 or S3 cell is accepted under either policy
+  before that decision (check 35)
+status_2026-11-09: 'CONVERGED: LO/registries.py @ 421dbcd (cfcfd40) reads MATCH_MASTER_SEED
+  with the rule "use the S2 balanced TRAIN artifact whose augmentation seed matches
+  the model master seed; seed-42 artifacts remain valid for seed-42 runs" and decision
+  9 "CLOSED updated 2026-11-04 D-32"; the Modal entry points default augmentation_seed
+  = -1 (follow the run seed); seeds 43/44 may start with the 144 S2 runs (phase 2,
+  decision 36)'

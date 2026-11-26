@@ -1,0 +1,8 @@
+{
+  "active": "cumulative_phase_features_v2",
+  "grain": "wide_prefix: exactly one row per enrollment_id with cumulative P1-P4 column blocks (analytical_unit = enrollment_id, 11,807,090 rows); materializers raise if exact duplicates are collapsed on this source",
+  "forbidden": {
+    "cumulative_phase_features_v1": "two exact copies of every row (23,614,180 -> 11,807,090 after dedupe) produced the 2x grain of the GD1 views [R1_C9]"
+  },
+  "consequence_for_gd1": "every GD1 (seed 42 RNN) number was computed on doubled rows: point estimates ~unchanged, n_support and bootstrap CI wrong by ~sqrt(2); GD1 results are superseded by the re-run on v2"
+}

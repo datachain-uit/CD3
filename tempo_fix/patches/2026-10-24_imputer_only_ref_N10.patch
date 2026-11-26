@@ -1,0 +1,102 @@
+# 2026-10-24 N10: imputer_only_ref of imputation-only pipelines = the pipeline itself (author decision 2026-10-24).
+# Apply to tempo_fix/registries.py (reference copy) and mirror in CQ/registries.py and LO/registries.py of the CD3 repo;
+# then regenerate the registry exports and correct Meta-Dataset-Report Table 14. Also adds AUTHOR_RATIFICATIONS_2026_10_24.
+# Produced from registries_rev_2026-10-23 -> registries_rev_2026-10-24.
+--- a/tempo_fix/registries.py	2026-10-24 03:24:08.512703621 +0000
++++ b/tempo_fix/registries.py	2026-10-24 03:25:40.814632201 +0000
+@@ -141,7 +141,7 @@
+ 
+ from .seeds import (sha256_of, SEED_PREPROCESS, SEED_PREPROCESS_PLAN_V1_6, MASTER_SEEDS, AUGMENTATION_SEED_POLICY)
+ 
+-REGISTRY_REVISION = 'registries_rev_2026-10-23'
++REGISTRY_REVISION = 'registries_rev_2026-10-24'
+ CODE_REFERENCE = {'repository': 'https://github.com/datachain-uit/CD3', 'commit': '5b14052',
+                   'commit_subject': 'Export complete CQ recurrent and PatchTST evidence', 'checked_on': '2026-10-23',
+                   'commits_reviewed_2026-10-23': ['585343e (tools/vastai_run_lo_nvml_historical_grid.sh: full LO matched replay '
+@@ -360,7 +360,9 @@
+                 'pipeline_id': pid, 'pipeline_name': name, 'imputer': imp, 'balancer': bal,
+                 'imputer_family': IMPUTER_FAMILY[imp], 'balancer_family': 'NONE' if bal == 'NONE' else 'SMOTE_VARIANT',
+                 'is_no_intervention': int(pid == 'V0'), 'has_imputation': int(imp != 'NONE'), 'has_balancing': int(bal != 'NONE'),
+-                'before_ref': 'V0', 'imputer_only_ref': 'V0' if bal == 'NONE' else imp_only,
++                # N10 (author decision 2026-10-24): a pipeline without balancer is its own imputer-only reference, so that
++                # delta_imp = delta and delta_bal = 0 for V1/V5/V9/V13 (Meta-Dataset-Report Table 14 to be corrected accordingly)
++                'before_ref': 'V0', 'imputer_only_ref': pid if bal == 'NONE' else imp_only,
+                 'fit_scope': 'TRAIN_POOLED_P1_P4', 'impute_scope': 'OBSERVED_MISSING_ONLY',
+                 'v0_fill_rule': V0_FILL_RULE['rule_id'], 'seed_preprocess': SEED_PREPROCESS,
+                 'synthetic_phase_rule': 'SAME_PHASE_ONLY', 'synthetic_mask_rule': 'INTERSECTION_OF_PARENTS',
+@@ -379,9 +381,9 @@
+     ids = [r['pipeline_id'] for r in rows]
+     assert ids == [f'V{i}' for i in range(17)], ids
+     by = {r['pipeline_id']: r for r in rows}
+-    # PLAN Table 14 mapping
++    # PLAN Table 14 mapping with the N10 correction of 2026-10-24 (imp(a) = a for imputation-only pipelines)
+     expect = {'V2': 'V1', 'V3': 'V1', 'V4': 'V1', 'V6': 'V5', 'V7': 'V5', 'V8': 'V5', 'V10': 'V9', 'V11': 'V9',
+-              'V12': 'V9', 'V14': 'V13', 'V15': 'V13', 'V16': 'V13', 'V1': 'V0', 'V5': 'V0', 'V9': 'V0', 'V13': 'V0', 'V0': 'V0'}
++              'V12': 'V9', 'V14': 'V13', 'V15': 'V13', 'V16': 'V13', 'V1': 'V1', 'V5': 'V5', 'V9': 'V9', 'V13': 'V13', 'V0': 'V0'}
+     for k, v in expect.items():
+         assert by[k]['imputer_only_ref'] == v, (k, by[k]['imputer_only_ref'], v)
+ 
+@@ -927,6 +929,29 @@
+ # ---------------------------------------------------------------------------------------------
+ # Decision log (opened 2026-09-30). Since 2026-10-05 every item is closed; ids stay unique and are referenced above.
+ # ---------------------------------------------------------------------------------------------
++# Author ratifications of 2026-10-24 (round 2). They close the registry decisions listed below; the entries of
++# PENDING_DECISIONS keep their history, this block records the closing decision and is exported next to them.
++AUTHOR_RATIFICATIONS_2026_10_24 = {
++    'date': '2026-10-24', 'source': 'author reply to Ra_soat_tien_do_2026-10-24.md §3 and §7',
++    'decisions': {
++        '11': 'RATIFIED: F2 PATCHTST PRIMARY full grid; F3 MOMENT_SMALL exploratory on the 13-pipeline core after F2; MOMENT_BASE deferred',
++        '13': 'RATIFIED (b): VastAI L4 pinned image for the grids, Modal L4 reference backend, equivalence checked on common cells',
++        '14': 'RATIFIED (a): PatchTST batch 2048 = 4 x 512 micro-batches; manifests print batch / micro_batch / accumulation',
++        '15': 'RATIFIED: NVML power-sampling estimates are descriptive numbers; REC_RULE treats them as not MEASURED, so the primary cost basis is TIME and ENERGY is a flagged sensitivity analysis',
++        '16': 'RATIFIED: the CQ batch-512 wave is historical and enters no table',
++        '18': 'RATIFIED (2026-10-24, round 1 and 2): AccTEMPO_M3 with S_san+ v1 stays the pre-registered primary of the meta-dataset; the paper reads trends and rankings on S_perf / macro-F1 / balanced accuracy and uses AccTEMPO_M3^(cal) (exporter acctempo_m4) as the composite objective; H1-H6 on AccTEMPO_M3^(cal), H7 against macro-F1, v1 as sensitivity; disclosed in the Method section as a change made after observing seed-42 results (METRIC_DEF v1.3 to be registered)',
++        '19': 'RATIFIED (b): timeline_source CONTEXT_ONLY, window_duration_seconds IN_TENSOR for every new grid',
++        '21': 'RATIFIED (b): QA23 exemption of the eight behavioural prefix bases for CQ, on condition that a per-base linkage table and the G-label construction note accompany every CQ P3/P4 number',
++        '22': 'RATIFIED (b): the 48-cell CQ F2 grid opens after the pilot manifests, epoch history and SEEN/UNSEEN x STRICT/OVERLAP slices are delivered',
++        'N3': 'RATIFIED (A): minimum meta-dataset scope for the paper = 2 tasks x 3 master seeds x (F1 + F2)',
++        'N10': 'RATIFIED: imp(a) = a for imputation-only pipelines (build_pipeline_registry corrected in this revision; Meta-Dataset-Report Table 14 to follow)',
++        'B7': 'RATIFIED: TEMPO-DQ Table 4 policy (x = S_san+, y = S_perf of V0 on VALIDATION; x0 = 0.75, y0 = 0.70; Q1/Q2 -> V0; Q3/Q4 -> V2 default) is baseline B7 of the meta-model plan (warm-start scenario)',
++        'RQ8_H8': 'RATIFIED: RQ8/H8 on the mechanism decomposition (share delta_imp / delta rises with tr_missing_rate and falls from P1 to P4 among beneficial non-V0 recommendations; cluster Spearman with cluster-bootstrap CI)',
++    },
++    'still_open': {'17': 'LO W1 presentation, waits for the LO ablation CSV', '20': 'static-branch policy for future grids, waits for the LO ablation CSV',
++                   'F0_LO': 'LO_HEURISTIC_PROGRESS_GRADE definition', 'framework_name': 'not decided', 'SASMOTE_paper': 'code docstring cites Kosolwattana et al. (2023); author confirmation pending'},
++}
++
+ PENDING_DECISIONS = [
+     {'id': 0, 'topic': 'LO courses with no scored signal', 'status': 'CLOSED 2026-10-01',
+      'resolution': 'excluded with reason no_scored_signal_in_course (102 courses, 172,003 enrollments); LO re-paired as '
+@@ -1493,7 +1518,8 @@
+             's_san_formula': S_SAN_FORMULA, 'acctempo_def': ACCTEMPO_DEF, 'experiment_seeds': EXPERIMENT_SEEDS,
+             'grid_policy': GRID_POLICY, 'rec_rule': REC_RULE,
+             'label_artifacts': LABEL_ARTIFACTS, 'split_registry': SPLIT_REGISTRY, 'sampling_strategy': SAMPLING_STRATEGY,
+-            'pending_decisions': PENDING_DECISIONS, 'post_materialize_checks': POST_MATERIALIZE_CHECKS}
++            'pending_decisions': PENDING_DECISIONS, 'post_materialize_checks': POST_MATERIALIZE_CHECKS,
++            'author_ratifications_2026_10_24': AUTHOR_RATIFICATIONS_2026_10_24}
+ 
+ 
+ def write_registries(outdir: str) -> Dict[str, str]:
+--- a/tempo_fix/tests/test_seeds_registries_energy.py	2026-10-24 03:24:08.513172641 +0000
++++ b/tempo_fix/tests/test_seeds_registries_energy.py	2026-10-24 03:26:42.214293570 +0000
+@@ -56,7 +56,10 @@
+     assert md['class_index']['CQ'] == {'c0': 'W', 'c1': 'A', 'c2': 'G'}
+     assert [m for m in registries.MODEL_REGISTRY if m['model_name'] == 'RNN'][0]['selection_metric'] == 'MEAN_PHASE_MACRO_F1'
+     assert set(man) >= {'label_artifacts', 'split_registry', 'sampling_strategy', 'pending_decisions'}
+-    assert man['registry_revision'] == registries.REGISTRY_REVISION == 'registries_rev_2026-10-23'
++    assert man['registry_revision'] == registries.REGISTRY_REVISION == 'registries_rev_2026-10-24'
++    # N10 (2026-10-24): imputation-only pipelines are their own imputer-only reference
++    assert by['V1']['imputer_only_ref'] == 'V1' and by['V5']['imputer_only_ref'] == 'V5' and by['V13']['imputer_only_ref'] == 'V13'
++    assert 'author_ratifications_2026_10_24' in man
+     assert set(man) >= {'code_reference', 'release_specs', 'feature_source', 'experiment_seeds', 'grid_policy'}
+ 
+ 
+@@ -161,7 +164,8 @@
+     assert r.PENDING_DECISIONS[19]['recommendation'].startswith('(b)') and 'contract' in r.POST_MATERIALIZE_CHECKS[18]['status']
+     assert r.PENDING_DECISIONS[16]['status_2026-10-19'].startswith('RESOLVED BY RERUN') and r.PENDING_DECISIONS[20]['status'].startswith('OPEN')
+     assert 'execution_status_2026-10-23' in r.GRID_POLICY and r.POST_MATERIALIZE_CHECKS[20]['status'].startswith('CLOSED 2026-10-21')
+-    assert r.REGISTRY_REVISION == 'registries_rev_2026-10-23'
++    assert r.REGISTRY_REVISION == 'registries_rev_2026-10-24'
++    assert r.AUTHOR_RATIFICATIONS_2026_10_24['decisions']['N10'].startswith('RATIFIED')
+     lo = r.SPLIT_REGISTRY['tasks']['LO']
+     shares = lo['derived_minority_shares_pct']
+     for block, counts in lo['block_classes'].items():

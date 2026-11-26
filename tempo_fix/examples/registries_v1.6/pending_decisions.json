@@ -1,0 +1,1078 @@
+[
+  {
+    "id": 0,
+    "topic": "LO courses with no scored signal",
+    "status": "CLOSED 2026-10-01",
+    "resolution": "excluded with reason no_scored_signal_in_course (102 courses, 172,003 enrollments); LO re-paired as v3_1_scored_signal_excluded; no remaining candidates [V3.1 §4, §5, §8]"
+  },
+  {
+    "id": 1,
+    "topic": "LO current-grade column group and the four inferred proxy field names",
+    "status": "CLOSED_PARTIAL 2026-10-01",
+    "resolution": "current-grade group locked (9 columns) [V3.1 §6]; the four problem-field names remain open as item 7"
+  },
+  {
+    "id": 2,
+    "topic": "proxy_exclusion_reason per slice for the 18,008 ineligible rows",
+    "status": "CLOSED 2026-10-01",
+    "resolution": "table by slice and reason recorded in LABEL_ARTIFACTS.LO.cohort.technical_exclusions_inside_assigned_slices [V3.1 §9]"
+  },
+  {
+    "id": 3,
+    "topic": "IR10_K10 PRIMARY; LO evaluation windows; probability metric for LO W2",
+    "status": "CLOSED_PARTIAL 2026-10-01",
+    "resolution": "IR10_K10 and W1-primary / W2-W3-exploratory confirmed [V3.1 §6]; the probability-based metric for W2 (log_loss or pr_auc_macro) was not addressed and is carried into item 8"
+  },
+  {
+    "id": 4,
+    "topic": "BALANCER_PARAMS k_neighbors = 5 and radius_quantile = 0.5 are starting values, not confirmed",
+    "status": "CLOSED 2026-10-04",
+    "resolution": "the registry records the implemented parameters of release_core/runtime_config.py: CDSMOTE n_clusters 5, SASMOTE visible_k 16 / max_inspectors 4 / inspector_trees 16 / uncertainty 0.5, Radius-SMOTE fixed radius 0.092 in scaled space with fallback_nearest_neighbour_rate audited (> 0.50 = warning); all three use IR10_K10 with cap 10 [RESP §1]"
+  },
+  {
+    "id": 5,
+    "topic": "AccTEMPO primary S_san+ version v1 vs v2",
+    "status": "CLOSED 2026-10-05",
+    "resolution": "v1 is the preregistered primary; v2/s_cal is reported only as a calibration sensitivity analysis; every result table publishes AccTEMPO, S_perf, S_san+ and all six components [DEC §2]"
+  },
+  {
+    "id": 6,
+    "topic": "LO catalog denominator (course ceilings 64% < 60, 91% < 85)",
+    "status": "CLOSED 2026-10-01",
+    "resolution": "active-catalog hypothesis rejected (median active ratio 0.90 in the < 60 band); V3.1 kept as FINAL; ceiling and per-slice coverage recorded in LABEL_ARTIFACTS.LO [V3.1.2 §14]"
+  },
+  {
+    "id": 7,
+    "topic": "exact names of the four problem proxy fields",
+    "status": "CLOSED 2026-10-01",
+    "resolution": "assignment_problem_catalog_count, exam_problem_catalog_count, assignment_best_correct_sum, exam_best_correct_sum [V3.1.2 §15.1]"
+  },
+  {
+    "id": 8,
+    "topic": "reporting policy additions (probability metrics for LO W2; offering-cluster bootstrap)",
+    "status": "CLOSED 2026-10-01",
+    "resolution": "METRIC_DEF v1.2 [V3.1.2 §15.2]"
+  },
+  {
+    "id": 9,
+    "topic": "augmentation seed policy (one fixed S2 artifact reused across model seeds vs one artifact per master seed)",
+    "status": "CLOSED 2026-10-05",
+    "resolution": "MATCH_MASTER_SEED: 216 S2 runs (run_augmentation_grid.ps1), run_model_grid.ps1 default match_model_seed, fixed policy opt-in only; seed and augmentation_seed recorded in plan, summary, manifest and provenance [DEC §1]",
+    "team_change_2026-10-31": "LO/registries.py @ df2a867 rewrote this closed decision as \"CLOSED updated 2026-10-31: reuse augmentation seed 42 across model master seeds 42, 43 and 44; model seeds measure training variability\" without the author",
+    "status_2026-11-03": "CLOSED 2026-10-05 here; the team change is handled as decision 32 (the author decides); until then no seed-43/44 cell",
+    "status_2026-11-09": "team registry @ 421dbcd now reads \"CLOSED updated 2026-11-04 D-32: match augmentation seed to model master seed for new multi-seed runs; seed-42 results remain unchanged\" (convergent with this entry; decision 32 and check 35 closed on the code side)"
+  },
+  {
+    "id": 10,
+    "topic": "grid policy after the pilot (shortlist vs full design) and treatment of the 51 legacy LO cells",
+    "status": "CLOSED 2026-10-05",
+    "resolution": "full F1 grid after the L4 V0/W1 acceptance pilot; legacy LO cells quarantined; results promoted only after the Volume-level S0/S1 and grain audits [DEC §3], [RESP §2]"
+  },
+  {
+    "id": 11,
+    "topic": "F2/F3 evaluation scope: PLAN v1.6 §3.3 counts M = 7 models over the full pipeline grid; CD3 @ 548d4d4 ran PatchTST/MOMENT only as family_smoke/family_screen; CD3 @ 640be01 locks TEMPORAL_FAMILY_POLICY on its own",
+    "status": "OPEN 2026-10-12 (team proposal recorded, author ratification pending)",
+    "blocks": [
+      "any F2/F3 result",
+      "Meta-Dataset-Report §2.4, §3.3 N_L3, Appendix D2",
+      "paper claims about F2/F3"
+    ],
+    "team_proposal_640be01": {
+      "F2_PATCHTST": "PRIMARY, full grid 17 x 3 windows x 3 master seeds after a determinism pilot",
+      "F3_MOMENT_SMALL": "EXPLORATORY, registered subset V0 V1 V5 V9 V13 + V2 V6 V10 V14 (CDSMOTE) + V4 V8 V12 V16 (Radius-SMOTE), 3 windows, 3 seeds, requires a frozen embedding cache",
+      "F3_MOMENT_BASE": "DEFERRED from GD1",
+      "determinism_pilot": "CQ/W1/V0/seed 42, two repetitions, PATCHTST and MOMENT_SMALL, checksum agreement"
+    },
+    "team_update_813e7ea": "F3 core = V0 V1 V5 V9 V13 + CDSMOTE V2 V6 V10 V14 + SASMOTE V3 V7 V11 V15 (13); Radius-SMOTE V4 V8 V12 V16 as sensitivity_pipeline_ids (registered fallback warning 56-90%); the 2026-10-12 inconsistency is resolved and a regression test guards it",
+    "team_update_be110a4": "F3 MOMENT_SMALL deferred until the F2 grid completes (role DEFERRED, scope AFTER_F2_COMPLETE); the determinism pilot now lists PATCHTST only; the F3 subset and cache requirement are unchanged",
+    "cost_note": "CQ has 274 dynamic channels (team comment, 813e7ea; confirm from feature_layout.json): one frozen-backbone pass over W1 TRAIN (1,609,276 rows x 4 prefixes x 4 patches x 274 channels) is of the order of 1.5-3 L4-hours, so the 13-pipeline core (87 TRAIN passes + 15 VAL/TEST passes) needs roughly 150-300 L4-hours once with caching if W2/W3 are W1-sized (assumptions: 40-80 MFLOPs per token, 50 TFLOPS effective); trimming the input to 8k positions per prefix saves about 37%; recomputing per epoch would multiply this by the epoch count",
+    "options": [
+      "(a) ratify as updated in 813e7ea (= option (c) of 2026-10-12 with an explicit core/sensitivity split)",
+      "(b) F3 on all 17 pipelines once the embedding cache exists (one backbone pass per window x pipeline x S2 artifact, seed-independent for V0/V1/V5/V9/V13)",
+      "(c) F3 core = imputers + CDSMOTE + SASMOTE (13 pipelines), Radius as sensitivity if budget allows"
+    ],
+    "note": "whatever is chosen, PENDING 11 closes only with the author's written decision; LO/registries.py @ 640be01 marks it CLOSED",
+    "update_2026-11-06": "F3 member replaced by MANTIS_V2 (decision 37); the ratified D-11 scope (13-pipeline core after F2, Radius-SMOTE V4/V8/V12/V16 as sensitivity, frozen embeddings with cache, linear probe, three windows) carries over unchanged; MOMENT_BASE no longer exists"
+  },
+  {
+    "id": 12,
+    "topic": "PatchTST fidelity: the first F2 implementation mixed channels inside a patch token; PatchTST is defined by channel independence plus patching",
+    "status": "CLOSED 2026-10-12",
+    "resolution": "option (a) implemented in CD3 @ c2856d2: channel-independent tokens with shared projection/encoder, post-encoder channel concat in the head, revision patchtst_channel_independent_v2_prefixsafe; verified by tests and by an independent CPU check (prefix safety, channel independence, convergence)"
+  },
+  {
+    "id": 13,
+    "topic": "execution backend for S3 cells: CD3 @ c2856d2 adds a portable VastAI runner (tools/vastai_train_shared.py, CQ|LO/model/*/run_vastai.py) next to the registered Modal L4 jobs",
+    "status": "OPEN 2026-10-17: equivalence evidence delivered (LO/W1/V0/RNN/seed 42 Modal vs VastAI L4: row counts, y_true, y_pred and all probabilities identical, max |dp| = 0.0, REPORT_LO_V2 §10); author ratification and the Modal reference manifest (run_id, release, created_at, lineage) still required; prediction salts differ between backends. New on 2026-10-16: CQ LSTM/GRU/BiLSTM (153 cells) ran on VastAI with two runner sha256 values (LSTM/GRU 65680d06..., BiLSTM 3b19dfb8...) while CQ RNN stays on Modal, so a CQ family comparison would span three code provenances; LO is uniform (one backend, 204 cells). The diff between the two runner versions must be disclosed or BiLSTM rerun with the LSTM/GRU runner, and CQ RNN rerun on VastAI (51 cells) for a single-provenance table",
+    "evidence_2026-10-21": "CQ RNN rerun on VastAI (51 cells, historical static layout, batch 2048) against the Modal RNN grid of 2026-10-08: the 51 window-level TEST AccTEMPO means agree to 1e-4 (max |diff| 0.0001, Spearman 0.99998); together with the bit-identical LO/W1/V0 cell this is the equivalence evidence the gate asked for on both tasks. Ready to ratify option (b): VastAI L4 with the pinned image for every F1/F2 cell, Modal kept as reference; the two CQ receipts (RNN runner revision vs three-family revision) stay separate in L2",
+    "status_2026-10-21": "READY FOR RATIFICATION (b)",
+    "status_2026-10-23": "READY FOR RATIFICATION (b), unchanged; the PatchTST pilot (3 runs) and the LO matched-replay launcher (585343e) both assume (b); the pilot manifests (runner commit, GPU, layout policy) were not delivered",
+    "status_2026-10-25": "RATIFIED (b) by the author on 2026-10-24 (AUTHOR_RATIFICATIONS_2026_10_24); new equivalence evidence: the LO BiLSTM NVML replay (VastAI L4, runner of the 2026-10-23 campaign) equals the historical LO BiLSTM facts to 1e-4 on all 17 pipeline means (TEST and VALIDATION); the LO r3 ingest must state the runner commit per family (only the RNN W1/V0 repair cell names 7886a856)",
+    "blocks": [
+      "any cell produced outside Modal L4",
+      "C3 time/energy facts",
+      "paper hardware statement"
+    ],
+    "facts": [
+      "2026-10-15 consolidated reports: LO F1 seed 42 is complete as 204 VastAI cells (4 families x 17 x 3, batch 2048, L4 bf16, energy NOT_MEASURED) and the PatchTST pilot ran on VastAI; no Modal-vs-VastAI equivalence check exists; the audit facts cited for those cells were produced by code that is not in the repository",
+      "proposed gate: rerun CQ/W1/V0/RNN/seed 42 (Modal run of 2026-10-08, best epoch 2) with the portable runner on a VastAI L4 and compare VALIDATION/TEST P1-P4 prediction checksums and metrics; bit-identical => backends equivalent for F1",
+      "b5f55fe adopts the runner fixes (GPU gate, CUBLAS_WORKSPACE_CONFIG, provenance, vocabulary from release_core) and adds release_contract_sha256; BAO_CAO_PATCHTST_2026-10-13 shows the PatchTST determinism pilot and the F2 grid launch on the portable backend (/workspace/CD3/runs/...), i.e. the backend is in use before this decision",
+      "the portable tree had no seed dimension for balanced TRAIN (train/<W>/<V>/balanced_train.parquet), so a grid over seeds 42/43/44 would reuse one S2 artifact (fixed policy) unless one tree per seed is built; review patch 2026-10-13b resolves train/<W>/<V>/seed=<s>/ and refuses a mismatched S2 seed under MATCH_MASTER_SEED",
+      "the launcher, shard plan and download_*_vastai_inputs.ps1 that build the tree are not in the repository",
+      "same model.shared_phase implementation, seeds and salted prediction ids as S3",
+      "no GPU gate: a rented instance may expose any GPU (bf16 and determinism differ across architectures)",
+      "no NVML energy sampling; wall-clock not separated as in model_app (asset preparation excluded, nothing else)",
+      "CUBLAS_WORKSPACE_CONFIG not set by the runner (strict determinism fails on CUDA unless the shell sets it)",
+      "LO release vocabulary copied with a drifted label_threshold_set (fails the download-manifest check or stamps a wrong id)",
+      "outputs are not ingested into the L2 facts / export jobs (different layout, no run_status, no run_id)"
+    ],
+    "options": [
+      "(a) Modal L4 only for every cell that enters a table; VastAI for smoke tests",
+      "(b) VastAI allowed for F2/F3 cells on NVIDIA L4 only, with the pinned image, review patch 2026-10-12b provenance, an ingestion job, and a Modal-vs-VastAI equivalence check on one cell (POST_MATERIALIZE_CHECKS[12]); C3 energy facts from Modal only",
+      "(c) VastAI on another GPU class declared as a separate hardware_id; no cross-hardware time/energy comparison"
+    ]
+  },
+  {
+    "id": 14,
+    "topic": "PatchTST optimisation batch: the registered batch is 2048 (COMMON_HPARAMS, Meta-Dataset-Report Appendix D3) but the F2 determinism pilot A/B (BAO_CAO_PATCHTST_2026-10-13) ran with batch 512 because B x C = 2048 x 274 sequences with four prefix passes exceed a 24 GB L4",
+    "status": "OPEN 2026-10-13",
+    "blocks": [
+      "F2 grid cells (launched with batch 512 per the report)",
+      "F1 vs F2 comparability claims"
+    ],
+    "options": [
+      "(a) gradient accumulation 4 x 512 = 2048 (review patch 2026-10-13b: identical optimiser update, recorded as batch_size 2048 / micro_batch_size 512 / accumulation_steps 4); pilot A/B repeated once in that configuration",
+      "(b) register batch 512 for F2 only (hparam_config_id, Appendix D3, paper) and state the confound with F1 (2048)"
+    ],
+    "note": "the pilot evidence (bit-identical predictions and metrics across two runs) is valid for the configuration it ran in; it does not cover the configuration the registry declares",
+    "team_update_265415d": "option (a) implemented: accumulation_steps in model.shared_phase, --accumulation-steps / -AccumulationSteps, README states 4 x 512 for PatchTST",
+    "team_update_2026-10-15": "pilot A/B repeated at 2048 = 4 x 512 on L4 bf16: 30 epochs, best epoch 25 in both, 8/8 prediction files, metrics, feature layout and portable_run_id identical (REPORT_CQ_EXECUTION_CONSOLIDATED §4); evidence bundle (determinism_audit.json, manifests, metrics, train_history) not yet delivered; cells started with a plain batch 512 not reported",
+    "status_note_2026-10-17": "unchanged for F2 (no PatchTST grid cell reported yet); the same batch question now appears for the CQ F1 VastAI cells (resource table batch_size 512) and is tracked as PENDING_DECISIONS[16]"
+  },
+  {
+    "id": 15,
+    "topic": "cost basis and table grain for cells without energy telemetry: VastAI cells report train_seconds only (energy NOT_MEASURED); LO W1 is the registered primary analysis but the consolidated tables pool W1-W3 x P1-P4",
+    "status": "OPEN 2026-10-15",
+    "blocks": [
+      "C3 claims for LO F1 and for F2",
+      "LO result tables in the paper"
+    ],
+    "options": [
+      "(a) energy claims only for Modal cells (CQ F1 RNN today), time-only comparisons elsewhere under REC_RULE ENERGY_IF_MEASURED_ELSE_TIME, stated in the paper",
+      "(b) require NVML on the rented L4 before any further VastAI grid"
+    ],
+    "team_update_ce0486e": "portable runner samples NVML power at 1 Hz and labels the integral NVML_POWER_SAMPLING_ESTIMATE (energy_gpu_run_kwh stays null); the 204 historical LO cells remain NOT_MEASURED; recommendation: estimates reported descriptively only, never a cost basis together with counter measurements, REC_RULE treats them as not MEASURED",
+    "table_rule": "facts and tables at window x prefix grain, W1 reported separately as primary, pooled means only as a labelled summary",
+    "evidence_2026-10-21": "CQ: NVML GPU-only estimates in 204/204 manifests; train_seconds summed from history; per family (mean of 51 runs) RNN 0.00312 kWh / 264 s, LSTM 0.00314 / 251 s, GRU 0.00272 / 221 s, BiLSTM 0.00447 / 299 s; whole CQ F1 grid about 0.69 kWh GPU-only and 14.7 train-hours; BiLSTM costs 1.6x GRU per run at equal macro-F1 (0.713 vs 0.716). Window x phase tables now delivered for AccTEMPO, macro-F1, balanced accuracy, s_ent and per-class recall (CQ R3). Usable descriptively under the ESTIMATED label; REC_RULE still treats them as not MEASURED",
+    "team_update_2026-10-16": "LO resources now ingested (204 rows: wall_s 280-354 s and ram_peak_mb per family, batch 2048, bf16, L4, epochs_config 50); CQ VastAI resources 153 rows (wall_s 455-885 s at batch 512, epochs_mean 8.6-10.1, energy_records 0 although vastai_run_family.sh passes --energy-sampling-interval-seconds 1.0); both reports still pool W1-W3 x P1-P4 uniformly and give no per-window table, so the table_rule is not yet met; whether the NVML estimates exist in the run manifests is unknown"
+  },
+  {
+    "id": 16,
+    "topic": "CQ F1 VastAI optimisation batch: REPORT_CQ_FULL_E2E_SEED42_2026-10-16 §7 lists batch_size 512 for the 153 LSTM/GRU/BiLSTM cells, while the registered F1 batch is 2048 (COMMON_HPARAMS), CQ RNN (Modal) and all 204 LO cells ran at 2048, and tools/vastai_run_family.sh defaults to 2048 with accumulation 1 for recurrent families",
+    "status": "OPEN 2026-10-17",
+    "blocks": [
+      "CQ family comparison RNN vs LSTM/GRU/BiLSTM",
+      "CQ vs LO cross-task statements",
+      "CQ F1 numbers entering 03_claims"
+    ],
+    "needs": "the run manifests of the 153 cells: batch_size, micro_batch_size, accumulation_steps (shared_phase records all three)",
+    "code_fact_2026-10-17": "tools/vastai_train_shared.py writes batch_size = --batch-size (the optimisation batch) and micro_batch_size separately, and the ingest (RESOURCE_FIELDS, 20de6db) carries both; a resource table column named batch_size therefore reads the optimisation batch unless the report generator relabelled micro_batch_size. The CQ bundle folder is named vastai_f1_batch2048_seed42 while the table says 512: one run_manifest.json settles it",
+    "options": [
+      "(a) if batch_size = 512 with accumulation_steps 1: rerun the 153 cells at 2048 (estimate 13-20 L4-hours from the LO wall_s of 280-354 s per cell at 2048; CQ has more channels) and quarantine the 512 cells as a labelled sensitivity",
+      "(b) register 512 as the CQ F1 batch for the VastAI families, rerun CQ RNN on VastAI at 512 (51 cells, about 5-7 L4-hours) so that the four CQ families share one configuration, and state the CQ/LO batch difference in the paper",
+      "(c) if 512 is the micro-batch of a 4 x 512 accumulation (batch_size 2048 in the manifest): only the resource fact label needs correcting; no rerun"
+    ],
+    "recommendation": "(a); (c) if the manifests show it; (b) only if GPU budget forbids (a)",
+    "status_2026-10-19": "RESOLVED BY RERUN (option (a) executed by the team, author ratification of the archive rule pending): 153 LSTM/GRU/BiLSTM cells rerun at batch 2048 on one runner / L4 and ingested as one ingest_id; the historical manifests confirmed batch_size = 512 with no micro_batch_size/accumulation_steps fields; the 512 set stays archived as a labelled sensitivity. Measured batch effect (2048 minus 512, 12-cell means): AccTEMPO +0.002 to +0.006 per family (per pipeline -0.010 to +0.016), macro-F1 -0.0003 to +0.005 (per pipeline -0.011 to +0.016); Spearman of the pipeline ranking between the two batches 0.86-0.97 by AccTEMPO but only 0.26-0.68 by macro-F1, i.e. pipeline differences in macro-F1 (range 0.705-0.723) are at the level of a configuration perturbation and need seeds 43/44 plus CIs before any ranking claim"
+  },
+  {
+    "id": 17,
+    "topic": "LO W1 reporting after the 2026-10-16 diagnosis: W1 is the registered primary LO window, but its TEST block C holds class E in a single offering (1,000 of 1,000) with an E prior 3.9x VALIDATION and 34x TRAIN, TEST macro-F1 sits at or below the majority reference (0.321-0.325 vs 0.330) at every prefix while VALIDATION reaches 0.46-0.55, and the gap grows from P1 to P4 (0.139 -> 0.230), which the validation-prefix truncation mechanism cannot produce (P4 has no truncation)",
+    "status": "OPEN 2026-10-17",
+    "blocks": [
+      "every LO W1 claim",
+      "LO section of Meta-Dataset-Report §3.2",
+      "LO rows of the paper tables"
+    ],
+    "options": [
+      "(a) keep W1 primary and 3-class; publish per-window x per-phase x per-class tables with the single-offering flag, no CI for E (offering-cluster bootstrap undefined with one offering), and describe LO W1 as a single-offering stress test",
+      "(b) in addition to (a), register a 2-class secondary view I/D vs {G, E} for LO (TEST W1 minority 1,525; W3 1,108) before reading any further LO result; a contribution-level change (00_contributions, METRIC_DEF v1.3)",
+      "(c) re-pair T1 or swap the roles of B and C: not recommended after TEST has been read; would need a new split_version, new TEST prefix views and the 204 LO cells rerun (about 17 L4-hours at 300 s per cell)"
+    ],
+    "prerequisite_diagnostics": "POST_MATERIALIZE_CHECKS[15] items (static ablation, static-only probe, per-class per-phase tables for B and C, hash-matched cohorts) must be in hand before the author chooses",
+    "evidence_2026-10-25": "all prerequisites are now in hand (ablation P1 table, static-only probe, full 1,632-cell LO tables, cohort audit computed). LO 1,632 cells: VALIDATION - TEST macro-F1 is +0.139 / +0.193 / +0.214 / +0.230 (P1-P4) on W1, +0.006 / +0.004 / +0.009 / +0.014 on W2 and -0.073 / -0.053 / -0.064 / -0.057 on W3, so the gap is a W1 (block C) property, not a model or contract property; TEST recall of E on W1 is at most 0.007 over all 68 configurations x 4 phases (W2 up to 0.18, W3 up to 0.59); the ablation (LSTM W1, V0 and V8) shows that removing the statics does not close the gap (V0: VALIDATION 0.412 -> 0.460 without statics, TEST 0.325 -> 0.326; V8: 0.462 -> 0.443 / 0.323 -> 0.324)",
+    "recommendation_2026-10-25": "(a): keep W1 primary and 3-class, publish the per-window x per-phase x per-class tables with the single-offering flag and no CI for E on W1, and describe LO W1 as a single-offering stress test in which the 2020 cohort offering of class E is not predictable from any earlier offering; (b) only if the author wants a 2-class LO view as a registered secondary contribution",
+    "code_fact_2026-10-17": "the 15 LO static fields are now listed in tools/audit_prefix_validation_alignment.py (d8e9670): eleven course-catalog attributes (ex_counts, resource_count, teacher_* x5, school_* x5), gender, timeline_source, window_duration_seconds, split_rule_version (excluded since e17ae6e); the eleven catalog attributes are constant inside a course and jointly identify it, so the static branch carries course identity by design; tools/probe_static_only.py (review patch 2026-10-17b) measures how much of B versus C it explains",
+    "recommendation": "(a) now; (b) as an author decision because it changes the contribution contract",
+    "evidence_2026-10-19": "static-only probe LO W1/V0 (REPORT_LO 19/10 §3, tools/probe_static_only.py): with class_weight balanced, COURSE_FINGERPRINT alone recalls 76% of E and 54% of G on VALIDATION (balanced accuracy 0.642) and 0% of E on TEST (balanced accuracy 0.207, below chance); NON_COURSE (gender, timeline_source, window_duration_seconds) recalls 84% of E on VALIDATION and 6% on TEST; unweighted probes predict I/D only. The offering-identity shortcut therefore reproduces the direction of the VALIDATION-TEST gap from the static branch alone; the 2-cell ablation remains the test of how much of the RNN gap it carries",
+    "evidence_2026-10-28": "the complete v2-contract grid (13 fields, no timeline_source) reproduces the W1 gap: VALIDATION - TEST macro-F1 +0.140 / +0.192 / +0.219 / +0.236 at P1-P4 over 68 configurations (r3: +0.139 / +0.193 / +0.214 / +0.230), balanced accuracy +0.126..+0.167; W2 +0.004..+0.011; W3 -0.061..-0.073. Recall E on W1 TEST is 0 in 261 of 272 cells (max 0.002); the W1 TEST E support is the single 2020 offering (n = 1,000). The contract change therefore moves nothing; (a) is the presentation rule with complete evidence",
+    "status_2026-10-28": "OPEN; evidence complete for (a); nothing further to run",
+    "status_2026-11-01": "RATIFIED (a) by the author on 2026-11-01 (Q-04): the LO W1 single-offering class E is presented as a finding, the contract is unchanged; facts must carry the single-offering flag (M-05) [Ra_soat_tien_do_2026-11-01 §9]"
+  },
+  {
+    "id": 18,
+    "topic": "AccTEMPO_M3 structure (METRIC_DEF.acctempo_structure_note_2026-10-17): the seed-42 pipeline ranking is an s_ent ranking; balanced pipelines gain +0.056 (CQ) / +0.066 (LO) AccTEMPO with macro-F1 -0.002 / +0.009, PR-AUC -0.026 / -0.022, ROC-AUC -0.016 / -0.090 and worse NLL/ECE; Spearman(AccTEMPO, macro-F1) across the 17 CQ pipelines is -0.10 to 0.48 and Spearman(AccTEMPO, PR-AUC) is -0.74 to -0.80",
+    "status": "OPEN 2026-10-17",
+    "blocks": [
+      "the pipeline-recommendation narrative (C-contribution on AccTEMPO)",
+      "REC_RULE objective"
+    ],
+    "options": [
+      "(a) keep v1 as the preregistered primary, make the decomposition (S_perf, S_san+, s_ent) and v2 mandatory in every table and discuss the hedging reward explicitly in the paper",
+      "(b) preregister AccTEMPO_M4 = S_perf^0.6 x S_san+_v2^0.4 (s_cal instead of s_ent) as the primary for the paper and keep v1 as the sensitivity; the meta-dataset keeps both columns, so no rerun is needed",
+      "(c) keep v1 and report S_perf as the headline performance metric with AccTEMPO as the secondary"
+    ],
+    "recommendation": "(a) for the meta-dataset release; (b) or (c) only by written author decision recorded in 00_contributions",
+    "evidence_2026-10-21": "CQ R3 window x phase tables (TEST, mean of 17 pipelines, every family): W2 macro-F1 rises P1 -> P4 (0.63 -> 0.66), balanced accuracy 0.62 -> 0.69, recall of the average class 0.55 -> 0.75, while s_ent falls 0.41-0.46 -> 0.16-0.23 and AccTEMPO falls 0.68 -> 0.56; W3 macro-F1 0.73 -> 0.81 while AccTEMPO falls 0.72 -> 0.69; W1 macro-F1 +0.16 while AccTEMPO +0.02. The composite inverts the phase trend because confident predictions lower s_ent. AccTEMPO_M3 v1 therefore cannot carry the early-prediction curves or the pipeline ranking in the paper",
+    "recommendation_2026-10-21": "keep v1 in the meta-dataset as preregistered (a), and for every trend or ranking statement in the paper use S_perf / macro-F1 with AccTEMPO_M4 (s_cal) as the composite (b)+(c); record the change in 00_contributions and METRIC_DEF v1.3 before the LO and F2 tables are written",
+    "team_update_2026-10-23": "CQ/registries.CQ_METRIC_AND_QA23_POLICY (5b14052, policy_id cq_v2_2_metric_qa23_closure_20261023) writes the recommendation into the code registry: M3 stays the preregistered primary of the meta-dataset, paper phase trends and rankings read S_perf / macro-F1 / balanced accuracy, M4 is the sensitivity composite; the R4 export carries acctempo_m4 = S_perf^0.6 x S_san+_v2^0.4 for all 1,632 cells. The team calls it a closure decision; it is still the author's decision to ratify",
+    "evidence_2026-10-23": "PatchTST V0 vs the four recurrent V0 cells (TEST, 12 window x phase cells): macro-F1 differs by -0.002 on average (range -0.012 to +0.014; PatchTST first in 3 cells, last in 3), balanced accuracy -0.011, while M3 differs by +0.034 on W1 (PatchTST first in all 4 W1 cells with the lowest macro-F1 at W1/P1: 0.594 vs 0.605-0.609) and -0.022 on W2 (last in all 4), because s_ent is +0.16 (W1/P1) and -0.08 (W2/P1) against the recurrent V0 mean. M4 also falls P1 -> P4 on W2 (RNN mean of 17: -0.092; PatchTST -0.074) because s_leak of the V0 parent at W2 falls 0.232 -> 0.019 (a data property shared by every model), so even M4 cannot carry the W2 phase trend; S_perf / macro-F1 remain the only trend metrics",
+    "status_2026-10-23": "READY FOR RATIFICATION: the team policy equals recommendation_2026-10-21; ratify it in 00_contributions and METRIC_DEF v1.3, or object before the F2 grid and the LO tables are written"
+  },
+  {
+    "id": 19,
+    "topic": "disposition of the two non-catalog static inputs: timeline_source (which schedule fallback materialised the offering: course timeline, global template, enrollment-anchored proxy) and window_duration_seconds (offering_end_date minus enrollment time, the quantity behind the P1-P4 cutoffs) sit in the tensor of every completed run; the team labels both RETAIN_AS_CONTEXT, which conflicts with the context__ convention (context columns never enter tensors)",
+    "status": "OPEN 2026-10-17",
+    "blocks": [
+      "STATIC_FEATURE_CONTRACT final dispositions",
+      "any rerun decided under 16 or 17"
+    ],
+    "options": [
+      "(a) keep both IN_TENSOR, state them in the paper as enrollment-timing and materialisation-regime inputs, and publish the static-only probe next to the model results",
+      "(b) move timeline_source to CONTEXT_ONLY (it is a materialisation choice, not a learner attribute) and keep window_duration_seconds IN_TENSOR; applies to reruns only, completed runs are labelled as they ran",
+      "(c) move both to CONTEXT_ONLY"
+    ],
+    "recommendation": "(b), bundled with whichever rerun 16/17 triggers; never a silent change between runs of one grid",
+    "team_proposal_2026-10-19": "REPORT_LO 19/10 §4 proposes the same split: timeline_source CONTEXT_ONLY, window_duration_seconds IN_TENSOR if shown known at prediction time (the code derives it from window_end_exclusive and enroll_time, i.e. schedule-based); not applied to completed runs",
+    "status_2026-10-25": "RATIFIED (b) by the author on 2026-10-24 and implemented by the team in c225961 (LO contract v2: timeline_source CONTEXT_ONLY and in model.data.IDENTITY_OR_PROVENANCE, window_duration_seconds IN_TENSOR, fit_layout allowlist for LO); completed historical-layout runs keep their recorded layout"
+  },
+  {
+    "id": 20,
+    "topic": "static branch policy for every future grid (F1 reruns, F2, seeds 43/44): the eleven COURSE-grain catalog fields act as an offering-identity shortcut (LO W1: 76% E recall on VALIDATION, 0% on TEST from the static branch alone; CQ W1: course fingerprint at chance on VALIDATION and below chance on TEST, 0.215), while window_duration_seconds and gender carry transferable enrollment-timing signal (CQ NON_COURSE balanced accuracy 0.49 VALIDATION / 0.54 TEST)",
+    "status": "OPEN 2026-10-19",
+    "blocks": [
+      "STATIC_FEATURE_CONTRACT v2",
+      "F2 grid launch",
+      "seeds 43/44",
+      "any LO rerun"
+    ],
+    "options": [
+      "(a) keep the full static branch; publish SEEN/UNSEEN slices and the static-only probe next to every table and name the shortcut in the paper",
+      "(b) static branch = gender + window_duration_seconds (+ masks) for every new grid; course fingerprint and timeline_source become context columns; the 357 completed F1 cells (CQ 153 + LO 204) are relabelled \"with catalog statics\" and rerun only if the author wants one contract across the paper (about 40-55 L4-hours at the observed 280-354 s per LO cell and a CQ cell of similar order)",
+      "(c) (b) for LO only, where the shortcut inflates VALIDATION; CQ keeps the full branch"
+    ],
+    "prerequisite": "the 2-cell ablation (LO W1 V0 and V8, LSTM, no statics) and the same two cells with gender + window_duration_seconds only: four runs, under one L4-hour",
+    "recommendation": "(b) if the ablation shows that VALIDATION falls towards TEST without the catalog fields; it also removes the course-identity confound from the F2 comparison before that grid starts",
+    "team_update_2026-10-21": "the ablation ran (83c5056 --static-ablation; LO W1 V0 and V8, LSTM, no_static and gender_duration, batch 2048, exploratory runs without a contract, own prediction salt, hash-matched SEEN/UNSEEN x STRICT/OVERLAP slices). The team's text summary (tools/append_lo_static_ablation_report.py): without statics VALIDATION P1 of V0 does not fall against the historical baseline, V8 falls; TEST P1 macro-F1 changes little; E recall stays 0. The numbers (ablation_comparison.csv, P1-P4) were not delivered. If confirmed, the dynamic branch alone also carries the offering regime (activity counts are bounded by the course catalog), so removing the catalog statics would not remove the shortcut and option (b) loses its main argument; the honest framing of LO W1 (decision 17 (a)) becomes the primary route",
+    "needs": "ablation_comparison.csv and the ablation report; then decide between (a) and (b)",
+    "team_update_2026-10-23": "no ablation numbers delivered (third round); 585343e adds the full LO matched-replay launcher (204 cells, batch 2048, historical layout, NVML) that reads TEMPO_PREDICTION_SALT from reference/ablation_salt: if that salt differs from the salt of the 204 Modal/VastAI LO runs, the hash-matched cohort join between the old and the replayed LO grid is impossible and only aggregate comparisons remain; state the salt provenance before the replay starts",
+    "evidence_2026-10-25": "ablation P1 (LSTM, W1, batch 2048, L4; exploratory runs with their own salt): V0 baseline_historical VALIDATION macro-F1 0.4117 / TEST 0.3250 (epoch 2); V0 no_static 0.4595 / 0.3261 (epoch 12); V0 gender_duration 0.4651 / 0.3266 (epoch 12); V8 baseline 0.4622 / 0.3230 (epoch 1); V8 no_static 0.4433 / 0.3238; V8 gender_duration 0.4516 / 0.3238; E recall 0 on TEST in all six. The VALIDATION - TEST gap does not close without the statics (V0: 0.087 -> 0.133; V8: 0.139 -> 0.120), so the dynamic branch alone carries the course regime and option (b) of 2026-10-19 loses its argument; the team closed the contract as v2 = 11 catalog fields + gender + window_duration_seconds (c225961), i.e. option (a) with timeline_source removed per decision 19 (b)",
+    "options_2026-10-25": [
+      "(a-v2) ratify contract v2 for every new LO layout and rerun the LO F1 seed-42 grid under v2 (204 cells, about 12-15 L4-hours with NVML) so that F1, F2 and seeds 43/44 share one contract; the historical and the NVML-replay grids become archived evidence",
+      "(a-hist) keep the historical 15-field F1 grid (or its NVML replay) as the paper grid and run LO F2 with static_layout_policy = historical_reference, which keeps timeline_source in the tensor against decision 19 (b)",
+      "(mixed) keep the historical F1 grid and run F2 under v2: two static contracts inside one F1-vs-F2 table, not recommended"
+    ],
+    "recommendation_2026-10-25": "(a-v2); the cost is small and the ablation shows the contract change does not move TEST; decision 17 (a) stays the presentation rule for W1 whichever contract is chosen",
+    "status_2026-10-25": "READY FOR RATIFICATION (a-v2)",
+    "team_update_2026-10-27": "tools/vastai_run_lo_static_v2_grid.sh (0851aed) implements the (a-v2) replay (204 cells, static_layout_policy current = contract v2, NVML, new output root, one family per instance); not run yet; it reads the salt from reference/ablation_salt, so cohort joins with the historical grid are not possible, which is acceptable if the v2 grid supersedes it; the replay must wait for check 27 (training-loop equivalence after 044d6c7) and for the author's ratification",
+    "team_update_2026-10-28": "(a-v2) EXECUTED by the team on 2026-10-26 before ratification: 204 cells (RNN, LSTM, GRU, BiLSTM x V0-V16 x W1-W3, seed 42) at runner b0e5ae1 with static_layout_policy current = 13-field contract (ex_counts, gender, resource_count, school_* x5, teacher_* x4, window_duration_seconds), batch 2048, L4, NVML; audits B = 2,000 for the four families; closure archive sha256 9108...40d3. Family TEST means move by at most 0.007 (macro-F1, balanced accuracy, M3) against r3; the 68-configuration window x phase means move by at most 0.024 (recall G, W3). The grid was run before check 27 closed (the whole grid is on the post-044d6c7 loop, so it is internally consistent)",
+    "status_2026-10-28": "READY FOR RATIFICATION (a-v2); ratification now designates the v2 grid as the LO F1 paper grid and the historical and r3 grids as archived evidence",
+    "status_2026-11-01": "RATIFIED (a-v2) by the author on 2026-11-01 (Q-04): the 13-field static contract v2 applies to every new grid [Ra_soat_tien_do_2026-11-01 §9]"
+  },
+  {
+    "id": 21,
+    "topic": "QA23 review list for CQ (eb80516, audit_cq_label_proxy.REVIEWED_BEHAVIOURAL_PREFIX_BASES): problem_count, exercise_count, problem_context_count, score_sum, correct_problem_count, attempts_sum, problem_catalog_coverage, problem_score_catalog_coverage are exempted from the label-proxy flag as \"prefix-observed behaviour, not label-derived\", although they are the observed partials of the components the CQ label is built from and QA23 flags them for high association with the final proximity",
+    "status": "OPEN 2026-10-21",
+    "blocks": [
+      "feature_dictionary_v1 (CQ part) sign-off",
+      "QA23 statement in the paper"
+    ],
+    "options": [
+      "(a) ratify the list as the preregistered QA23 decision with the rationale in the registry (observed-so-far behaviour is the legitimate signal of early prediction; the prefix mask guarantees no future values)",
+      "(b) ratify but report, per phase, the association of each exempted base with the label (|rho|, NMI) next to the model results, so a reader can see how much of P4 performance is the accumulated label component itself",
+      "(c) exclude score_sum, correct_problem_count and problem_score_catalog_coverage (the score-bearing partials) and keep the count/coverage features"
+    ],
+    "recommendation": "(b); (c) only if the author wants early prediction to mean behaviour without partial scores, which changes the feature contract and requires reruns",
+    "team_update_2026-10-23": "tools/export_cq_qa23_reviewed_behavioural_linkage.py extracts, per phase P1-P4 and per admissible prefix column, n_obs, Spearman rho and NMI of the eight bases against the label and refuses any row whose review note is not reviewed_prefix_observed_behaviour__not_label_derived; the 23/10 report prints the per-phase maximum only: |rho| max 0.614 (P1), 0.729 (P2), 0.832 (P3), 0.879 (P4); NMI max 0.219 / 0.261 / 0.312 / 0.342 (8 / 16 / 24 / 32 columns). CQ_METRIC_AND_QA23_POLICY records the list as APPROVED_PREFIX_OBSERVED_BEHAVIOUR",
+    "label_construction_fact_2026-10-23": "CQ label G = COELO^0.4 x AFELO^0.2 x ACELO^0.4 (cq_component_builder); COELO averages scaled attempts_sum and problem_count / course_problem_count, ACELO uses score_sum / course_full_score, so the eight bases are the running partials of the label's own inputs; at P4 (90 % of the window) they approach their final values, which is why |rho| reaches 0.88 and why P4 macro-F1 (W3: 0.81) is not an early-prediction result",
+    "status_2026-10-23": "option (b) implemented at summary grain; to ratify, the per-base table (8 bases x prefix x phase, cq_qa23_reviewed_behavioural_linkage.csv) must be delivered and the paper must state the label construction next to every P3/P4 CQ number",
+    "status_2026-10-25": "RATIFIED (b) by the author on 2026-10-24 with the two conditions; the per-base table is still not delivered (unchanged in the regenerated 23/10 report)"
+  },
+  {
+    "id": 22,
+    "topic": "F2 grid launch for CQ seed 42 (48 remaining cells, V1-V16 x W1-W3) after the PatchTST V0 pilot of 2026-10-23: the report concludes the pilot \"ran per contract\" and proposes opening the remaining pipelines",
+    "status": "OPEN 2026-10-23",
+    "blocks": [
+      "F2 grid launch (CQ)",
+      "the F1 vs F2 comparison table",
+      "C3 time/energy facts for F2"
+    ],
+    "facts": [
+      "pilot results: PatchTST V0 is at parity with the recurrent V0 cells on macro-F1 (mean -0.002, 12 TEST cells) and balanced accuracy (-0.011); the only systematic differences are s_ent (hedging) and the derived M3",
+      "checkpoint selection: W3 selected epoch 1 of 6 (patience 5), W1 8 of 13, W2 7 of 12; VALIDATION W3 macro-F1 of the selected checkpoint is 0.62 (P1) / 0.83 (P4) against 0.68 / 0.90-0.91 for the recurrent V0 cells, while TEST W3 is at parity (0.81 vs 0.81-0.82): the W3 run peaked after one epoch and degraded on VALIDATION afterwards",
+      "VALIDATION - TEST macro-F1 on W2 grows to +0.11 at P4 for PatchTST (recurrent V0: -0.006), i.e. the transformer fits the seen-course VALIDATION better than the recurrent models without a TEST gain",
+      "the 23/10 report does not show model_revision, static_layout_policy, runner commit, GPU, elapsed time or NVML energy of the three runs, and its checkpoint table has a blank Score VAL column (report tool reads selection_score, the audit writes best_score); review patch 2026-10-23 derives these from the manifests and fails on a deviation",
+      "S2 seeds 43/44 are still missing, so the F2 grid is seed 42 only, like F1; decision 20 (static branch) is LO-driven, the CQ static-only probe showed no course-identity shortcut (fingerprint at chance on VALIDATION)"
+    ],
+    "options": [
+      "(a) launch the 48 CQ cells now with the pinned image, the historical static layout of the recurrent grid and accumulation 4 x 512",
+      "(b) launch after the three pilot manifests, train_history and the SEEN/UNSEEN x STRICT/OVERLAP slice table of the pilot are delivered and the W3 epoch-1 selection is explained (per-epoch VALIDATION curve); if the curve shows instability at lr 1e-3 for the transformer, preregister any PatchTST-specific change before the grid, not after",
+      "(c) hold F2 until decisions 18 and 20 are ratified and S2 seeds 43/44 exist"
+    ],
+    "recommendation": "(b) for CQ (about one day of evidence work, no rerun); LO F2 waits for decision 20; whatever is launched must record static_layout_policy = historical_reference with the CQ reference layout sha256 so that F2 and F1 cells share one static contract",
+    "status_2026-10-25": "RATIFIED (b) by the author on 2026-10-24; the three conditions are met in the regenerated 23/10 report (manifests: section 8b; epoch history: 8c; cohorts: 8e) although the files are not in input/results/. Two facts change the launch question: the pilot ran with static_layout_policy = current, not with the historical layout of the recurrent grid (difference: the constant split_rule_version column; the two static lists must be printed side by side once and the 48 cells must keep the pilot policy so that F2 is one contract), and the epoch history shows optimisation instability at the shared lr 1e-3 (W2 and W3 VALIDATION macro-F1 swing by up to 0.09-0.15 between consecutive epochs; W3 selected epoch 1). The launch itself is now decision 23",
+    "status_2026-10-27": "shard plan, sharded launcher and verification adopted (af079d8); launch itself governed by decision 23",
+    "cohort_evidence_2026-10-25": "PatchTST V0 TEST STRICT macro-F1 SEEN vs UNSEEN course: W2 P4 0.782 vs 0.614 (n 132,387 vs 31,137), W3 P4 0.722 vs 0.897, W1 UNSEEN slices carry 0-3 rows of class c2 and are not readable; VALIDATION W2 P4 0.785 vs 0.776. The recurrent V0 cohorts at the same grain are not printed, so the +0.11 VALIDATION - TEST gap of W2 remains unexplained"
+  },
+  {
+    "id": 23,
+    "topic": "F2 grid execution policy after the pilot provenance (2026-10-25): cost and optimisation stability. Pilot: 5.9 L4-hours and 0.42 kWh per run (epoch time 1,738-2,490 s, 6-13 epochs), about 125x a recurrent run; the 48 remaining CQ seed-42 cells cost about 282 L4-hours and 20 kWh; D-N3 (A) implies about 306 PatchTST runs over two tasks and three seeds (of the order of 1,800 L4-hours, 130 kWh). The per-epoch VALIDATION curve is noisy (train CE spikes x9.5 at W1 epoch 3; W3 peaks at epoch 1 and never recovers; W2 swings 0.617-0.707 between epochs 7-10), so the VALIDATION-selected checkpoint of a 48-cell grid would partly be a draw and the F1-vs-F2 comparison would be confounded by optimisation rather than architecture",
+    "status": "OPEN 2026-10-25",
+    "blocks": [
+      "launch of the 48 CQ F2 cells",
+      "F2 on seeds 43/44 and on LO",
+      "the F1-vs-F2 statement of the paper",
+      "C3 cost facts"
+    ],
+    "options": [
+      "(a) launch the 48 CQ cells now at the registered configuration (HP_PATCHTST_CHANNEL_INDEPENDENT_v2, lr 1e-3, no warm-up, no gradient clipping), archive every train_history and disclose the instability; 282 L4-hours, 20 kWh",
+      "(b) first a 2-run stabilisation pilot (W3 V0 and W2 V0, about 10 L4-hours) with a candidate HP_PATCHTST_CHANNEL_INDEPENDENT_v3 (lower learning rate with one warm-up epoch and gradient-norm clipping; the recurrent families untouched); if the VALIDATION curve is monotone or the selected epoch moves away from epoch 1, pre-register v3 in the registry and the Method section, rerun the 3 pilot cells, then the grid; otherwise (a)",
+      "(c) amend D-N3 (A): full F2 grid on seed 42 only, seeds 43/44 on V0 and the four imputation-only pipelines (5 x 3 windows x 2 seeds = 30 cells per task), F2 LO at the same reduced scope; about one third of the cost"
+    ],
+    "recommendation": "(b) before any grid; the author decides (c) on budget grounds, with the cost figures above recorded in the Method section either way; whichever option, parallel execution needs the shard plan of review patch 2026-10-25 and one runner commit per ingest",
+    "code_readiness_2026-10-25": "training, audit, cohort and ingest code are adequate for a parallel F2 grid (52 tests; manifests carry release identity, layout hash, runner commit, NVML; runner refuses to overwrite; ingest asserts uniform execution and unique cells); missing before launch: a shard plan (the launchers run every cell sequentially and would duplicate work on several instances), the explicit layout policy in the launcher, per-seed input trees for seeds 43/44 (S2 seeds 43/44 not yet materialised), the printed static lists of the historical and the current CQ layout",
+    "team_pilot_2026-10-26": "option (b) executed by the team before the author decided: lr 3e-4, linear per-update warm-up over one epoch, gradient-norm clip 1.0, batch 2048 = 4 x 512, layout current, run_purpose STABILITY_PILOT_D23, runner 044d6c7+, L4, NVML; W2/V0 selected epoch 4 of 9 (old 7 of 12), W3/V0 selected epoch 1 of 6 (old 1 of 6); 9.7 L4-hours, 0.70 kWh; audit B = 2,000 complete (REPORT_CQ_F1_D23_PATCHTST_CONFIGURATION_2026-10-27). Descriptive means over P1-P4: W2 TEST macro-F1 -0.009, balanced accuracy +0.005, VALIDATION macro-F1 +0.005; W3 TEST macro-F1 -0.025, balanced accuracy -0.027, VALIDATION macro-F1 +0.041; VALIDATION - TEST on W3 turns from -0.032 to +0.034. The report declares the criterion met because two runs completed; the registered criterion (VALIDATION curve monotone or selection away from epoch 1) is not evaluated: no per-epoch history is printed and W3 still selects epoch 1",
+    "status_2026-10-27": "OPEN; criterion not demonstrated. Reading: the W3 selection at epoch 1 under both protocols points to temporal drift between TRAIN A-E and VALIDATION F (the model is best for F before it fits A-E further) rather than to optimisation instability; the W2 move 7/12 -> 4/9 is consistent with a calmer curve but is unproven without the history; the TEST differences are one-seed descriptives and must not choose the protocol",
+    "options_2026-10-27": [
+      "(a) run the 48 CQ cells at the registered protocol (lr 1e-3, no warm-up, no clipping), archive every train_history, disclose the instability in the Method section and keep the D23 pilot as a documented sensitivity (2 cells)",
+      "(b') pre-register HP_PATCHTST_CHANNEL_INDEPENDENT_v3 = D23 on the grounds that warm-up and clipping are standard transformer practice (not on the pilot numbers), rerun the three V0 pilot cells under v3 (about 18 L4-hours) and run the 48 cells under v3, so that all 51 F2 cells share one protocol; note that W3 keeps selecting epoch 1 under v3",
+      "(c) reduce the F2 scope as in options_2026-10-25"
+    ],
+    "recommendation_2026-10-27": "first the two D23 histories next to the old ones (review patch 2026-10-27 prints them with the criterion); if the D23 curves are unimodal without spikes, (b') is defensible and documented; otherwise (a). Either way the registered protocol is what the F2 gate, the shard verifier and the ingest enforce until the registry entry changes, and no F2 cell starts before the author signs the protocol",
+    "team_update_2026-10-28": "the team evaluated the D23 histories (not delivered to the author) and reports that the W3 VALIDATION curve is not unimodal and still selects epoch 1, so the registered criterion fails; LO/registries.py @ 29da3b2 locks the F2 protocol at the registered v2 values (lr 1e-3, warm-up 0, no clipping, PRIMARY_GRID) = option (a); the D23 pilot is kept as sensitivity evidence; the 48 cells are not run",
+    "status_2026-10-28": "TEAM-LOCKED (a); READY FOR RATIFICATION. The lock agrees with recommendation_2026-10-27 for the case \"otherwise (a)\"; the author still signs it and the two D23 histories (or the regenerated D23 report with section 4b) belong in the package. Open consequence: decision 25 (pilot cells vs runner identity)",
+    "status_2026-10-29": "unchanged; the 29/10 CQ report repeats the lock (\"protocol gốc được nhóm khóa\") and again prints no D23 epoch history",
+    "team_proposal_2026-10-31": "BAO_CAO_TONG_HOP_R21 section 10 asks the author to ratify protocol v2 (lr 1e-3, warm-up 0, no clipping) as the F2 configuration and to use the three NEW V0 runs (current layout) as the base of the 48 remaining cells; D23 remains sensitivity; the D23 train_history files are now packaged (R21_evidence/CQ/D23) but not delivered",
+    "status_2026-10-31": "READY FOR RATIFICATION (a); the author signs; the D23 histories arrive with the R21 package",
+    "status_2026-11-01": "RATIFIED (a) by the author on 2026-11-01 (Q-06): protocol v2 (lr 1e-3, warm-up 0, no clipping) is the single F2 protocol, the three NEW V0 runs are the base, D23 stays a sensitivity; the 48 CQ and 51 LO cells may open with a shard plan from the V0 run root, one runner, no --exclude-completed against the old pilot [Ra_soat_tien_do_2026-11-01 §9; Method v0.3 §4.8]",
+    "team_update_2026-11-03": "V1-V6 (18 cells) ran on 31/10-01/11 at runner 29da3b2 alongside the three V0 runs: one runner_git_commit and one layout hash across the 21 cells, protocol v2 fields equal in every run contract, audits B = 2,000, salt join complete (facts package cq_patchtst_v0_v6_full_facts_20261103, hash-verified); 181.81 L4-hours, 66.91 USD (0.368 USD/h, estimate), 13.03 kWh GPU estimate; the per-epoch histories of the three V0 runs are now delivered (cq_patchtst_v0_current_20261102/report_facts/training_history.csv): W3 VALIDATION macro-F1 peaks at epoch 1 (0.790) and never recovers (0.731, 0.550, 0.677, 0.767, 0.665) with train-CE spikes at epochs 3 and 5, W2 swings 0.624-0.723 and selects epoch 4, W1 climbs to 0.755 at epoch 20 of 25; in the 18 new cells five selections sit at epoch 1-3 (V3/W2 epoch 1 of 6, V0/W3 1 of 6, V3/W3 3 of 8, V4/W2 3 of 8, V6/W1 3 of 8); V7 stopped before completion; the report claims nothing beyond seed 42",
+    "status_2026-11-03": "CLOSED (a) by ratification and execution for V0-V6; remaining before V7-V16: decision 32 does not block seed 42; the shard-plan sha and the ingest assertion of check 26 for the 30 remaining cells; the instability of W3 (epoch-1 selection under both protocols) is disclosed in Method §4.8 and in the threats section with the histories as evidence",
+    "status_2026-11-04": "the scope question of options_2026-10-25 (c) (amend D-N3 (A)) is settled by decision 36: phase 1 = seed 42 only, F1 of both tasks and F2 PatchTST CQ V0-V6 (168 cells); V7-V16, LO F2 and seeds 43/44 move to the full release (phase 2) [Ra_soat_tien_do_2026-11-04 §1]"
+  },
+  {
+    "id": 24,
+    "topic": "which LO F1 grid and which static contract enter the paper (2026-10-25): three LO seed-42 grids now exist, the historical-layout grid (204 cells, energy NOT_MEASURED, r2 package), its NVML matched replay (204 cells, batch 2048, L4, runner of the 2026-10-23 campaign, RNN W1/V0 repaired at 7886a856, ingest r3) and, if decision 20 (a-v2) is taken, a v2-contract rerun; the paper needs one grid per task with one contract, one runner revision and measured time (energy where estimated)",
+    "status": "OPEN 2026-10-25",
+    "blocks": [
+      "LO export into input/results/ (check 25)",
+      "LO rows of every paper table",
+      "C3 time/energy facts for LO"
+    ],
+    "options": [
+      "(a) the NVML replay (r3) as the LO paper grid: NVML energy, one backend, equals the historical facts to 1e-4 (shown for BiLSTM; to be shown for RNN, LSTM, GRU), historical 15-field contract; the historical grid becomes archived evidence",
+      "(b) a v2-contract rerun (decision 20 (a-v2)) as the LO paper grid: one contract across F1, F2 and seeds; r3 and the historical grid archived; about 12-15 L4-hours",
+      "(c) the historical grid: no energy, superseded by r3 for every purpose; not recommended"
+    ],
+    "recommendation": "(b) if decision 20 (a-v2) is ratified, otherwise (a); in both cases the export must name the runner commit per family and the RNN W1/V0 repair",
+    "status_2026-10-27": "OPEN; the (b) launcher exists (0851aed), nothing run",
+    "team_update_2026-10-28": "(b) executed de facto: the v2-contract grid is complete (204 cells, one runner b0e5ae1 for the four families, NVML, four audits, closure archive sha256 9108...40d3); the RNN W1/V0 repair of r3 is no longer needed because every v2 cell was trained by one runner",
+    "status_2026-10-28": "READY FOR RATIFICATION (b); the export of check 25 then names runner b0e5ae1, contract v2 (13 fields), the single-offering flag of W1 block C and the registry pipeline mapping",
+    "status_2026-11-01": "RATIFIED (b) by the author on 2026-11-01 (Q-07): the LO static-v2 seed-42 grid (13 fields, runner b0e5ae1) is the LO F1 grid of the paper; r3 and the historical grid are archived evidence [Ra_soat_tien_do_2026-11-01 §9]",
+    "status_2026-11-03": "the R4-grain LO export of M-01 (lo_static_v2_grid_seed42_20261102: 1,632 cells with acctempo_m4, 204 resource runs, runner b0e5ae1, layout sha256:84761775...) is on the Drive; small files hash-verified, per-cell file (2.4 MB) and lo_resource_per_run.csv (76 KB) wait for the sync of decision 31"
+  },
+  {
+    "id": 25,
+    "topic": "composition of the CQ F2 seed-42 ingest (2026-10-28): the three PatchTST V0 pilot cells of 2026-10-23 were trained from runner 7886a856 (registered protocol, layout current, run_purpose PRIMARY_GRID), the 48 remaining cells will be trained from e0ae433 or later; assert_uniform_execution requires one runner_sha256 (and, with review patch 2026-10-28, one runner_git_commit) per ingest, and tools/f2_shard_plan.py --exclude-completed silently plans the 48 cells around the pilot",
+    "status": "OPEN 2026-10-28",
+    "blocks": [
+      "the first F2 shard",
+      "check 26",
+      "every F2 table"
+    ],
+    "options": [
+      "(a) rerun the three V0 cells inside the shard plan (no --exclude-completed): 51 cells from one checkout, about 18 extra L4-hours and 1.3 kWh; the 23/10 pilot stays archived evidence (check 24)",
+      "(b) keep the pilot cells and register an explicit exception in the ingest (allowlist of the pilot runner with the CQ paired-replay receipt as justification); the receipt must then show the pilot checkout on the \"before\" side",
+      "(c) exclude V0 from the F2 claim (48 cells; V0 only as the pilot reference); not recommended because V0 is the imputer_only_ref of every balanced pipeline (N10)"
+    ],
+    "recommendation": "(a): 6% of the F2 budget buys one runner identity for the whole ingest; (b) only if the budget is exhausted",
+    "cost_basis": "pilot 5.9 L4-hours and 0.42 kWh per cell (REPORT 23/10); 48 cells about 282 L4-hours and 20 kWh",
+    "team_proposal_2026-10-29": "REPORT_CQ_DAY_DU_REPLAY_PATCHTST_2026-10-29 section 14: A = keep the three V0 cells with a registered provenance exception (= option (b) here), B = replay W1/V0 PatchTST first (about 6 L4-hours), C = rerun the three cells (about 18 L4-hours, = option (a)); the team proposes A and asks the author; it notes that model/data.py and model/shared_phase.py changed between 7886a856 and 29da3b2, the PatchTST architecture did not, and that the gradient-accumulation path was reordered",
+    "analysis_2026-10-29": "the reorder is exact: 044d6c7 moved GradScaler.unscale_ before the division by group_rows; the loss scale of GradScaler is a power of two (2^16 initial, x2 / x0.5 updates), scaling by a power of two commutes with IEEE rounding, so fl(fl(S*G)/N)/S equals fl(G/N) bit for bit for every parameter (only subnormal underflow could differ); warm-up 0 and no clipping leave the step unchanged; the recurrent path (accumulation 1) is confirmed empirically by the two RNN replays. What the argument does not cover is model/data.py: the CQ current layout of a new run must hash to the pilot layout (feature_layout_sha256 equal)",
+    "recommendation_2026-10-29": "(b)/A is acceptable and cheaper, provided the exception is receipt-backed: (1) a one-epoch replay of CQ W1/V0 PatchTST at the F2 runner (--max-epochs 1, about 0.6 L4-hours) whose epoch-1 train CE, VALIDATION macro-F1 and CE equal the pilot history row bit for bit (determinism then implies every later epoch), with equal feature_layout_sha256; (2) the exception registered through review patch 2026-10-29 (VASTAI_RUNNER_EXCEPTIONS: cell, runner_sha256, runner_git_commit 7886a856, sha256 of that receipt, registered_by = author); (3) the exception named in the paper package README. If the one-epoch replay differs in any value, (a) rerun. The full B (6 L4-hours) adds nothing beyond (1) under determinism",
+    "status_2026-10-29": "OPEN; team proposal A received; author decides",
+    "team_update_2026-10-31": "RESOLVED BY RERUN = option (a): three new PatchTST V0 runs (W1-W3, seed 42, current layout of 11 static fields without timeline_source, registered protocol, run_purpose PRIMARY_GRID, one runner) replace the 23/10 pilot, which had a 12-field layout (with timeline_source) and is kept as archived evidence; the report calls it \"the user's decision\"; selected epochs W1 20, W2 4, W3 1 (from the builder text; the report itself was not delivered); a one-epoch replay of the new W1/V0 run is bit-exact on the three epoch-1 metrics (determinism of the F2 runner)",
+    "status_2026-10-31": "CLOSED BY EXECUTION (a) pending the author's acknowledgement; the F2 ingest will have one runner for 51 cells; the exception mechanism of review patch 2026-10-29 is not needed for CQ F2 seed 42",
+    "status_2026-11-03": "CLOSED (a): the author ratified the three NEW V0 runs as the base on 2026-11-01 (Q-06) and the facts package shows one runner_git_commit 29da3b2 and one feature_layout_sha256 across V0-V6 (21 cells); the run bundles of the three V0 runs are on the Drive (cq_patchtst_v0_current_20261102, M-04) with a bit-exact one-epoch replay receipt"
+  },
+  {
+    "id": 26,
+    "topic": "point-in-time availability of the static branch (2026-10-31, tools/update_cq_static_provenance_20261031.py): the catalog attributes (ex_counts, resource_count, teacher_*, school_*) are joined by course_id from course, teacher and school profiles whose snapshot date is unknown; gender comes from enrollments; window_duration_seconds is built from offering_end_date (scheduled end, proxy branch for some offerings); the source cannot prove that every value was known at each prediction cut-off; primary_risk_set is a constant (source 1, input 0) and carries no information",
+    "status": "OPEN 2026-10-31",
+    "blocks": [
+      "Method section static branch wording",
+      "threats to validity",
+      "the CQ F2 grid claim scope (the team asks to settle the static contract scope before the 48 cells)"
+    ],
+    "options": [
+      "(a) keep the 11-field CQ / 13-field LO contracts and declare the assumption in the paper: catalog and profile attributes are treated as time-invariant course metadata, the scheduled offering end date is treated as known at enrolment, and the SEEN/UNSEEN cohort slices are the empirical check of the course-identity shortcut (decision 20 evidence)",
+      "(b) drop the catalog/profile fields from every new grid (gender + window_duration_seconds + masks only) and rerun F1 (CQ 204 + LO 204 cells, about 27 L4-hours) before F2",
+      "(c) (a) now and (b) as a registered sensitivity on V0 only (6 cells)"
+    ],
+    "recommendation": "(a) with the explicit assumption and the cohort slices, plus the constant primary_risk_set removed from the next contract revision (harmless but noise in the layout); (b) only if a reviewer-level objection on course metadata is expected",
+    "evidence_2026-10-31": "ablation of 2026-10-21 (LO V0/V8 without statics: TEST unchanged, VALIDATION gap unchanged); LO v2 grid without timeline_source reproduces r3 within 0.007; primary_risk_set audit 18/18 inputs constant",
+    "status_2026-11-01": "RATIFIED (a) by the author on 2026-11-01 (Q-10): the 11-field CQ / 13-field LO contracts stay, the two availability assumptions are declared in Method §4.1.2 and in the threats section, the SEEN/UNSEEN cohort slices are the empirical check, primary_risk_set is dropped at the next contract revision [Ra_soat_tien_do_2026-11-01 §9; Method v0.3 §4.1.2]",
+    "status_2026-11-03": "evidence for the empirical check grows: 672 SEEN/UNSEEN x STRICT/OVERLAP slices of the PatchTST V0-V6 cells (all OK) and the CQ class-offering support table (M-05) are on the Drive; the static-v2 ablation (M-03, decision 30) is still owed"
+  },
+  {
+    "id": 27,
+    "topic": "use of report-derived numbers in the draft (2026-10-31): input/results now holds CSV tables extracted from the team reports (docx of 28/10, 29/10, 23/10, 27/10, 31/10), each traceable to the report file and section and checked against the registry and against each other (68-configuration means = means of the 12 cells; label totals = split registry); the official L2 export (R21_evidence_20261031, 151 files with a sha256 manifest) has not reached the author",
+    "status": "OPEN 2026-10-31",
+    "blocks": [
+      "W-EN-02 / W-EN-03 drafting with numbers",
+      "T1-EX-08 (03_claims section B)"
+    ],
+    "options": [
+      "(a) allow report-derived numbers in the draft with the tag [source: results/<package>/<file>, row ...; report-derived] and a mandatory re-check against the L2 export before submission",
+      "(b) write the Experiments text now with empty number slots and fill them only from the L2 export",
+      "(c) wait for the export before any Experiments drafting"
+    ],
+    "recommendation": "(a) for CQ F1 seed 42 (the R4 facts are frozen and the report equals them to 1e-4 on every check); (b) for LO until decisions 20/24 are signed; the F2 numbers wait for the 51-cell grid in every case",
+    "status_2026-11-01": "RATIFIED (a) by the author on 2026-11-01 (Q-09): report-derived numbers may enter the draft with the tag [source: results/<package>/<file>, row ...; report-derived] and a mandatory re-check against the L2 export before submission [Ra_soat_tien_do_2026-11-01 §9]",
+    "status_2026-11-02": "largely superseded for the F1 base tiers: the official R4 export (14 files) and the four LO static-v2 family audits (28 files) were copied from the Drive into input/results on 2026-11-02 and check 31 passed (report-derived tables equal the facts within 5e-5); the tag now covers only the tables without facts counterpart [Ra_soat_tien_do_2026-11-02]",
+    "status_2026-11-03": "the PatchTST V0-V6 metric cells remain report-derived until the per-cell facts files of the 03/11 package are synced (decision 31); the resources, checkpoints, cost, Radius fallback, S2 sampling, class-offering, split and R4/LO mean tables are export-sourced (hash-verified small files in input/results)"
+  },
+  {
+    "id": 28,
+    "topic": "delivery channel of the team evidence (2026-11-02): the shared Drive tree Jobs/{CQ,LO}/organized_moved_20261029 versus the zip package R21_evidence_20261031 (151 files)",
+    "status": "CLOSED 2026-11-02",
+    "author_question": "Q-11",
+    "resolution": "RATIFIED (a) by the author on 2026-11-02: the shared Drive is the official delivery channel; the R21 placeholder in input/results is closed (_superseded/); every missing piece of evidence is copied straight from the Drive and hash-checked [Ra_soat_tien_do_2026-11-02 §8]",
+    "consequence_2026-11-03": "the 12 packages of 02-03/11 (facts V0-V6, V0 current, LO export, reconciled slices, provenance draft, Radius audit, S2 sampling, class offering, split evidence, release identity, meta-join trial, QA23 detail) are read from the Drive; small files hash-verified, large files per decision 31"
+  },
+  {
+    "id": 29,
+    "topic": "AccTEMPO_M3^(cal) for LO (2026-11-02): the LO static-v2 audits carry no acctempo_m4 column",
+    "status": "CLOSED 2026-11-02",
+    "author_question": "Q-12",
+    "resolution": "RATIFIED (c) by the author on 2026-11-02: the draft uses the derived column acctempo_m3_cal_DERIVED (= s_perf^0.6 x S_san+v2^0.4, formula verified to 2e-16 on CQ) with the tag \"derived\"; the team exports acctempo_m4 for LO and the tag is replaced before submission [Ra_soat_tien_do_2026-11-02 §8]",
+    "status_2026-11-03": "the team export of M-01 (lo_static_v2_grid_seed42_20261102) carries acctempo_m4 computed as max(s_perf, 0.001)^0.6 x max(s_san_plus_v2, 0.001)^0.4; once the per-cell file is synced and equals the derived column within 1e-12 the \"derived\" tag is retired"
+  },
+  {
+    "id": 30,
+    "topic": "static-block ablation of the LO grid (2026-11-02): the existing ablation (2026-10-19) is exploratory, LSTM, W1, historical 15-field layout, runner_git_commit null; Method §4.1.2 describes an ablation on the paper grid",
+    "status": "CLOSED 2026-11-02",
+    "author_question": "Q-13",
+    "resolution": "RATIFIED (c) by the author on 2026-11-02: the 19/10 ablation stays descriptive evidence (layout, family and window named); the team runs no_static (and gender_duration if cheap) on the static-v2 grid, W1, V0 and V8, same family, runner b0e5ae1, before submission (M-03); §4.1.2 unchanged [Ra_soat_tien_do_2026-11-02 §8]",
+    "status_2026-11-03": "not delivered (M-03 open)"
+  },
+  {
+    "id": 31,
+    "topic": "transfer route for the remaining Drive evidence (2026-11-02): 67 cohort-audit configurations, S2 manifests and ledgers, receipts, L0_registry, D23 and replay bundles, static-contract audit; and from 03/11 the per-cell files of the new packages",
+    "status": "CLOSED 2026-11-02",
+    "author_question": "Q-14",
+    "resolution": "RATIFIED (a) by the author on 2026-11-02: the author syncs the listed Drive subfolders to input/results/_drive_mirror_20261029/Jobs/... (archives above 100 MB excluded); the writing side verifies on the computer; the connector route stays for small files [Ra_soat_tien_do_2026-11-02 §8-§9]",
+    "status_2026-11-03": "sync not yet done; the connector route delivered 47 small files of 12 packages on 03/11; the list of large files with Drive ids is in analysis_r23_2026-11-03.json and in each package README under input/results"
+  },
+  {
+    "id": 32,
+    "topic": "augmentation seed policy after the team change of 2026-10-31: LO/registries.py @ df2a867 sets augmentation_policy FIXED_SEED_42 (\"reuse the seed-42 S2 balanced TRAIN artifact across model master seeds 42, 43 and 44; model seeds measure training variability\") and rewrites closed decision 9; this registry, decision 9 [DEC §1], check 13, M-12 of the 02/11 request list and the runner default all say MATCH_MASTER_SEED (one S2 artifact per master seed, 216 S2 runs); under the team text the S2 runs for seeds 43/44 (144 runs) are not made and the seed dimension of the meta-dataset measures training noise only, not sampling noise",
+    "status": "OPEN 2026-11-03",
+    "author_question": "Q-16",
+    "blocks": [
+      "S2 seeds 43/44 (T1-S2-02..04, CP4)",
+      "every F1/F2 cell of seeds 43/44 (M-12)",
+      "the seed statement of the Method section and the variance decomposition of H1-H8",
+      "the metamodel seed-level rows (n_rows_seed_level)"
+    ],
+    "options": [
+      "(a) keep MATCH_MASTER_SEED as locked: the team reverts the registry text and the test, materialises S2 for seeds 43 and 44 (2 tasks x 3 windows x 12 balanced pipelines x 2 seeds = 144 runs; the seed-42 S2 of CQ took 36 runs of the Modal volume) and the paper reports seed variability that includes sampling variability",
+      "(b) accept FIXED_SEED_42: decision 9 is reopened and re-closed by the author, README / launcher default / runner check are changed to the fixed policy, the Method section states that seeds 43/44 vary model initialisation and data order only, the meta-dataset documents augmentation_seed = 42 for every balanced cell, and the sampling-variability claim is dropped",
+      "(c) (a) for F1 (recurrent families, cheap cells) and (b) for F2 PatchTST only, with the two policies named per tier"
+    ],
+    "recommendation": "(a): the design was pre-registered and signed [DEC §1], the cost is 144 S2 runs (CPU-side sampling, no GPU), and a reused fixed-seed artifact would make the three \"seeds\" share identical synthetic rows, which understates the variance of every balanced pipeline exactly where the paper claims robustness; (c) only if the F2 budget forces it, and then named in the Method section; whichever option, the team registry must follow the decision, not precede it",
+    "cost_basis": "S2 seed-42 facts: 36 runs per task, ledgers 25-43 MB each (ledger_inventory.json); no GPU; the F1 cells of seeds 43/44 (408) are unchanged by the option",
+    "status_2026-11-04": "RATIFIED (a) by the author on 2026-11-04 (Q-16): MATCH_MASTER_SEED stays the registered augmentation seed policy; the team restores LO/registries.py and the tests; S2 for seeds 43/44 are 144 runs without GPU; no seed-43/44 cell before the four places of check 35 agree; seeds 43/44 belong to phase 2 under decision 36 [Ra_soat_tien_do_2026-11-04 §1]",
+    "status_2026-11-09": "CLOSED on the code side: cfcfd40 restores MATCH_MASTER_SEED in LO/registries.py and decision 9, the launcher default, the runner check and modal_jobs/README.md agree, model_app/model_preflight_app default to the run seed, test_registry_release_alignment asserts it (check 35 PASS); the team asked for the \"four places\" list of check 35 and it is answered in Ra_soat_tien_do_2026-11-09 §4; S2 seeds 43/44 (144 runs) not yet started"
+  },
+  {
+    "id": 33,
+    "topic": "Radius-SMOTE nearest-neighbour fallback (audit cq_radius_fallback_modal_20261103, hash-verified): with the registered radius 0.092 in scaled space the fallback rate exceeds 0.50 in all 24 (window x class x imputer parent) rows of CQ seed 42: class average 0.561-0.607 (W1 0.585-0.589, W2 0.561-0.562, W3 0.607), class good 0.799-0.896 (W1 0.799-0.807, W2 0.887-0.892, W3 0.895-0.896); the four Radius pipelines V4/V8/V12/V16 are therefore radius sampling for a minority of the synthetic rows and nearest-neighbour interpolation for the rest; check 5 registered the > 0.50 warning on 2026-10-05 and the S2 summary flags the 24 rows RADIUS_FALLBACK_GT_0_50; LO not yet audited (M-06 LO)",
+    "status": "OPEN 2026-11-03",
+    "author_question": "Q-17",
+    "blocks": [
+      "Method §4.2 description of V4/V8/V12/V16",
+      "every Radius row of the F1 and F2 tables",
+      "the pipeline registry label of the four Radius pipelines",
+      "F2 V8/V12/V16 (not yet run) if option (b) is chosen"
+    ],
+    "options": [
+      "(a) keep the artefacts and document: the Method section describes the mechanism as \"Radius-SMOTE with nearest-neighbour fallback\" and prints the fallback rates per window x class; the four pipelines keep the sensitivity label of decision 11; the pipeline registry gains a balancer_note; no rerun",
+      "(b) recalibrate the radius per (window, class) to a target fallback rate (for example <= 0.10), rerun the 12 Radius S2 artefacts per task and every model cell that consumed them (CQ F1 4 families x 12 cells = 48, LO F1 48, F2 V4 3 cells already run plus V8/V12/V16), and register the new radii before the rerun",
+      "(c) drop the four Radius pipelines from the paper grid (13 pipelines), keeping them as a labelled appendix sensitivity"
+    ],
+    "recommendation": "(a) now for seed 42 and the paper text, with the rates printed next to every Radius result and the LO audit added (M-06 LO) before any LO Radius number; (b) only if the author wants the Radius mechanism itself to be a claim of the paper (it is not a contribution C1-C5); (c) is unnecessary because decision 11 already labels Radius as sensitivity",
+    "facts_source": "radius_fallback_class_seed42.csv (24 rows; columns generated_rows, fallback_nearest_neighbour_rows, rate) and s2_sampling_summary_cq_seed42.csv (108 rows; fallback_class_status VERIFIED_POSTHOC_RADIUS_AUDIT) in input/results",
+    "status_2026-11-04": "RATIFIED (a) by the author on 2026-11-04 (Q-17): the artefacts are kept; the method is named \"Radius-SMOTE with nearest-neighbour fallback\"; the fallback rate is printed per window x class in the paper; the sensitivity label of decision 11 (D-11) stays; no rerun [Ra_soat_tien_do_2026-11-04 §1; Method v0.4 §4.1.2]",
+    "status_2026-11-09": "team M-06 package (LO/L2_facts/s2/s2_sampling_kappa_seed42_20261107, per the 08/11 reconciliation report): 108 S2 rows and 24 Radius fallback rows per task, kappa_reached defined in METRIC_DEF_kappa_reached.json, radius_parent_identity_check.csv 24/24 (manifest/path linkage, not byte-level); not yet fetched or hash-verified by the writing side; the paper wording of (a) stands"
+  },
+  {
+    "id": 34,
+    "topic": "CQ W1 TEST class good support concentrated in one offering (class_offering_support.csv, hash-verified): n = 11,307 samples from 9 offering units, top_offering_share 0.9885; the registered cluster-bootstrap rule (METRIC_DEF v1.2: n_offerings_with_class <= 2) does not fire (9 > 2) although the W1 TEST c2 recall of every pipeline and family is effectively one course's outcome (PatchTST V0-V6 W1 TEST c2 recall 0.42-0.48 at P1 rising to 0.92-0.93 at P4 with i.i.d. bootstrap CIs of +-0.009); other concentrated cells: W3 TEST good 0.672 (122 units), W2 VALIDATION good 0.385, W3 TEST average 0.374, W1 TEST average 0.306; the LO counterpart (W1 TEST class E, one offering) is decision 17",
+    "status": "OPEN 2026-11-03",
+    "author_question": "Q-18",
+    "blocks": [
+      "every per-class W1 TEST table (CQ F1 and F2)",
+      "the W1 phase-trend sentence for class good",
+      "METRIC_DEF v1.3 wording"
+    ],
+    "options": [
+      "(a) extend the rule: a (window, split, class) cell is flagged single_offering_dominant when top_offering_share >= 0.5; its recall is printed with the flag and with an offering-cluster bootstrap CI (B = 2,000 over offering units) next to the i.i.d. CI; the paper presents the W1 TEST good recall as the outcome of one large offering, as decision 17 does for LO",
+      "(b) exclude class good of W1 TEST from the per-class tables (macro-F1 and balanced accuracy keep it) and say why",
+      "(c) report as now (not acceptable: the CI would claim a precision the design does not have)"
+    ],
+    "recommendation": "(a): the team already computes the support table and the cell flags (M-05) and the cluster bootstrap is in METRIC_DEF; the threshold 0.5 and the flag name go into METRIC_DEF v1.3 and into the facts (cell_flags) before the F2 tables are written; the same rule is applied to LO when its class-offering table arrives",
+    "facts_source": "class_offering_support.csv (27 rows) and cell_flags.csv (1,632 rows, Drive id 1RvIMJv4IBEWz7oME17bOsL3SEkIp4N3D, not yet synced) of cq_class_offering_support_20261103; blocks.csv of cq_split_evidence_partial_20261103 gives 379 offering units in block C",
+    "status_2026-11-04": "RATIFIED (a) by the author on 2026-11-04 (Q-18): the flag single_offering_dominant (top_offering_share >= 0.5) is added to cell_flags for CQ and LO; clustered (offering-unit) bootstrap CIs are produced for the flagged cells; flagged cells are presented as findings, as decision 17 (D-17) does for LO W1 class E [Ra_soat_tien_do_2026-11-04 §1]",
+    "status_2026-11-09": "team M-05 delivered per the 08/11 report: CQ cq_offering_bootstrap_phase1_20261108 (600 flagged TEST cells, 1,800 class rows, B = 2,000, join/support PASS) and LO lo_offering_support_bootstrap_20261107 (1,632 cells, 4,896 class rows, 544 NOT_ESTIMABLE_SINGLE_OFFERING); not yet fetched or hash-verified by the writing side; acceptance = check 31 on these two packages"
+  },
+  {
+    "id": 35,
+    "topic": "energy label of the LO static-v2 grid (2026-11-04): GRID_POLICY execution_status_2026-11-03 and the drafts of 00_contributions C3 / 02_baselines said \"LO energy NOT_MEASURED\" (the label of the archived historical LO grid, decision 24), while lo_resource_per_run.csv of the M-01 export (lo_static_v2_grid_seed42_20261102) carries NVML_POWER_SAMPLING_ESTIMATE for 204/204 runs (0.4967 kWh); decision 15 makes TIME the primary cost basis and ENERGY a flagged sensitivity because the NVML numbers are estimates, not counters",
+    "status": "CLOSED 2026-11-04",
+    "author_question": "Q-19",
+    "blocks": [
+      "the energy column of the LO cost tables (C3)",
+      "the sentence \"LO NOT_MEASURED\" in 00_contributions C3 and 02_baselines",
+      "the labelled ENERGY sensitivity for LO"
+    ],
+    "options": [
+      "(a) D-15 unchanged (TIME primary for both tasks); the LO static-v2 NVML estimates (204/204 runs, 0.4967 kWh) enter the labelled ENERGY sensitivity for LO exactly as the CQ F1 estimates do for CQ; the \"LO NOT_MEASURED\" sentences in 00_contributions C3 and 02_baselines are corrected",
+      "(b) status quo before 04/11: keep \"LO NOT_MEASURED\", report LO on TIME alone and restrict the ENERGY sensitivity to CQ"
+    ],
+    "recommendation": "(a): the LO static-v2 grid of decision 24 (b) has the same measurement type as the CQ F1 grid (NVML power-sampling estimate on every run), so one ENERGY label serves both tasks; NOT_MEASURED stays the label of the archived historical LO grid only",
+    "facts_source": "lo_resource_per_run.csv of the M-01 export lo_static_v2_grid_seed42_20261102 (204 runs, NVML_POWER_SAMPLING_ESTIMATE, 0.4967 kWh); AUTHOR_RATIFICATIONS_2026_10_24 decision 15",
+    "resolution": "RATIFIED (a) by the author on 2026-11-04 (Q-19): D-15 unchanged (TIME is the primary cost basis for both tasks); the LO static-v2 grid carries NVML_POWER_SAMPLING_ESTIMATE for 204/204 runs (lo_resource_per_run.csv, 0.4967 kWh), so ENERGY may be used as a labelled sensitivity for LO too; the sentence \"LO NOT_MEASURED\" in 00_contributions C3 and 02_baselines is corrected [Ra_soat_tien_do_2026-11-04 §1; 00_contributions v0.8; 02_baselines v0.8]"
+  },
+  {
+    "id": 36,
+    "status_2026-11-20": "base tier complete on the three registered seeds (1,836 runs, checks 43 and 44); M-15 delivered on three seeds on 20/11, six days after the 14/11 gate: the gate itself was met by the phase-1 run of 13/11 (seed 42); the fallback branch of this decision (paper on C1, C4, C5 with C2/C3 as secondary results) is now the subject of decision 48 (Q-37)",
+    "status_2026-11-16": "seed 43 base tier complete (612 cells, six packages verified by check 43); the phase-1 scope (seed 42) is unchanged; how seed 43 (and 44) enter the submission is decision 46 (Q-35)",
+    "status_2026-11-13": "M-15 delivered on 2026-11-13, inside the 14/11 gate: the lateness fallback (C1, C4, C5) is not triggered; the primary configuration supports no hypothesis at seed 42 -> decision 44",
+    "topic": "phase-1 scope of the TOIS submission (2026-11-04, deadline 2026-11-20): D-N3 (A) of 2026-10-24 asked for 2 tasks x 3 master seeds x (F1 + F2); the primary seed-42 facts on 04/11 are CQ F1 R4 (1,632 cells), LO F1 static-v2 (1,632 cells) and F2 PatchTST CQ V0-V6 (168 cells); seeds 43/44 need the 144 S2 runs of decision 32 and their F1/F2 cells, V7-V16 and LO F2 are not run, and the meta layer (assemble + MM0-MM6; M-13, M-14, M-15 of the request list) is still to be run",
+    "status": "CLOSED 2026-11-04",
+    "author_question": "phase-1 scope (04/11 session)",
+    "blocks": [
+      "the scope and seed statements of Method v0.4 and of the Experiments section",
+      "the meta-layer run of the team (M-13 / M-14 / M-15) and its planned_seeds",
+      "the hypothesis tests of phase 1 (cluster bootstrap, no across-seed variance decomposition)",
+      "the fallback content of the paper (C1, C4, C5 only) if M-15 is later than 2026-11-14"
+    ],
+    "options": [
+      "(a) D-N3 (A) unchanged (AUTHOR_RATIFICATIONS_2026_10_24): 2 tasks x 3 master seeds x (F1 + F2) before submission",
+      "(b) the reduced three-seed scope of decision 23 options_2026-10-25 (c): full F2 grid on seed 42, seeds 43/44 on V0 and the four imputation-only pipelines, LO F2 at the same reduced scope",
+      "(c) seed 42 only: F1 of both tasks (CQ R4 1,632 cells; LO static-v2 1,632 cells) and F2 PatchTST CQ V0-V6 (168 cells); the meta layer is run on these facts with planned_seeds = [42]; seeds 43/44, V7-V16 and LO F2 move to the full release (phase 2)"
+    ],
+    "recommendation": "(c): the D-N3 (A) remainder (S2 seeds 43/44 = 144 runs, the F1 cells of seeds 43/44, V7-V16, LO F2 and F2 on seeds 43/44) does not fit before 2026-11-20; phase 1 reports one seed with cluster bootstrap over cells / offering units, states in Method and in the threats section that no across-seed variance is estimated, and the full release (phase 2) adds the seeds",
+    "facts_source": "GRID_POLICY execution_status_2026-11-03 (429 primary seed-42 runs: CQ F1 204 + LO F1 v2 204 + PatchTST V0-V6 21); R4 export (1,632 CQ cells); M-01 export lo_static_v2_grid_seed42_20261102 (1,632 LO cells); facts package cq_patchtst_v0_v6_full_facts_20261103 (168 sanity cells); milestones in Yeu_cau_tang_meta_doi_code_2026-11-04.docx",
+    "resolution": "RATIFIED (scope (c) of 04/11, amends D-N3 (A)) by the author on 2026-11-04: the phase-1 submission (TOIS, deadline 2026-11-20) uses seed 42 only, F1 of both tasks (CQ R4 1632 cells; LO static-v2 1632 cells) and F2 PatchTST CQ V0-V6 (168 cells); the meta layer (assemble + MM0-MM6) is run by the team on these facts with planned_seeds = [42] (M-13 F0 CQ / S0 profile / Z_M by 2026-11-09 together with M-14 assemble; M-15 run by 2026-11-12); if M-15 is later than 2026-11-14 the paper falls back to reporting C1, C4, C5 only; seeds 43/44, V7-V16 and LO F2 move to the full release (phase 2); every hypothesis test in phase 1 uses cluster bootstrap over cells/offering units and no across-seed variance decomposition [Ra_soat_tien_do_2026-11-04 §1; Method v0.4; Yeu_cau_tang_meta_doi_code_2026-11-04.docx]",
+    "status_2026-11-09": "milestone 2026-11-09 missed for M-14: M-13 was delivered on 08/11 (cross_task_meta/work_in_progress/m13_inputs_phase1_20261108: S0 profile 48 rows, Z_M 5 rows, F0 CQ_PARTIAL_TRIAD 24 rows; check 40) but the team reports that it never received the metamodel package (v0.2.0/0.2.1) and the registry revision of 04/11, so M-14 (assemble) and M-15 (MM0-MM6) have not started; the hand-off bundle of 09/11 is prepared for the author to upload (decision 40); meanwhile every seed-42 F2 cell of both tasks exists (decision 41)"
+  },
+  {
+    "id": 37,
+    "topic": "F3 backbone (2026-11-06): the code team reports after its tests that MOMENT_SMALL / MOMENT_BASE do not fit the F3 grid and run too long, and proposes MantisV2 (paris-noah/MantisV2) instead; F3 is EXPLORATORY (D-11) and outside the phase-1 release (decision 36); no F3 cell was run into L2 or read (the family_smoke / family_screen runs of 548d4d4 never entered L2), so the change is made before any F3 outcome exists",
+    "status": "CLOSED 2026-11-06",
+    "author_question": "author instruction of 2026-11-06 (check MantisV2 against the F3 conditions, update the resources if it passes, code and guide for the team)",
+    "blocks": [
+      "MODEL_REGISTRY F3 row and Z_M of F3",
+      "check 37",
+      "Method section 4.8 (F3 sentence) and Figure 1",
+      "Meta-Dataset-Report Table 8 and section 2.4",
+      "02_baselines section B",
+      "checklist S3 (T1-F3-01 .. T1-F3-05)"
+    ],
+    "options": [
+      "(a) keep MOMENT_SMALL (exploratory) and add the frozen-embedding cache that check 11 already requires",
+      "(b) replace MOMENT_SMALL and MOMENT_BASE by MANTIS_V2 as the single F3 member (exploratory): frozen encoder, linear probe, registered channel adapter, cache",
+      "(c) drop F3 and state two architecture tiers in the paper"
+    ],
+    "suitability_check_2026-11-06": {
+      "K1_tier_identity": "PASS: pretrained time-series classification foundation model (contrastive pre-training), distinct from F1 (recurrent) and F2 (supervised channel-independent transformer)",
+      "K2_frozen_linear_probe": "PASS: frozen-encoder feature extraction is the main use of Mantis; logistic regression on standardised features beats random forest (UCR 0.8195 -> 0.836 for MantisV2; arXiv:2602.17868)",
+      "K3_open_pinned": "PASS: weights on Hugging Face at a pinned sha, package on PyPI with wheel hash, Apache-2.0",
+      "K4_input_contract": "PASS WITH ADAPTER: same common tensor (six channels, prefix views); 274 CQ channels need the channel adapter (PCA, the authors own recommendation for many channels); static block at the head",
+      "K5_prefix_safety": "PASS: each prefix encoded from its own k steps; k-step and 4-step tensors give bit-identical embeddings (f3_mantis tests)",
+      "K6_finite_and_constant_channels": "PASS WITH GUARD: no input mask, hence no masked-patch NaN; the instance normalisation has the float32 problem of MOMENT RevIN for constant series (reproduced) and needs the guard",
+      "K7_shared_checkpoint_and_selection": "PASS: one head for P1..P4, MEAN_PHASE_MACRO_F1 with cross-entropy tie-break, patience 5",
+      "K8_determinism": "PASS on CPU (bit-identical reruns); GPU pilot pending (check 37 (d))",
+      "K9_cache": "PASS: computed once per (window, imputer) plus synthetic rows per (balanced pipeline, seed)",
+      "K10_cost": "CONDITIONAL: per series 160.7 MFLOPs, same order as MOMENT-1-small (phase-as-patch); feasible only with the 8-component adapter and the cache; measured on L4 in the pilot (check 37 (c))",
+      "K11_scope_and_role": "PASS: D-11 scope and the EXPLORATORY label unchanged; separate export; held-out tier in E3 only if run",
+      "K12_pretraining_leakage": "PASS: synthetic pre-training data only",
+      "K13_Z_M": "PASS: is_pretrained, pretrained_source, finetune_mode, parameter counts, max_seq_len, patch_len, patch_stride available",
+      "K14_validity_domain": "LIMITATION: Mantis was validated on series of length >= 15 and the ICML 2026 paper reports TabPFN ahead of Mantis on UCR series shorter than 144 points; here a prefix has 1-4 steps resized to 512, and at P1 the encoder only sees component levels; to be stated in the threats to validity"
+    },
+    "recommendation": "(b): MANTIS_V2 meets the F3 conditions as EXPLORATORY under four conditions: the registered channel adapter, the constant-series guard, the cache with the cost and determinism pilots of check 37, and the validity-domain limitation stated in the paper; the change does not touch phase 1, C1-C5 or any primary table",
+    "facts_source": "Hugging Face API paris-noah/MantisV2 (read 2026-11-06); PyPI mantis-tsfm 1.1.0 (wheel and source read 2026-11-06); Feofanov et al. ICML 2026 PMLR 306 (PDF read 2026-11-06); arXiv:2602.17868; registry PENDING_DECISIONS[11] cost note; f3_mantis 0.1.0 tests and flop count (2026-11-06)",
+    "resolution": "APPROVED (b) on 2026-11-06 under the author instruction, after the suitability check (K1-K14 above): MANTIS_V2 replaces MOMENT_SMALL and MOMENT_BASE as the single F3 member, EXPLORATORY, full release only (decision 36); the adapter defaults (8 PCA components on real TRAIN rows, layer index 2, combined token, linear resize to 512, constant-series guard, phase one-hot at the head) are registered by the writing side and wait for the author confirmation Q-26; they may change before the pilot (recorded here) and never after any F3 VALIDATION or TEST metric has been read",
+    "status_2026-11-09": "the team integrated f3_mantis 0.1.0 byte-identically (6a69b7f) and ran the whole CQ grid (51 cells, EXPLORATORY_CACHE_VALIDATION, facts package cq_mantis_v2_v0_v16_full_facts_20261109) before the cost and determinism pilots of check 37 (c)/(d) were documented, with its own DedupZstdStore cache (check 37 (h)) and without the package tests (check 37 (i)); the pin of check 37 (a) is satisfied in every standardised run manifest; the adapter defaults were used as registered (Q-26 still unanswered, so (g) now binds: no design change after the first metric was read on 07/11); Mantis LO V0/V1/V5/V9/V13 training; F3 stays phase 2 and never enters a primary table"
+  },
+  {
+    "id": 38,
+    "ratified_2026-11-13": "RATIFIED (a) by the author on 2026-11-13 (Q-27): the LO PatchTST r2 package (one probe, reference copied) is the citable LO F2 source",
+    "topic": "LO PatchTST V0-V16 facts (lo_patchtst_v0_v16_full_facts_20261109) mix three fits of the s_leak probe: pipelines V0-V4, V7, V11, V12 come from the re-audit of 09/11 (probe AUC 0.84011 at W1 TEST P4), V5, V6, V8, V9, V10, V13, V15, V16 from the audits stored in their bundles (0.83997) and V14 from a third fit equal to the LO F1 static-v2 export (0.84023); probe_fit_rows (7,150,228), n_eval, probe_seed 42 and scopes are identical, so the probe is not deterministic across audit runs; |diff| up to 0.0234 at W3 (TEST P1 0.0545 vs 0.0779), hence acctempo_m3 moves by up to 0.0139 and acctempo_m4 by up to 0.0163 per cell and the LO M4 order of the mid-ranked pipelines changes when one probe is used for all cells (best M4 V7 and best M3 V6 are stable); the CQ exports (R4, PatchTST V0-V16, Mantis) share one probe within 1.2e-5 and the LO F1 export is single-valued (phase-1 facts unaffected)",
+    "status": "OPEN 2026-11-09",
+    "author_question": "Q-27",
+    "blocks": [
+      "every LO F2 S_san+, M3 and M4 comparison across pipelines",
+      "the LO rows of a phase-2 meta release",
+      "LO F3 Mantis audits (same audit code)"
+    ],
+    "options": [
+      "(a) the team recomputes s_leak, S_san+ v1/v2, M3 and M4 for all 51 LO F2 cells from the single LO F1 standard probe table (the s_leak rows of GD1_LO_V3_1_clean_r1 / the static-v2 export, which the registered real-row contract defines as a property of (task, window, split, phase)), re-exports the package with a note, and makes the probe fit deterministic (fixed solver, single thread, recorded library versions) with an audit-time assertion that s_leak equals the registered reference within 1e-9 (check 38)",
+      "(b) the team re-runs the standard audit for all 51 LO F2 cells in one pass on one machine and re-exports",
+      "(c) accept the package as delivered; the writing side harmonises s_leak descriptively (lo_leak_harmonisation.json) and no LO F2 S_san+/M3/M4 number is printed"
+    ],
+    "recommendation": "(a): exact, cheap (no GPU, no re-audit of predictions), consistent with the phase-1 LO facts and with the registered contract; (b) only if (a) is refused; under (c) the LO F2 tier cannot be compared on the composite",
+    "facts_source": "lo_patchtst_v0_v16_full_facts_20261109/sanity_components.csv (sha256 174cad03...), LO static-v2 export lo_family_pipeline_window_phase_metrics.csv (1,632 rows), analysis_r26_2026-11-09.json (identity_checks, leak_groups, lo_s_leak_harmonisation), sleak_cross_tier_check.json",
+    "status_2026-11-10": "option (a) EXECUTED by the team before the author answered (Q-27 still open for ratification): lo_patchtst_v0_v16_full_facts_20261109_r2 (tools/recompute_lo_patchtst_sleak_r2_20261109.py, r2 09/11, r2b 10/11 with runner commit and source inventory) copies s_leak / s_leak_probe_auc from the canonical LO F1 table and recomputes S_san+ v1/v2, M3, M4; the writing side verified on the 10/11 files: identity spread 0.0 in all 24 cells, |diff| vs the reference 0.0, formulas reproduced <= 2.7e-15, exactly six columns changed (M3 up to 0.01425, M4 up to 0.01658, as the team summary states), 384 cells moved, every other column identical, checkpoint and resource tables unchanged except runner_git_commit; r2_changes.csv lists old/new/diff per cell; the 09/11 package carries a SUPERSEDED marker (10/11) and stays on the Drive as the provenance of r2_changes.csv (keep it, do not delete); the probe is deterministic from ea19afa with the 1e-9 assertion for new audits. The package may be cited once the author ratifies (a); its S_san+/M3/M4 columns are no longer MIXED_LEAK_PROBE"
+  },
+  {
+    "id": 39,
+    "ratified_2026-11-13": "RATIFIED (c) by the author on 2026-11-13 (Q-28): S0 profile v4 without tr_inactive_learner_ratio is the registered state profile",
+    "topic": "M-13a S0 profile conventions (m13_inputs_phase1_20261108/s0_profile, 48 rows x 115 columns, minimum set complete, no unexpected NULL, P4 parity PASS per the team): five conventions were chosen by the team and need the writing side: (1) tr_inactive_learner_ratio = share of TRAIN enrollments whose cumulative event count did not increase in the last phase interval (values 0.978-0.997 in all 48 rows, i.e. almost every learner counts as inactive, so the column carries no information); (2) ev_mean_observed_length in whole days to the phase cutoff; (3) ev_mean_observed_fraction = floor(days to cutoff) / floor(days enrollment to window end), cutoffs at q = 0.25/0.5/0.75/0.9; (4) drift_*_psi_mean over raw phase-matched features with decile bins from the reference plus a missing bucket, eps 1e-6; (5) tr_mean_events_per_enrollment = cumulative segments + problems + comments, NaN as 0",
+    "status": "OPEN 2026-11-09",
+    "author_question": "Q-28",
+    "blocks": [
+      "M-14 assemble (the S0 profile is an input)",
+      "Meta-Dataset-Report Table E3 wording",
+      "meta-model features of E1-E3"
+    ],
+    "options": [
+      "(a) accept conventions (2)-(5) as delivered and replace (1) by a definition with spread: share of TRAIN enrollments with no event at all before the phase cutoff (then tr_inactive_learner_ratio differs from tr_zero_activity_ratio only by the event types counted) or with no event in the last quarter of the elapsed prefix; the team recomputes the column (no GPU)",
+      "(b) accept all five as delivered and document (1) as near-constant",
+      "(c) drop (1) from the minimum set"
+    ],
+    "recommendation": "(a): the other 31 required columns pass; (1) as defined is degenerate and would enter the meta-model as a constant",
+    "facts_source": "m13_inputs_phase1_20261108/s0_profile/{s0_profile.parquet (sha256 afeee49c...), summary.json, s0_profile_README.md}; analysis in Ra_soat_tien_do_2026-11-09 §3",
+    "status_2026-11-10": "option (c) EXECUTED by the team before the author answered (Q-28 open): m13a_s0_profile_20261109_v4 (48 rows x 113 columns) drops tr_inactive_learner_ratio and its reason column with the argument that the recommended definition \"no event at all before the phase cutoff\" equals tr_zero_activity_ratio (already in the profile; the builder asserts tr_zero_activity_ratio <= tr_inactive_learner_ratio and reports the P1 identity) and that every inactivity share is 0.96-0.99; the writing side verified: exactly the two columns removed, every other value identical to v3 (reason columns differ only in the NULL representation), the 31 required columns have 0 NULL, conventions (2)-(5) unchanged, cohort written as ALL (the team used a FIXED copy for assemble; metamodel 0.2.2 normalises ALL -> FIXED). The writing side changes its recommendation to (c) as executed: the alternative \"no event in the last quarter of the prefix\" would be a new quantity, not a fix of (1), and can be added in phase 2 if the meta-model needs it; the builder and summary label the change \"Q-28 (author, 2026-11-09)\", which must read \"writing-side recommendation, ratified by the author on <date>\""
+  },
+  {
+    "id": 40,
+    "topic": "meta-tier hand-off and the 14/11 gate of decision 36: the team states (08/11 report, M-14 row) that it does not have the metamodel package (v0.2.0, 21 tests; now 0.2.1 on the writing side) nor the registry revision of 04/11, and will not run an assembler of its own; the milestones M-13 + M-14 by 09/11 and M-15 by 12/11 cannot be met without the package; the writing side has prepared metamodel_handoff_2026-11-09.zip (metamodel 0.2.1, tempo_fix rev 2026-11-09 with its exports, f3_mantis tests, README) in Progress/Ver 3/2026-11-09_Full_grid_Mantis_M13 for the author to upload to the Drive (the writing side never writes to the Drive, decision 28)",
+    "status": "OPEN 2026-11-09",
+    "author_question": "Q-29",
+    "blocks": [
+      "M-14 (assemble), M-15 (MM0-MM6), check 36",
+      "Experiments §5.3/§5.4 and H6-H8 of the phase-1 paper",
+      "the fallback clause of decision 36"
+    ],
+    "options": [
+      "(a) the author uploads the hand-off bundle to Results/cross_task_meta/work_in_progress/ today and the team runs M-14 by 11/11 and M-15 by 13/11; the 14/11 gate of decision 36 stays",
+      "(b) as (a) with the gate moved to 16/11 (two days of reserve for the writing of §5.3/§5.4 before 20/11)",
+      "(c) trigger the fallback of decision 36 now: the paper reports C1, C4, C5; C2/C3 move to phase 2"
+    ],
+    "recommendation": "(a); if M-14 is not on the Drive by the evening of 12/11, switch to (c) without further delay so that §5.3/§5.4 can be rewritten",
+    "facts_source": "BAO_CAO_DOI_CHIEU_M01_M18_2026-11-08.docx (M-14 row and the 04/11 response table); Yeu_cau_tang_meta_doi_code_2026-11-04.md; decision 36 resolution",
+    "status_2026-11-10": "option (a) EXECUTED: the team received metamodel_handoff_2026-11-09.zip (sha256 0b680fe8... equal to the writing-side zip), ran metamodel/tests (21 passed) and tempo_fix/tests (29 passed) and assembled M-14 on 09/11 (meta_release_CQ_LO_p1_F2V0V16_20261109, RUN_LOG with pip freeze: python 3.14.2, pandas 3.0.0, scikit-learn 1.8.0, scipy 1.17.1, numpy 2.4.2, pyarrow 25.0.1, no lightgbm / optuna); the first assembly (meta_release_CQ_LO_p1_20261109, F2 V0-V6, 3,432 rows) had every X_STATE column NULL because the S0 profile is written with cohort = ALL while metamodel 0.2.1 joins on cohort = FIXED and the R4 export has no feature_regime column (the --key default was not applied to those rows); the team prepared copies (cohort FIXED, feature_regime CQ_RAW_EARLY) and re-assembled; metamodel 0.2.2 (writing side, 10/11) normalises the keys, raises on a zero-row join and writes join_stats, so no copy is needed. M-15 (mm_runs, MM0-MM6) is not run: lightgbm and optuna are not installed on the team side; deadline 13/11; the 14/11 gate stands. Q-29 open for the record of (a)"
+  },
+  {
+    "id": 41,
+    "ratified_2026-11-13": "RATIFIED (b) by the author on 2026-11-13 (Q-30): F2 of phase 1 = CQ PatchTST V0-V16; the meta release has 3,672 seed-level rows; tables T05/T17/T18/F07 are regenerated from the r2 packages",
+    "topic": "use of the complete CQ PatchTST V7-V16 facts in phase 1: decision 36 fixed F2 = CQ V0-V6 (168 cells) because V7-V16 were not run; on 09/11 the 30 cells exist with the same runner, layout, protocol, audit depth (B = 2,000), R4 leak probe (1.2e-5) and hash-verified facts (cq_patchtst_v7_v16_full_facts_20261109); M-14 has not been assembled yet (decision 40); LO F2 is complete but carries decision 38; Mantis is exploratory by construction",
+    "status": "OPEN 2026-11-09",
+    "author_question": "Q-30",
+    "blocks": [
+      "the F2 scope sentence of Method §4.8 / Experiments §5.1",
+      "tables T05, T17, T18 and Figure F07 (scripted)",
+      "the CQ part of the meta release (R4 union PatchTST)",
+      "check 36 row counts"
+    ],
+    "options": [
+      "(a) keep decision 36: F2 = V0-V6 in the primary tables and in the meta release; V7-V16 appear as one labelled supplementary table (appendix) and are not pooled into any hypothesis test",
+      "(b) extend phase-1 F2 to CQ V0-V16 (51 cells) for the paper tables and for M-14 (assemble R4 union PatchTST V0-V16; planned_seeds [42] unchanged); LO F2 stays phase 2 until decision 38 is executed",
+      "(c) (b) plus LO F2 once the team delivers the re-export of decision 38 (a) before M-14"
+    ],
+    "recommendation": "(b): the facts are complete, consistent with R4 and verified; the table scripts regenerate in seconds; the meta release gains 30 consistent cells before it is assembled; (c) only if the LO re-export arrives before the bundle is run",
+    "facts_source": "cq_patchtst_v7_v16_full_facts_20261109 (summary.json: 240 sanity cells, 960 cohort rows OK, partition PASS); analysis_r26_2026-11-09.json (headline, report_vs_facts, identity_checks); decision 36 resolution",
+    "status_2026-11-10": "option (b) EXECUTED by the team in M-14 before the author answered (Q-30 open): meta_release_CQ_LO_p1_F2V0V16_20261109 assembles CQ R4 + PatchTST V0-V6 + V7-V16 (f2_scope \"CQ PatchTST V0-V16 (Q-30 (b), author decision 2026-11-09)\" - to be reworded: recommendation applied, ratification pending). Row arithmetic corrected: the 09/11 request wrote \"+360\" for option (b); the facts give +240 (10 pipelines x 24 cells), so seed_level = 1,632 + 1,632 + 408 = 3,672 (verified from the parquet: CQ F1_RECURRENT 1,632, CQ F2_TS_TRANSFORMER 408 over 17 pipelines, LO F1_RECURRENT 1,632). If the author chooses (a) instead, the release is re-assembled without V7-V16 (no GPU, minutes) and the paper tables keep V0-V6"
+  },
+  {
+    "id": 42,
+    "status_2026-11-20": "contract applied to the six seed-44 packages: |s_leak - reference| = 0.0 on 4,896 rows, probe_seed = 42 (seed of the reference fit), s_leak_source = REFERENCE_TABLE_COPY_NO_REFIT; over the three seeds (14,688 rows) max |diff| 1.1e-16",
+    "status_2026-11-16": "contract applied to the six seed-43 packages: |s_leak - reference| <= 1.1e-16 on 4,896 rows (writing-side check 43), probe not refit (s_leak_source = REFERENCE_TABLE_COPY_NO_REFIT, probe_fit_rows_source = REFERENCE_PROBE_FIT_SEED42_SAME_REAL_DATA); team probe re-check of 15/11 on the standard machine (default multi-thread mode, LO seeds 42-44, five parents, three windows): 0.0 between parents and seeds, <= 5.6e-17 to the reference; CQ not re-done",
+    "ratified_2026-11-13": "RATIFIED (a) by the author on 2026-11-13 (Q-31): reference-copy contract: every F2/F3 export carries the registered s_leak; check 38 is an identity <= 1e-9 (metamodel 0.2.4 TOL_LEAK_IDENTITY = 1e-9); probe reproduction is the diagnostic check 41 with tolerance 1e-3 and the thread mode recorded",
+    "status_2026-11-13": "option (a) EXECUTED by the team on 2026-11-10 (5ba9829) before the author answered: CQ PatchTST V0-V6 r2, V7-V16 r2, MANTIS_V2 r3 and the LO Mantis package copy the reference; the team L2 receipts report identity <= 1e-9 on five packages; ratification pending. New evidence for check 41: default multi-thread probe reproduces the reference at 0.0, single-thread differs by 2.1e-5 (CQ W1), 1.1e-4, 9.6e-4, 7.2e-6 (LO W1-W3)",
+    "topic": "cross-environment reproduction of the s_leak probe and the reference-copy contract (2026-11-10): the deterministic probe of ea19afa is bitwise repeatable and thread-independent on the CQ W1/V0 real data (6,437,104 probe rows, 43 iterations, team report) but differs from the F1 R4 reference by up to 2.09e-6, above the 1e-9 assertion of check 38 (the F1 fit ran in an unrecorded environment); the accepted CQ packages carry their own fits: |s_leak - reference| up to 4.98e-5 for PatchTST V0-V6 (126 of 168 rows above 1e-5), 1.24e-5 for PatchTST V7-V16 (30 of 240) and for MANTIS_V2 (51 of 408); the LO r2 package copies the LO reference (|diff| 0); inside the meta release s_leak_after therefore differs between the F1 and F2 rows of one situation by up to 1.24e-5; the team proposes a 1e-5 tolerance, which would reject the three CQ packages",
+    "status": "OPEN 2026-11-10",
+    "author_question": "Q-31",
+    "blocks": [
+      "check 38 tolerance for every future audit (seeds 43/44, LO Mantis)",
+      "metamodel 0.2.2 TOL_LEAK_IDENTITY (shipped at 1e-4)",
+      "whether the three CQ F2/F3 packages get an _r2 like LO before the paper tables"
+    ],
+    "options": [
+      "(a) reference-copy contract: every F2/F3 export copies s_leak and s_leak_probe_auc from the registered reference table of its task (s_leak_reference_20261109, as LO r2 does) and recomputes S_san+/M3/M4; check 38 then demands identity <= 1e-9 by construction; the probe reproduction becomes a separate per-environment diagnostic (check 41) with tolerance 1e-5 and the environment block recorded; the three CQ packages receive an _r2 (no GPU; s_leak changes <= 5e-5, M3/M4 <= about 2e-5) and the meta release is re-assembled before the paper tables, not before M-15",
+      "(b) keep per-audit recomputation and set the check-38 tolerance to 1e-4 (covers 4.98e-5) with the environment recorded; no _r2 for CQ",
+      "(c) tolerance 1e-5 as proposed by the team: the three accepted CQ packages fail check 38 and would need an _r2 anyway"
+    ],
+    "recommendation": "(a): one probe value per (task, window, split, phase) is the registered real-row contract, the copy is exact and free, and the paper can state a single probe table per task; M-15 may run on the current release meanwhile (the differences are below the rounding of every reported number); metamodel 0.2.2 ships with TOL_LEAK_IDENTITY = 1e-4 until the CQ _r2 packages exist, then the constant is tightened to 1e-9",
+    "facts_source": "analysis_r27_2026-11-10.json (tolerance_evidence, cq_patchtst_v0_v6_vs_reference_CQ, cq_patchtst_v7_v16_vs_reference_CQ, mantis_r2.s_leak_vs_reference_CQ, meta_release.s_leak_after_identity_across_models); s_leak_reference_20261109/{CQ,LO}.csv (sha256 d723adbd..., ad1f424b...); PHAN_HOI_REVIEW_YEU_CAU_09-11_2026-11-10 section C2"
+  },
+  {
+    "id": 43,
+    "status_2026-11-20": "seed 44: F1 and PatchTST record 5ba9829 at run time (510/510 cells); Mantis CQ and LO carry 6a69b7f mapped retroactively (basis CODE_TAR_FILE_BLOB_MATCH_RETROACTIVE, label), the team asks the reviewer to accept seed 44 under the same rule as seed 43: accepted by the writing side under the ratified option (a), no new decision needed",
+    "status_2026-11-16": "seed 43: F1 and PatchTST record 5ba9829 at run time (510/510 cells, RUN_MANIFEST_WRITTEN_AT_RUN_TIME); Mantis CQ and LO carry 6a69b7f mapped retroactively by code-tar blob match (mantis_lo_code_20261109.tar, 8 and 11 hosts, basis CODE_TAR_FILE_BLOB_MATCH_RETROACTIVE on all 51 cells) under the (a) label; the three NULL V0 cells of seed 42 are unchanged",
+    "ratified_2026-11-13": "RATIFIED (a) by the author on 2026-11-13 (Q-32): the retroactive runner-commit basis (*_RETROACTIVE) is accepted with its label for CQ MANTIS_V2 r3, LO MANTIS_V2 and LO PatchTST r2, and the three NULL Mantis V0 cells stay NULL with their reason; new F1/F2 runs record the commit at run time",
+    "status_2026-11-13": "the team asks the author to accept runner_git_commit_basis = *_RETROACTIVE as the ingest basis of three packages (CQ MANTIS_V2 r3, LO MANTIS_V2: runner_sha256 and code_tar_sha256 written at run time; LO PatchTST r2: tree match on 12 hosts only), otherwise the seed-42 grids must be re-run; Mantis CQ seed-43 cells also lack a run-time commit; open",
+    "topic": "retroactive runner-commit mapping and the three NULL Mantis V0 cells (2026-11-10): the team filled runner_git_commit after the runs: LO PatchTST 51/51 = df2a867 (the host code directory lo_patchtst_seed42_code, 38 files, identical 37-file set on 12 hosts after line-ending normalisation, equals the repository tree at df2a867 (31/10), 834ad30 and 5872cac (03/11); the earliest is recorded; check_gpu.py exists on one host and not in the repository; basis CODE_DIR_TREE_MATCH_RETROACTIVE), CQ MANTIS_V2 48/51 = 6a69b7f (runner blob sha256 2cc8e3f8... found in the history; code tar a8a9a10f... checked by the launch scripts; basis RUNNER_BLOB_SHA256_MATCH_RETROACTIVE); the three V0 cells stay NULL (basis NOT_RECORDED_V0_EARLIER_SCRIPT) with indirect evidence only (one git version of the earlier runner, file last modified 2026-11-07 09:18 UTC+7 before the first V0 cell finished on 08/11 02:44; the code tar of the V0 runs does not contain the runner); the evidence file labels this \"author decision 2026-11-10\" although the author has not decided",
+    "status": "OPEN 2026-11-10",
+    "author_question": "Q-32",
+    "blocks": [
+      "check 39 item 1 for the LO PatchTST and Mantis packages",
+      "the provenance sentence of Experiments §5.1 / the reproducibility appendix",
+      "whether the Mantis V0 cells appear in any exploratory table"
+    ],
+    "options": [
+      "(a) accept the retroactive mapping with its basis column and the three NULL V0 cells with NOT_RECORDED_V0_EARLIER_SCRIPT, and state in the paper that the runner commit of phase-1 F2/F3 runs was established after the fact from byte identity; from now on every run manifest records the commit at run time (check 39 item 1 becomes a hard gate for phase 2)",
+      "(b) re-run the three Mantis V0 cells with the grid runner (about 1.3 L4-hours train each, exploratory tier) so that all 51 cells carry a recorded commit",
+      "(c) exclude the three V0 cells from every Mantis table (then the exploratory tier has no no-intervention reference)"
+    ],
+    "recommendation": "(a): the tier is exploratory and never pooled with F1/F2; V0 is the reference the other 48 cells are compared with; the evidence is documented and hash-anchored; (b) only if the author wants the exploratory table free of NULL provenance",
+    "facts_source": "lo_patchtst_v0_v16_full_facts_20261109_r2/runner_commit_evidence.json (sha256 b36b6dcb...), cq_mantis_v2_v0_v16_full_facts_20261109_r2/runner_commit_evidence.json (1286fb2f...), resource_per_run.csv of both packages (runner_git_commit_basis), source_inventory.json (18 LO archives, V0 being a run tree; 38 Mantis archives; bytes, sha256, Drive MD5 per archive); tools/build_c3_runner_commit_inventory_20261109.py @ 193b584"
+  },
+  {
+    "id": 44,
+    "status_2026-11-20": "three-seed M-15 delivered (20/11). With the primary objective unchanged, H1 is not supported (the registered learner L3-FS3 has a higher regret than B3 on the registered fold, CI excludes 0), H6 is supported in all six configurations; the condition written on 13/11 ('if the primary objective still fails on three seeds, C2-C3 become secondary results') is met for C2 and not for C3 -> decision 48 (Q-37); the executed analysis is a reduced form of the registered design (subgroups, task-pooled folds) -> decision 51 (Q-40)",
+    "status_2026-11-16": "seed 43 delivered; the three-seed M-15 waits for seed 44 (F1 trained, PatchTST CQ ~38/51, LO F2/F3 not started on 16/11); the 0.2.4 acceptance shows that release 20261112 lacked six alias metric columns on the CQ F1 rows, so the three-seed assembly must use 0.2.4 (as decided)",
+    "ratified_2026-11-13": "RATIFIED (a) by the author on 2026-11-13 (Q-33): the primary objective stays PAPER_COMPOSITE_CAL (D-18); phase-1 results are reported as measured (full H1-H8 table of the six configurations, single-seed limitation stated); M-15 is re-run on the three-seed seed_agg before the conclusions of 5.3/5.4",
+    "topic": "outcome of M-15 phase 1 and the presentation of C2-C3 (2026-11-13): under the registered primary objective (PAPER_COMPOSITE_CAL, E1-B, 36 clusters, seed 42) no hypothesis meets its criterion: H1 L3-FS3 - B3 mean regret -0.0014 [-0.0045, 0.0018]; H6 log2 cost ratio -0.796 [-0.940, -0.654] with objective difference +0.0057 whose lower bound -0.0080 is below -eps; with META_PRIMARY_M3_V1 H1, H3, H7 are supported, with SECONDARY_MACRO_F1 H1 (p_holm 0.077), H6, H7; the base-tier headroom oracle - V0 is small (0.0086 CQ, 0.0332 LO)",
+    "options": [
+      "(a) keep the primary objective and report as measured: full H1-H8 table for the six configurations, C2-C3 worded as not yet supported at seed 42, M-15 re-run on the three-seed seed_agg before the conclusions of 5.3/5.4",
+      "(b) move C2-C3 to secondary results and centre the paper on C1, C4, C5 (the fallback branch of decision 36)",
+      "(c) make META_PRIMARY_M3_V1 the primary objective"
+    ],
+    "recommendation": "(a); (c) is not recommended: changing the primary objective after seeing the results contradicts the ratified D-18 and voids the test; if the primary configuration still supports nothing with three seeds, move to (b)",
+    "blocks": [
+      "sections 5.3 and 5.4, Introduction, Abstract",
+      "schedule of seeds 43/44 and of the second M-15"
+    ],
+    "author_question": "Q-33",
+    "status": "OPEN 2026-11-13"
+  },
+  {
+    "id": 45,
+    "status_2026-11-20": "H8 as restated: not supported on three seeds (primary: rho = -0.286 [-0.670, 0.132], 25 clusters >= 10, verdict allowed); the descriptive missing-rate row is reported outside the Holm family as decided",
+    "status_2026-11-16": "no change; metamodel 0.2.4 (H8 restated) is the accepted version for the three-seed run",
+    "ratified_2026-11-13": "RATIFIED (a) by the author on 2026-11-13 (Q-34): H8: the phase part is the test, the tr_missing_rate part is descriptive, a verdict needs at least 10 clusters; implemented in metamodel 0.2.4 before any three-seed run; the phase-1 run of 13/11 keeps its tables under the earlier definition",
+    "topic": "restatement of H8 and a minimum number of clusters (2026-11-13): H8 requires Spearman(imp_share, phase_index) < 0 and Spearman(imp_share, tr_missing_rate) > 0, but in the S0 profile v4 tr_missing_rate rises monotonically with the phase in every task x window (CQ W3 0.696, 0.813, 0.859, 0.885; LO W3 0.657, 0.785, 0.838, 0.867), so the two parts exclude each other; the two H8 rows coincide to 16 digits in three configurations; the only supported H8 (sens_conservative) rests on 4 clusters",
+    "options": [
+      "(a) keep one part as the test (phase), report the other descriptively, and require at least 10 clusters for a verdict",
+      "(b) replace tr_missing_rate by a quantity that is not monotone in the phase (for example the within-phase deviation from the phase mean)",
+      "(c) keep H8 as registered and state that it cannot be tested on this data"
+    ],
+    "recommendation": "(a); the change touches a registered hypothesis, so only the author decides, and the date must precede the three-seed run",
+    "blocks": [
+      "T2-MM1-01, T2-MM4-10",
+      "sections 4.6 and 5.4 (C4)"
+    ],
+    "author_question": "Q-34",
+    "status": "OPEN 2026-11-13"
+  },
+  {
+    "id": 46,
+    "ratified_2026-11-20": "RATIFIED (b) by the author on 2026-11-20 (Q-35): base-tier tables as three-seed means with the across-seed SD; T05/T17/T18/F07 regenerated; best-pipeline statements worded with the between-seed instability",
+    "status_2026-11-20": "the three seeds are complete and the meta tier now runs on the three-seed aggregate, so option (b) (base-tier tables as three-seed means with across-seed SD) has become consistent with the meta-dataset actually analysed; three-seed evidence: cell-level Pearson 0.87-0.998 on M3cal (0.68-0.99 on macro-F1), Spearman of the 17 pipeline means -0.40 to 0.87 (macro-F1: -0.22 to 0.83), same best pipeline in 4 of 36 seed pairs on M3cal; recommendation of the writing side moves from (a) to (b); still OPEN",
+    "topic": "use of the seed-43 (and seed-44) base-tier results in the phase-1 submission (2026-11-16): decision 36 fixed phase 1 on seed 42 and decision 44 (a) re-runs M-15 on three seeds; the six seed-43 facts packages are complete and verified (check 43): cell-level values agree with seed 42 (TEST, 51 cells per task x model: Pearson 0.96-0.998 on M4 and 0.82-0.99 on macro-F1, mean |diff| of M4 0.002-0.013) but the ranking of the 17 pipelines by their mean is unstable (Spearman 0.12-0.84 on M4, 0.02-0.82 on macro-F1) and the best pipeline differs between the seeds in every task x model",
+    "options": [
+      "(a) the phase-1 tables keep seed 42 as the pre-registered snapshot; a seed-robustness subsection (Experiments) reports the cell-level agreement and the ranking instability from seed 43 (seed 44 added when delivered), cited from the GD2/GD3 _seed43 packages; every single-seed statement about a best pipeline is worded as seed-specific",
+      "(b) the base-tier tables move to multi-seed means with across-seed SD (42+43 now, +44 when delivered): T05/T17/T18/F07 regenerated, Method and Experiments restated, M-15 unchanged (three seeds per decision 44)",
+      "(c) seed 42 only, seed 43 unreported in phase 1 (full release only)"
+    ],
+    "recommendation": "(a) before 2026-11-20; (b) only in the full release, when seed 44 is complete and the ranking instability can be stated with three seeds; (c) withholds evidence the reviewers will ask for",
+    "blocks": [
+      "the seed-robustness paragraph of 5.1/5.2 and the threats section",
+      "wording of every best-pipeline claim",
+      "whether T05/T17/T18/F07 are regenerated again"
+    ],
+    "author_question": "Q-35",
+    "status": "OPEN 2026-11-16"
+  },
+  {
+    "id": 47,
+    "ratified_2026-11-20": "RATIFIED (a) by the author on 2026-11-20 (Q-36): NULL variant_role accepted on PRIMARY_GRID facts; the role is read from MODEL_REGISTRY; check 39 item 2 as worded in option (a); no re-export",
+    "status_2026-11-20": "the ten F1/PatchTST directories of seed 44 also carry variant_role NULL (model_tier and run_purpose on every row); the team keeps 'NULL as in the source'; recommendation (a) unchanged; still OPEN",
+    "topic": "variant_role NULL in the F1/F2 facts of seed 43 (2026-11-16): the ten PRIMARY_GRID directories (four F1 families and PatchTST, both tasks) carry model_tier and run_purpose on every row but variant_role is NULL (the team keeps the source value: not recorded at train time); the two Mantis packages carry EXPLORATORY; the team overlay seed43_variant_role_registry_overlay.csv maps the role from the registry (RNN, LSTM, PATCHTST = PRIMARY; GRU, BILSTM = ROBUSTNESS), the same as MODEL_REGISTRY here; the p1 release has no variant_role column and the meta-model does not use it",
+    "options": [
+      "(a) accept NULL in the facts of PRIMARY_GRID runs: the role is a registered property of the family (MODEL_REGISTRY), check 39 item 2 reads model_tier + run_purpose on every row and variant_role on exploratory packages; the assembler may add variant_role from the registry (no re-export)",
+      "(b) the team re-exports the ten directories with variant_role filled from the registry and a derived label (as the overlay does)",
+      "(c) keep the check 39 wording as is and record the ten directories as WITH_EXCEPTION"
+    ],
+    "recommendation": "(a): the seed-42 F1 facts (R4, static-v2) carry no variant_role either, so (b) would reopen accepted packages for a label the paper takes from the registry",
+    "blocks": [
+      "check 39 wording",
+      "the L2 ingest status of the ten directories"
+    ],
+    "author_question": "Q-36",
+    "status": "OPEN 2026-11-16"
+  },
+  {
+    "id": 48,
+    "ratified_2026-11-20": "RATIFIED (a) by the author on 2026-11-20 (Q-37): C1, C3, C4 (descriptive) and C5 are the main contributions; C2 is the registered comparison without a superiority claim; with decision 51 (b) the conclusion on C2 is written on the full-design run (check 47) and no outcome of H1 is stated before it; if that run supports H1 the author revisits this decision",
+    "topic": "position of C2, C3 and C4 in the paper after the three-seed M-15 (2026-11-20): on the registered primary analysis (PAPER_COMPOSITE_CAL, E1-B, 48 clusters, seed-aggregated table of seeds 42-44) the learned recommender does not beat the comparator (H1: L3-FS3 - B3 = +0.0029 [0.0006, 0.0057]; H2, H3, H4 not supported; H5 one direction), the cost-aware utility does (H6 in 6/6 configurations: -0.22 to -0.33 log2 cost at no loss beyond eps), H7 holds for three secondary objectives but not for the primary one, H8 is not supported; over the seven folds the fixed global-best pipeline B2 (0.0113) is the best non-oracle strategy and the elastic net L1-FS3 (0.0123) is ahead of the registered LightGBM learner L3-FS3 (0.0146); the negative control fails on the F2 and F3 hold-outs; the base tier explains why: between-pipeline differences are of the size of the seed noise (Spearman of pipeline means between seeds -0.40 to 0.87); the comparison is not stable across folds: on the replication fold E1-A it is -0.0021 [-0.0042, -0.0002] and on the two folds pooled (96 clusters) +0.0004 [-0.0013, 0.0021] (descriptive, computed by the writing side from the recommendation rows); the analysis run so far is a reduced form of the registered design, see decision 51",
+    "options": [
+      "(a) apply the fallback written into decisions 36 and 44: main contributions C1 (meta-dataset, with the three-seed robustness analysis), C3 (cost-aware recommendation, H6), C4 as a descriptive decomposition and C5; C2 is reported as the registered comparison with a negative primary result (no superiority claim), with the per-fold picture and the comparison to B2/B6 stated as measured; unless decision 51 (b) is taken the text says that the comparison was run on a reduced form of the registered design",
+      "(b) keep C2 as a main contribution by changing the registered analysis (primary learner L1 instead of L3, or the seven-fold mean instead of E1-B): a post hoc change that has to be disclosed as such; the E1-B result of L1-FS3 (0.0070 against B3 0.0104, B2 0.0077) has no registered test",
+      "(c) postpone the submission and enlarge the meta-dataset before testing C2 again (more situations per group: seed-level meta-training, further windows or cohorts), with a new pre-registration"
+    ],
+    "recommendation": "(a), to be confirmed after decision 51 (Q-40): it is the branch agreed on 13/11 and it needs no new experiment; (b) trades the pre-registration for a result on one fold; (c) is the only way to a positive C2 claim but moves the paper by weeks",
+    "blocks": [
+      "Experiments 5.3-5.4 (meta-tier results)",
+      "the contribution list of the Introduction and the abstract",
+      "the comparison table of Related Work (column for C2)",
+      "00_contributions section 3"
+    ],
+    "author_question": "Q-37",
+    "status": "OPEN 2026-11-20"
+  },
+  {
+    "id": 49,
+    "ratified_2026-11-20": "RATIFIED (a) by the author on 2026-11-20 (Q-38): the 8 cells stay empty; cost follows TIME; energy totals on the measured runs with their count (1,605 of 1,836); no re-run",
+    "topic": "GPU energy of the 8 seed-44 CQ cells without a measurement (2026-11-20): the power sampler returned no sample on the hosts of 7 PatchTST cells and 1 Mantis cell; the team proposes median power of the measured cells of the same model x elapsed time (0.39-1.43 kWh per PatchTST cell, 0.12 kWh for the Mantis cell; 4.78 kWh for the seven against 26.49 kWh measured on the other 44) and has not written it into the packages",
+    "options": [
+      "(a) keep the cells empty: cost follows TIME (D-15), energy totals are reported on the measured runs with their count (1,605 of 1,836), the proposal stays a note",
+      "(b) accept the proposal as a labelled imputation (new measurement type, e.g. IMPUTED_MEDIAN_POWER) used in descriptive energy totals only, never in a cost basis",
+      "(c) re-run the 8 cells with a verified sampler (about 67 GPU hours for the seven PatchTST cells and 3 for the Mantis cell)"
+    ],
+    "recommendation": "(a): the 204 CQ F1 runs of seed 43 have no energy either, so eight imputed cells do not complete any table, and no registered test uses energy under the strict rule",
+    "blocks": [
+      "the energy column of the resource table in Experiments",
+      "the cost basis of sens_energy once it is run with metamodel 0.2.5"
+    ],
+    "author_question": "Q-38",
+    "status": "OPEN 2026-11-20"
+  },
+  {
+    "id": 50,
+    "ratified_2026-11-20": "RATIFIED (a) by the author on 2026-11-20 (Q-39): the pinned Windows PC environment is the environment of record; the Linux host run is the cross-platform replication",
+    "topic": "environment of record of the meta-tier runs (2026-11-20): the same six configurations on the same release give bit-identical baselines but different learner rows on a Windows PC (Python 3.12.1, the pinned environment of the 13/11 package) and on a Linux host (Python 3.12.15): 11-18 of 182 learner rows per configuration, mostly L4, L5, L6 and L3-FS4, |diff mean regret| up to 0.0271, 63-124 of 6,528 recommendations; no hypothesis verdict changes and the H1-H8 estimates agree to 4 decimals except H4 of sens_v1 (0.0007 against 0.0011); two runs on the PC are bit-identical",
+    "options": [
+      "(a) the PC environment (pinned, the one of the phase-1 run) is the environment of record; the Linux run is reported as a cross-platform replication with the differences above",
+      "(b) the Linux host is the environment of record",
+      "(c) both sets are reported side by side for every learner row"
+    ],
+    "recommendation": "(a), with the pip freeze and the platform string of both machines in the package",
+    "blocks": [
+      "which mm_metrics rows of L4, L5, L6 enter a table",
+      "the reproducibility statement"
+    ],
+    "author_question": "Q-39",
+    "status": "OPEN 2026-11-20"
+  },
+  {
+    "id": 51,
+    "ratified_2026-11-20": "RATIFIED (b) by the author on 2026-11-20 (Q-40): the five mandatory subgroups and per-task E1 runs are completed before C2 is concluded; see correction_2026-11-20b for the four statements of this entry that were wrong or incomplete",
+    "correction_2026-11-20b": "(1) the cohort audits do not hold the four slices: they hold COURSE x TEMPORAL joint slices with two metrics under a definition without the cutoff condition; the slices are recomputed from the stored per-sample predictions (no training, no inference); (2) E1-B is scored on 48 situations in the registered design as well: the main report slice is (ALL, ALL) (Table 42), the five subgroups enlarge the training set and add secondary reports; (3) the executed analysis is the robustness variant registered in Table 42, run with the task-pooled folds of Appendix E.4; (4) option (b) also needs seen flags by the registered rule, an S0 profile by subgroup and an extension of the reference package (AUTHOR_RATIFICATIONS_2026_11_20['corrections'])",
+    "topic": "design scope of the meta tier behind every C2-C4 result so far (2026-11-20; stated by the team in section 8 of the Drive copy of its 20/11 report, a section the attached copy does not have; true of the phase-1 run of 13/11 as well): (i) Meta-Dataset-Report v1.9 registers five mandatory subgroups per situation, (ALL, ALL), (LEARNER, SEEN), (LEARNER, UNSEEN), (COURSE, SEEN), (COURSE, UNSEEN); every meta release holds the (ALL, ALL) rows only, so the registered fold E1-B has 48 recommendation situations (one per cluster) instead of 240 and the state block takes 24 distinct values (task x window x phase); the cohort audits of the facts packages hold the four other slices; (ii) section 10.8 names E1-B as the primary fold, E1-A as the replication and, because each task has only 24 clusters per window, an additional test on the two tasks and the two folds pooled (96 clusters); the runs follow the Appendix E command on the combined CQ+LO table, where the reference package pools the two tasks inside E1-A and E1-B and writes hypothesis rows for E1-B only: neither per-task E1 runs nor the replication and pooled rows exist in mm_hypotheses (gap of the reference package); the writing side computed H1-H4 and H7 on E1-A, on the 96 clusters and by task from the recommendation rows (descriptive, mm_replication_pooled_bytask.json)",
+    "options": [
+      "(a) the executed analysis is the analysis of this paper: Method and threats state both reductions (one subgroup; task-pooled folds), the E1-A and pooled rows are reported next to E1-B from the team files, the per-task subsets descriptively; no run beyond the 0.2.5 re-issue",
+      "(b) the registered design is completed before C2 is concluded: the team exports the facts of the four cohort subgroups from the stored audits (no training), the release is re-assembled with five subgroups, M-15 is re-run (with per-task E1 runs), and decision 48 is taken on that result",
+      "(c) per-task E1 runs are added to the 0.2.5 re-issue now (child releases, no new data), the subgroups are deferred to the full release and stated as a limitation"
+    ],
+    "recommendation": "(c) as the immediate step, and (b) for the conclusion on C2 if the team confirms that the cohort-slice facts can be exported without retraining; under (a) or (c) the paper does not call the executed comparison the pre-registered test without naming the two reductions",
+    "blocks": [
+      "decision 48 (Q-37)",
+      "the wording of H1-H8 in Method 4.6 and Experiments 5.3-5.4",
+      "C1: the description of the meta-dataset (situations per cluster)",
+      "the scope of the M-15 re-issue asked on 20/11"
+    ],
+    "author_question": "Q-40",
+    "status": "OPEN 2026-11-20"
+  },
+  {
+    "id": 52,
+    "ratified_2026-11-21": "RATIFIED (a) by the author on 2026-11-21 (Q-41): per-task training is primary, verdict rows on the clusters of the two tasks together, per-task rows beside them, E1-A replication, 96-cluster pooled test, task-pooled run as a labelled sensitivity analysis; implemented in metamodel 0.3.0 (e1_scope = PER_TASK, hypothesis_rows = REGISTERED)",
+    "topic": "full-design run, primary reading of E1 (2026-11-20b, opened by decision 51 (b)): section 10.10 of the Meta-Dataset-Report registers the main grid per task (task (2) x fold (2)) and Table 46 defines B2 on the meta-train 'of the task', while Appendix E.4 (confirmed on 24/10) documents one run on the combined CQ+LO table, in which E1-A and E1-B pool the two tasks, task is a context feature (FS0) and B3 averages the two tasks inside each (model, phase); every result so far follows Appendix E.4 (E1-B: 48 clusters). Section 10.8 names E1-B as the primary fold, E1-A as the replication and a pooled test on the two tasks and the two folds (96 clusters). Once per-task runs exist, the rows that carry the verdicts of H1-H4 and H6-H8 have to be named before any result is read",
+    "options": [
+      "(a) per-task training is primary (section 10.10): one model per task and fold, each scored on its own task; the verdict rows of E1-B are computed on the 48 clusters of the two tasks together and the 24-cluster rows of each task are reported beside them; E1-A is the replication and the 96-cluster test follows section 10.8; the task-pooled run of Appendix E.4 is kept as a labelled sensitivity analysis",
+      "(b) task-pooled training stays primary (Appendix E.4, the analysis reported so far); the per-task runs are the additional analysis",
+      "(c) per-task training is primary and the verdict is given per task (two rows of 24 clusters for each hypothesis, no joint row)"
+    ],
+    "recommendation": "(a): it is the reading of the registered grid and of Table 46, it keeps the 48-cluster unit of every table so far, and it makes B3 a per-task comparator; (c) halves the clusters behind each verdict; (b) keeps a B3 that averages the two tasks, which Table 46 does not say",
+    "blocks": [
+      "the next release of the reference package (full-design run)",
+      "check 47",
+      "decision 48: the wording of C2"
+    ],
+    "author_question": "Q-41",
+    "status": "OPEN 2026-11-20"
+  },
+  {
+    "id": 53,
+    "ratified_2026-11-21": "RATIFIED (a) by the author on 2026-11-21 (Q-42): baselines and inner selection on the matched slice; the all-rows variant is a labelled sensitivity analysis; implemented in metamodel 0.3.0 (baseline_scope = MATCHED_SLICE; ALL_ROWS for the variant)",
+    "topic": "full-design run, use of the subgroup rows by the baselines and by the inner selection (2026-11-20b): Table 42 puts the five subgroups into the meta-training set and names (ALL, ALL) as the main report slice; Table 46 defines B2 and B3 'on meta-train' without a subgroup key, and section 10.6 selects the hyper-parameters, the k of B5 and the thresholds of B4 by the mean regret of the inner validation groups without naming a slice; rows of different subgroups of the same (model, phase, window) are strongly dependent (section 10.3)",
+    "options": [
+      "(a) matched slice: B2, B3, the thresholds of B4 and the neighbours of B5 are estimated on the training rows of the subgroup of the situation they score, and the inner selection minimises the mean regret of the (ALL, ALL) groups of the inner validation part; on the main slice the baselines are then exactly those of the ALL-only analysis and only the learners gain training rows; the all-rows variant is reported as a labelled sensitivity analysis",
+      "(b) all training rows: the baselines are estimated on the five subgroups together without a subgroup key and the inner selection uses every group; the matched variant is reported as the sensitivity analysis"
+    ],
+    "recommendation": "(a): the comparator is not diluted by small slices, the quantity selected in the inner loop is the quantity reported, and the comparison with the tables of 13/11 and 20/11 isolates the effect of the added training rows",
+    "blocks": [
+      "the next release of the reference package (full-design run)",
+      "check 47"
+    ],
+    "author_question": "Q-42",
+    "status": "OPEN 2026-11-20"
+  },
+  {
+    "id": 54,
+    "ratified_2026-11-21": "RATIFIED (b) by the author on 2026-11-21 (Q-43): one Holm family over every test row of mm_hypotheses; the recommendation of the writing side was (a); the rows of the table are fixed before the run (AUTHOR_RATIFICATIONS_2026_11_21['implementation'] and decision 55)",
+    "topic": "full-design run, Holm family (2026-11-20b): section 10.8 corrects H1-H8 by Holm at alpha_stat = 0.05; Appendix E applies Holm to every comparison with a bootstrap p in mm_hypotheses, a table that so far holds the rows of the primary fold only (and of E2 for H5); the full-design run adds the registered E1-A replication rows, the 96-cluster pooled rows, the per-task rows and the rows of the secondary SEEN / UNSEEN slices",
+    "options": [
+      "(a) Holm inside the primary family only (the rows that carry the verdicts, as named by decision 52); every other row carries an analysis_role (REPLICATION_E1A, POOLED_2FOLD, PER_TASK, SECONDARY_SLICE, SENSITIVITY) and is adjusted inside its role; the verdict of a hypothesis stays the confidence-interval criterion of Table 50 on the primary rows",
+      "(b) one family: Holm over every row of mm_hypotheses, so that each added row changes the adjusted p of the primary rows"
+    ],
+    "recommendation": "(a): it is the family of section 10.8 (H1-H8) and it keeps the adjusted p of the primary rows comparable with the tables so far; (b) follows the letter of Appendix E, which was written for a table without these rows",
+    "blocks": [
+      "the next release of the reference package (full-design run)",
+      "check 47"
+    ],
+    "author_question": "Q-43",
+    "status": "OPEN 2026-11-20"
+  },
+  {
+    "id": 55,
+    "topic": "full-design run, status of the comparisons on the secondary SEEN / UNSEEN slices (2026-11-21, opened by decision 54 (b)): Table 42 of the Meta-Dataset-Report registers the four slices as secondary report slices and Table 50 defines H1-H8 on the primary protocol; the topic of decision 54 named 'the rows of the secondary SEEN / UNSEEN slices' among the rows that the full-design run would add to mm_hypotheses; with one Holm family every row of that table changes the adjusted p of the primary rows, so the membership of the table is fixed before the run",
+    "options": [
+      "(a) reports: for every evaluation unit and slice the summary, its intervals and the paired difference of the mean regret to B3 are written to mm_metrics_secondary with status DESCRIPTIVE; mm_hypotheses holds the registered tests only (primary, per task, E1-A replication, 96-cluster pooled, E2); this is what metamodel 0.3.0 does",
+      "(b) tests: H1-H4 and H6-H8 are also tested on each of the four secondary slices and their rows enter the one Holm family (about four times more test rows)"
+    ],
+    "recommendation": "(a): Table 42 calls them report slices; a slice holds a subset of the enrollments of ALL, so its tests repeat the primary ones on dependent data; 38 of the 240 slice cells are flagged small and 19 hold two classes only (subgroup_slice_support.csv of 21/11); the per-group outcomes are kept in mm_recommendations_secondary, so (b) can be computed later from the same runs without retraining",
+    "blocks": [
+      "the wording of the secondary-slice results"
+    ],
+    "does_not_block": "the full-design runs of check 47",
+    "author_question": "Q-44",
+    "status": "OPEN 2026-11-21",
+    "ratified_2026-11-21": "RATIFIED (a) by the author on 2026-11-21 (second pass; Q-44), written into the registry on 2026-11-23: the secondary SEEN / UNSEEN slices are descriptive reports outside mm_hypotheses and outside the Holm family (AUTHOR_RATIFICATIONS_2026_11_21B)"
+  },
+  {
+    "id": 56,
+    "topic": "record of the state of knowledge behind decisions 52-54 (2026-11-21): the code team ran E1-A and E1-B per task on 20/11 with metamodel 0.2.4 on the (ALL, ALL) rows of release 20261120, before the request that asked not to, and read the results; the reply of 21/11 does not show them and the writing side has not opened them; the manuscript has to say whether the choice of the primary reading of E1 (decision 52) was made before or after these outcomes were seen by the person who made it",
+    "options": [
+      "(a) the author had not seen the regret or hypothesis tables of the exploratory per-task run when answering Q-41 to Q-43: recorded as such; the run stays unopened until the full-design run is accepted",
+      "(b) the author had seen them: the Experiments section states that the primary reading of E1 was chosen after an exploratory per-task run on the ALL-only rows, and that run is reported"
+    ],
+    "recommendation": "none: this is a statement of fact by the author",
+    "blocks": [
+      "the paragraph of the Experiments section on the order of the decisions and the runs"
+    ],
+    "does_not_block": "the full-design runs of check 47",
+    "author_question": "Q-45",
+    "status": "OPEN 2026-11-21",
+    "ratified_2026-11-21": "RATIFIED (a) by the author on 2026-11-21 (second pass; Q-45), restated on 2026-11-23 and written into the registry that day: the author had not seen the tables of the exploratory per-task run when answering Q-41 to Q-43; the run stays sealed until check 47 is accepted (AUTHOR_RATIFICATIONS_2026_11_21B)"
+  },
+  {
+    "id": 57,
+    "topic": "fitted meta-models and model explanation of the full-design run (2026-11-24): the table of outputs of the Meta-Dataset-Report lists mm_models/ (fitted models and preprocessors with sha256) and the contributions contract lists SHAP among the verification experiments of C2; metamodel <= 0.3.0 writes neither: the delivered runs keep the configuration, the seeds, best_params and the model-native importances (mm_feature_importance, mean and sd over the learner seeds); the checklist item T2-MM4-03 words SHAP as optional ('SHAP if installed')",
+    "options": [
+      "(a) no re-run: the deviation from the output list is recorded and stated in the paper (the models are reproducible from the package, the frozen configuration, the seeds and the release; they are not archived); the explanation of C2 uses mm_feature_importance and the nested feature sets FS0-FS5; SHAP is removed from the verification experiments of C2 in 00_contributions.md",
+      "(b) the writing side adds the export of fitted models and preprocessors (and SHAP values of L3-FS3 on the test rows) to a package 0.3.1 without changing a computation; the team re-runs the main configuration as a labelled reproduction run (the run of record took 9.9 hours); the writing side compares every table with the run of record, which stays the run of record",
+      "(c) as (b) for the ten configurations"
+    ],
+    "recommendation": "(a): H1 and H2 are not supported and the negative control fails in most folds, so SHAP would explain a learner that does not beat the baselines, and determinism on the machine of record is already shown by B.5 r2 (48 tables equal to phase A); (b) if the author wants the output list of the design document met as written. Recommendation of the writing side, not a decision",
+    "blocks": [
+      "the reproducibility statement of the paper",
+      "the list of verification experiments of C2 in 00_contributions.md (SHAP)"
+    ],
+    "does_not_block": "the acceptance of check 47; the Method section",
+    "author_question": "Q-46",
+    "status": "OPEN 2026-11-24",
+    "ratified_2026-11-24": "RATIFIED (a) by the author on 2026-11-24 (second pass; Q-46), written into the registry on 2026-11-26: no re-run; the paper states that the fitted meta-models are not archived and can be refitted from the package, the frozen configuration, the seeds and the release; SHAP is removed from the verification experiments of C2; the explanation uses mm_feature_importance and the nested feature sets"
+  },
+  {
+    "id": 58,
+    "topic": "negative control MQ08 of the full-design run (2026-11-24): the registered control is one permutation of the state features in meta-train with one learner seed, compared with the five-seed model; it passes in 5/12 folds of the main configuration (5 to 7 of 12 in the nine configurations with 12 folds, 5/7 in V2); on E1-B of LO the permuted model has the lower regret (0.0181 against 0.0471; B3 0.0203); Table 53 of the Meta-Dataset-Report makes 'MQ01-MQ09 pass' the condition of stage MM3",
+    "options": [
+      "(a) MQ08 is reported as measured, as a result: on this meta-dataset the state features do not carry a signal that the learner can use (in line with H2 not supported and with the rank of the FS0 learners); the stage condition of Table 53 is recorded as not met on MQ08 and the analysis proceeds, as in phase A; no further run",
+      "(b) in addition a labelled sensitivity analysis outside the registered tables: K permutations x 5 learner seeds of L3-FS3 on the 12 folds of the main configuration, protocol fixed before the run (needs a package change by the writing side and a run by the team)"
+    ],
+    "recommendation": "(a): (b) adds precision to a negative result and no claim of the paper depends on it under decision 48 (a). Recommendation of the writing side, not a decision",
+    "blocks": [
+      "the paragraph of the Experiments section on the negative control"
+    ],
+    "does_not_block": "the acceptance of check 47",
+    "author_question": "Q-47",
+    "status": "OPEN 2026-11-24",
+    "ratified_2026-11-24": "RATIFIED (a) by the author on 2026-11-24 (second pass; Q-47), written into the registry on 2026-11-26: MQ08 reported as measured, no further run",
+    "premise_withdrawn_2026-11-26": "the premise of the question was wrong: on 2026-11-24 the code team found a dtype defect of the package in the permutation step (POST_MATERIALIZE_CHECKS[47]['correction_2026-11-26']); 'as measured' would report a control that is confounded by the encoding of the state features; the decision is superseded by decision 59 (Q-48) and is not applied to the manuscript"
+  },
+  {
+    "id": 59,
+    "topic": "negative control of the full-design runs after the dtype defect of metamodel 0.3.0 (2026-11-26): the delivered mm_negative_control tables are confounded by the encoding of the state features; a dtype-preserved control of the main configuration exists (script of the team on the frozen folds: 6/12 folds pass against 5/12; E1-B fails in both tasks in both versions); the corresponding table for the ten configurations is announced in the report of the team and was not delivered",
+    "options": [
+      "(a) the paper reports the dtype-preserved control (one permutation, one learner seed, as registered) and discloses the defect and the delivered tables in the supplement; the team delivers the table of the 115 folds and commits its script; the writing side verifies the table before any figure enters the manuscript; no new run of the analysis",
+      "(b) as (a), and in addition the fix enters metamodel 0.3.1 and the team re-runs the control alone for the ten configurations with the package, so that the corrected table is an output of the package (needs a control-only entry point written by the writing side and a run by the team)",
+      "(c) the control is left out of the results of the paper; the defect and the omission are disclosed in the supplement"
+    ],
+    "recommendation": "(a), with the fix of the permutation step entering 0.3.1 in any case: the corrected control leaves the reading unchanged on the verdict unit and no claim of the paper rests on it; (b) if the author wants every reported table to be an output of the package. Recommendation of the writing side, not a decision",
+    "blocks": [
+      "the paragraph on the negative control in Sections 4.5 and 5 and item D5 of Online Resource 1",
+      "the row of MQ08 in the summary table of the ten configurations"
+    ],
+    "does_not_block": "the review of Method v0.5; H1 to H8; the Experiments outline",
+    "supersedes": "decision 58 (Q-47)",
+    "author_question": "Q-48",
+    "status": "OPEN 2026-11-26",
+    "ratified_2026-11-26": "RATIFIED (b) by the author on 2026-11-26 (second pass; Q-48): the paper reports the dtype-preserved control and discloses the defect and the delivered tables in the supplement; the fix enters metamodel 0.3.1 and the code team re-runs the control alone for the ten configurations with the package (check 48); the delivered mm_negative_control tables stay in the record as evidence of the defect"
+  },
+  {
+    "id": 60,
+    "topic": "cost at decision time (2026-11-26): the cost model F-COST of the design document was not fitted; the utility rule and H6 of the delivered runs use the relative cost recorded for each candidate of the scored group (POST_MATERIALIZE_CHECKS[47]['deviations_2026-11-26']['cost_model_not_fitted']); the component C3 of the contributions contract names F-COST in its mechanism",
+    "options": [
+      "(a) the paper describes the rule as run (Method v0.5 does) and adds one labelled post hoc analysis computed by the writing side from the delivered files: the utility rule with a decision-time cost estimate (mean log2 relative cost of the same task, model and pipeline over the training windows of the fold) next to the rule with the recorded cost; the mechanism cell of C3 is reworded",
+      "(b) the paper describes the rule as run, without the additional analysis; the mechanism cell of C3 is reworded",
+      "(c) F-COST is implemented in metamodel 0.3.1 and the team re-runs the configurations (new runs after the results were seen, to be labelled as such)"
+    ],
+    "recommendation": "(a): it answers the question a reader will ask (does the cost saving survive when cost has to be anticipated) without a new run; relative training cost of a pipeline is stable across windows by construction of the grid, which the analysis will show or refute. Recommendation of the writing side, not a decision",
+    "blocks": [
+      "the wording of the cost-aware component in the Introduction and the Abstract",
+      "the cost paragraph of Section 5"
+    ],
+    "does_not_block": "the review of Method v0.5 (Section 4.6 describes the rule as run)",
+    "author_question": "Q-49",
+    "status": "OPEN 2026-11-26",
+    "ratified_2026-11-26": "RATIFIED (a) by the author on 2026-11-26 (second pass; Q-49): the rule is described as run; one labelled post hoc analysis with a decision-time cost estimate is computed by the writing side from the delivered files (POST_MATERIALIZE_CHECKS[47]['followup_2026-11-26b']['post_hoc_cost_at_decision_time']); the mechanism cell of C3 in the contributions contract is reworded"
+  },
+  {
+    "id": 61,
+    "topic": "H7 as registered against H7 as implemented (2026-11-26): POST_MATERIALIZE_CHECKS[47]['deviations_2026-11-26']['H7_row']",
+    "options": [
+      "(a) the writing side computes the registered comparison from mm_recommendations of full_main_cal_time and full_obj_macrof1 (paired by recommendation group, cluster bootstrap with the convention of record), labelled as computed after the runs from delivered outputs; the paper reports the registered comparison as H7 and the implemented row next to it",
+      "(b) the paper reports the implemented row only and discloses the difference from the design document",
+      "(c) the registered row is implemented in metamodel 0.3.1 and the team re-runs the configuration pair"
+    ],
+    "recommendation": "(a): the registered hypothesis is the one the paper should answer, and the two runs that it needs are registered configurations already delivered. Recommendation of the writing side, not a decision",
+    "blocks": [
+      "the row of H7 in the table of hypotheses of Section 5 and the wording of Section 4.7"
+    ],
+    "does_not_block": "the review of Method v0.5 (Table of hypotheses states the row as run, with an open comment)",
+    "author_question": "Q-50",
+    "status": "OPEN 2026-11-26",
+    "ratified_2026-11-26": "RATIFIED (a) by the author on 2026-11-26 (second pass; Q-50): the writing side computes the registered comparison from mm_recommendations of full_main_cal_time and full_obj_macrof1 (POST_MATERIALIZE_CHECKS[47]['followup_2026-11-26b']['post_hoc_H7_as_registered']); the paper reports the registered comparison as H7 and the implemented row beside it"
+  },
+  {
+    "id": 62,
+    "topic": "labelled table of several permutations for the negative control (2026-11-26, second pass): the registered control compares one fit (one permutation, one learner seed) with the model of record, which averages the scores of the learner seeds of the configuration; on 24/11 the team explored five permutations with every learner seed on the main configuration, and metamodel 0.3.1 reproduces that table (option --permutations of the control-only command)",
+    "options": [
+      "(a) Online Resource 1 reports, beside the registered control, the labelled exploratory table of five permutations for the ten configurations; the team adds --permutations 5 to the control-only run (minutes of computation); the main text keeps the registered control",
+      "(b) the labelled table is reported for the main configuration only (computed by the team on 24/11 and reproduced by the package)",
+      "(c) the paper reports the registered control only"
+    ],
+    "recommendation": "(a): the registered control rests on one draw and on a comparison of one learner seed with five; in the main configuration the control is lower than the model in all five permutations in 4 of 12 folds and higher in all five in 4, so several flags depend on the draw; the table shows the reader how stable each flag is and is labelled as computed after the runs. Recommendation of the writing side, not a decision",
+    "blocks": [
+      "one sentence and one table of item D5 in Online Resource 1"
+    ],
+    "does_not_block": "the control-only re-run (check 48), the Experiments outline, everything else",
+    "author_question": "Q-51",
+    "status": "OPEN 2026-11-26"
+  }
+]

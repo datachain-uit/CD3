@@ -1,0 +1,22 @@
+date: '2026-11-06'
+source: 'author instruction in the 06/11 session: check whether MantisV2 can replace
+  MOMENT_SMALL / MOMENT_BASE in F3_TS_FOUNDATION with the role EXPLORATORY and, if
+  so, update the resources, the code and the guide of the code team'
+decisions:
+  '37': 'APPROVED (b) [instruction of 06/11, conditional on the suitability check,
+    which passed with four conditions: channel adapter, constant-series guard, cache
+    with the pilots of check 37, validity-domain limitation in the paper]: MANTIS_V2
+    replaces MOMENT_SMALL and MOMENT_BASE as the single F3 member, EXPLORATORY, full
+    release only; D-11 scope unchanged'
+applied_in:
+- tempo_fix/registries.py rev 2026-11-06 (MODEL_REGISTRY, RETIRED_MODEL_ROWS, PENDING
+  37, check 37)
+- f3_mantis 0.1.0 and Huong_dan_doi_code_F3_MantisV2_2026-11-06.docx (Progress/Ver
+  3/2026-11-06_F3_MantisV2)
+- 00_contributions.md v0.9, 02_baselines.md v0.9, 01_notation.md v0.6; Content/4 Method.tex
+  v0.4.1; Figure 1; Meta-Dataset-Report v1.9.1; checklist v1.9
+still_open:
+  Q-26: author confirmation of the adapter defaults (8 PCA components on real TRAIN
+    rows, layer index 2, combined token, linear resize to 512) and of the two bib
+    entries staged in input/references/references_additions_2026-11-06.bib
+  pilot: check 37 (pin, cost, determinism) by the code team before any F3 cell

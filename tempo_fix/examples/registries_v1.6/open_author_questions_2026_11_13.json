@@ -1,0 +1,52 @@
+{
+  "Q-14": {
+    "decision": null,
+    "recommended": "(a)",
+    "executed_by_team": null,
+    "needs": "the author copies the 10-13/11 package folders into input/results/_incoming_2026-11-13/; blocks every citation (check 42)",
+    "executed_by_author": "(a) on 2026-11-13: 13 phase-1 packages copied, sha256 equal; check 42 PASSED",
+    "status": "CLOSED 2026-11-13"
+  },
+  "Q-27": {
+    "decision": 38,
+    "recommended": "(a)",
+    "executed_by_team": "(a)",
+    "needs": "ratification"
+  },
+  "Q-28": {
+    "decision": 39,
+    "recommended": "(c)",
+    "executed_by_team": "(c)",
+    "needs": "ratification"
+  },
+  "Q-30": {
+    "decision": 41,
+    "recommended": "(b)",
+    "executed_by_team": "(b)",
+    "needs": "ratification; M-15 ran on this scope"
+  },
+  "Q-31": {
+    "decision": 42,
+    "recommended": "(a) + check 41 tolerance 1e-3 with the thread mode recorded",
+    "executed_by_team": "(a)",
+    "needs": "ratification"
+  },
+  "Q-32": {
+    "decision": 43,
+    "recommended": "(a)",
+    "executed_by_team": "(a) provisionally",
+    "needs": "acceptance of the *_RETROACTIVE basis for three packages"
+  },
+  "Q-33": {
+    "decision": 44,
+    "recommended": "(a)",
+    "executed_by_team": null,
+    "needs": "how C2-C3 are presented after M-15 phase 1"
+  },
+  "Q-34": {
+    "decision": 45,
+    "recommended": "(a)",
+    "executed_by_team": null,
+    "needs": "restatement of H8 before the three-seed run"
+  }
+}

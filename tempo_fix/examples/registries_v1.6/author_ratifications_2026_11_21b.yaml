@@ -1,0 +1,45 @@
+date: '2026-11-21'
+pass: second pass of 21/11 (round 31, pass 2); Q-45 restated by the author with the
+  request of 23/11
+source: author answers given in the second pass of 21/11, recorded that day in the
+  project notes only because the author asked for no further step before the code
+  team delivered; written into the registry on 23/11 together with the acceptance
+  of phase B
+decisions:
+  '55': 'RATIFIED (a) [Q-44]: the comparisons on the four secondary SEEN / UNSEEN
+    slices are reports, not tests: per evaluation unit and slice the summary, its
+    intervals and the paired difference of the mean regret to B3 are written to mm_metrics_secondary
+    with status DESCRIPTIVE, the per-group outcomes to mm_recommendations_secondary;
+    none of them enters mm_hypotheses or the Holm family; the writing side had recommended
+    (a)'
+  '56': 'RATIFIED (a) [Q-45]: when answering Q-41 to Q-43 the author had not seen
+    the regret or hypothesis tables of the exploratory per-task run of 20/11 and had
+    not been told their content by the code team; the results known before the decisions
+    are those of AUTHOR_RATIFICATIONS_2026_11_21[''state_of_knowledge_at_the_decision'']'
+other_instructions:
+  exploratory_run: stays sealed until the full-design run of check 47 is accepted
+    (author, second pass of 21/11); the writing side has not opened it; variant V1
+    of check 47 replaces it
+  wait: no further step before the code team delivers (author, end of the second pass
+    of 21/11); lifted by the request of 23/11
+consequences:
+- 'decision 55 (a) is what metamodel 0.3.0 implements: the package, the ten frozen
+  configurations and the request of 21/11 are unchanged'
+- the Holm family of decision 54 (b) keeps at most 32 tests on the registered grid
+- in the manuscript the results of the SEEN / UNSEEN slices are written as descriptions,
+  without a hypothesis verdict and without an adjusted p on a secondary slice
+- the reading AUTHOR_RATIFICATIONS_2026_11_21['readings_recorded_by_the_writing_side']['secondary_slices']
+  is now an author decision
+applied_in:
+- 'tempo_fix/registries.py rev 2026-11-23 (PENDING_DECISIONS 55 and 56: key ratified_2026-11-21)'
+- working/Documents/Checklist_tien_do_CD3.docx v1.19
+- working/Documents/03_claims.md v1.12
+- working/Documents/00_contributions.md v0.15
+- input/results/README_results.md
+still_open:
+- Q-20
+- Q-21
+- Q-22
+- Q-23
+- Q-24
+- Q-26

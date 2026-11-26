@@ -1,0 +1,26 @@
+date: '2026-11-02'
+source: author reply in the 02/11 session (Ra_soat_tien_do_2026-11-02.md §6 and §8);
+  checklist questions Q-11 to Q-14
+decisions:
+  '28': 'RATIFIED (a) [Q-11]: the shared Drive tree is the official delivery channel
+    of the team; the R21_evidence placeholder is closed'
+  '29': 'RATIFIED (c) [Q-12]: LO AccTEMPO_M3^(cal) from the derived column acctempo_m3_cal_DERIVED
+    (tag "derived") in the draft; the team exports acctempo_m4 and the tag is replaced
+    before submission'
+  '30': 'RATIFIED (c) [Q-13]: the 19/10 ablation is descriptive evidence (layout,
+    family, window named); the team runs the static-v2 no_static ablation before submission;
+    §4.1.2 unchanged'
+  '31': 'RATIFIED (a) [Q-14]: the author syncs the remaining Drive subfolders to input/results/_drive_mirror_20261029/Jobs/...;
+    the writing side verifies on the computer'
+applied_in:
+- 'input/results: GD1_CQ_V2_2_clean_r1 (R4 export, 14 files) and GD1_LO_V3_1_clean_r1
+  (four static-v2 family audits, 28 files, ablation, cohort sample, replay, derived)
+  with _drive_manifest.json; R21 placeholder moved to _superseded/'
+- '03_claims.md v0.7 (section A: export sources; D.2 s_leak correction), 00_contributions.md
+  v0.7, 02_baselines.md v0.7, README_results.md (02/11)'
+- Yeu_cau_bo_sung_doi_code_2026-11-02.docx (M-01 .. M-15) sent to the team through
+  the author
+still_open:
+  Q-15: 'three V0 runs on the Drive: DELIVERED 02/11 (cq_patchtst_v0_current_20261102,
+    M-04)'
+  outline: Experiments outline §6 still to be approved

@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-24",
+  "source": "author reply to Ra_soat_tien_do_2026-10-24.md §3 and §7",
+  "decisions": {
+    "11": "RATIFIED: F2 PATCHTST PRIMARY full grid; F3 MOMENT_SMALL exploratory on the 13-pipeline core after F2; MOMENT_BASE deferred",
+    "13": "RATIFIED (b): VastAI L4 pinned image for the grids, Modal L4 reference backend, equivalence checked on common cells",
+    "14": "RATIFIED (a): PatchTST batch 2048 = 4 x 512 micro-batches; manifests print batch / micro_batch / accumulation",
+    "15": "RATIFIED: NVML power-sampling estimates are descriptive numbers; REC_RULE treats them as not MEASURED, so the primary cost basis is TIME and ENERGY is a flagged sensitivity analysis",
+    "16": "RATIFIED: the CQ batch-512 wave is historical and enters no table",
+    "18": "RATIFIED (2026-10-24, round 1 and 2): AccTEMPO_M3 with S_san+ v1 stays the pre-registered primary of the meta-dataset; the paper reads trends and rankings on S_perf / macro-F1 / balanced accuracy and uses AccTEMPO_M3^(cal) (exporter acctempo_m4) as the composite objective; H1-H6 on AccTEMPO_M3^(cal), H7 against macro-F1, v1 as sensitivity; disclosed in the Method section as a change made after observing seed-42 results (METRIC_DEF v1.3 to be registered)",
+    "19": "RATIFIED (b): timeline_source CONTEXT_ONLY, window_duration_seconds IN_TENSOR for every new grid",
+    "21": "RATIFIED (b): QA23 exemption of the eight behavioural prefix bases for CQ, on condition that a per-base linkage table and the G-label construction note accompany every CQ P3/P4 number",
+    "22": "RATIFIED (b): the 48-cell CQ F2 grid opens after the pilot manifests, epoch history and SEEN/UNSEEN x STRICT/OVERLAP slices are delivered",
+    "N3": "RATIFIED (A): minimum meta-dataset scope for the paper = 2 tasks x 3 master seeds x (F1 + F2)",
+    "N10": "RATIFIED: imp(a) = a for imputation-only pipelines (build_pipeline_registry corrected in this revision; Meta-Dataset-Report Table 14 to follow)",
+    "B7": "RATIFIED: TEMPO-DQ Table 4 policy (x = S_san+, y = S_perf of V0 on VALIDATION; x0 = 0.75, y0 = 0.70; Q1/Q2 -> V0; Q3/Q4 -> V2 default) is baseline B7 of the meta-model plan (warm-start scenario)",
+    "RQ8_H8": "RATIFIED: RQ8/H8 on the mechanism decomposition (share delta_imp / delta rises with tr_missing_rate and falls from P1 to P4 among beneficial non-V0 recommendations; cluster Spearman with cluster-bootstrap CI)"
+  },
+  "still_open": {
+    "17": "LO W1 presentation, waits for the LO ablation CSV",
+    "20": "static-branch policy for future grids, waits for the LO ablation CSV",
+    "F0_LO": "LO_HEURISTIC_PROGRESS_GRADE definition",
+    "framework_name": "not decided",
+    "SASMOTE_paper": "code docstring cites Kosolwattana et al. (2023); author confirmation pending"
+  }
+}

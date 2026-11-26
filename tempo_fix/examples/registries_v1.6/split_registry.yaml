@@ -1,0 +1,270 @@
+scheme_version: v2_family_shared_calendar
+scenario: hybrid
+scheme: 'A = offerings ending on or before a_boundary (CQ anchor: earliest 60% CQ
+  enrollments by offering_end_date); future pool cut at explicit calendar boundaries
+  into T1, T2, T3; inside each slice whole units are paired into VALIDATION/TEST blocks
+  (T1->B,C; T2->D,E; T3->F,G) with tempo_fix.split_v2._greedy_pair_split'
+unit: offering_id x timeline_source; a unit is never split across blocks; an enrollment
+  belongs to exactly one block
+windows:
+  W1:
+  - A
+  - B
+  - C
+  W2:
+  - A+B+C
+  - D
+  - E
+  W3:
+  - A+B+C+D+E
+  - F
+  - G
+calendar:
+  anchor_task: CQ
+  a_boundary: '2020-07-31'
+  slice_boundaries:
+    T1: '2020-09-13'
+    T2: '2020-12-31'
+    T3: '2022-01-18'
+  tau_w:
+    W1: '2020-07-31'
+    W2: '2020-09-13'
+    W3: '2020-12-31'
+  slice_calendar_days:
+    T1: 44
+    T2: 109
+    T3: 383
+  source: '[CL §2 boundaries], [V3 §5 tau_w]; both tasks use the same four dates'
+temporal_rule: 'LABEL_TIME_ORDERING: tau_w = latest TRAIN offering_end_date <= earliest
+  VALIDATION/TEST offering_end_date in every window'
+qa22:
+  hard:
+  - end_order_ok
+  - eval_size_ok
+  min_eval_enrollments: 1
+  reported_only:
+  - ev_train_overlap_share
+  - p1_cutoff_overlap_share
+  - days_train_end_to_test_start
+  - temporal_strict_share_P1_P4
+  revised_on: '2026-09-28'
+  locked_on: '2026-09-30'
+  reason: 'SPLIT_V2_QA_INCIDENT_REPORT: concurrent offerings make any start-date purge
+    remove 90-100% of the evaluation sets; overlap is inherent to MOOC data and is
+    analysed as a slice'
+overlap_metrics:
+  ev_train_overlap_share: share of evaluation enrollments whose offering_start_date
+    < tau_w (offering-start based) [CL §3]
+  p1_cutoff_overlap_share: '1 - temporal_strict_share(P1, split): share whose P1 cutoff
+    < tau_w [CL §3]'
+  rule: both columns are kept; neither replaces the other
+purge_mode: NONE
+sensitivity_exclusions:
+- TEST_SIDE_PURGE
+- TRAIN_EMBARGO
+embargo_gap_days: 0
+temporal_slice:
+  subgroup_axis: TEMPORAL
+  values:
+  - STRICT
+  - OVERLAP
+  rule: STRICT when cutoff_k(e) = enroll_time + q_k*(offering_end_date - enroll_time)
+    >= tau_w; computed per (enrollment, phase) from stored predictions; reported for
+    every run and every phase P1-P4; not part of the five mandatory meta-model subgroups;
+    empty slice -> NULL with SLICE_EMPTY
+long_offering:
+  decision: KEEP_UNITS
+  decided_on: '2026-09-30'
+  source: '[V3 §8]'
+  threshold_days: 270
+  context_columns:
+  - timeline_source
+  - duration_days
+  - long_offering_flag
+  no_new_mandatory_subgroup: true
+  evidence:
+    course_specific_timeline:
+      p50: 121
+      p90: 345
+      max: 506
+      enrollment_share_gt_270d: 0.01457
+    global_template_fallback:
+      p50: 127
+      p90: 426
+      max: 481
+      enrollment_share_gt_270d: 0.55124
+    enrollment_anchored_proxy:
+      p50: 152
+      p90: 212
+      max: 212
+      enrollment_share_gt_270d: 0.0
+tasks:
+  CQ:
+    split_version: v2_2
+    split_version_alias: v2.2 (report name)
+    release_id: CQ_V2_2
+    phase_version: wide_prefix_v2_2
+    registry_id: split_registry_v2_2_overlap_audit_v1_r2
+    pairing: balanced
+    population: 2684090
+    label_rule_version: cq_vector_proximity_v1_zero_activity_policy
+    label_threshold_set: CQ_VECTOR_PROXIMITY_PRIMARY_V1
+    blocks:
+      A: 1609276
+      B: 175689
+      C: 178095
+      D: 180485
+      E: 180482
+      F: 180032
+      G: 180031
+    qa22:
+      W1: PASS
+      W2: PASS
+      W3: PASS
+    assignment_qa:
+      multi_block_enrollments: 0
+      multi_split_per_window: 0
+      multi_block_units: 0
+      unmapped: 0
+    status: LOCKED
+    source: '[CL §2, §7.5, §8.3]'
+  LO:
+    split_version: v3_1
+    split_version_alias: v3_1_scored_signal_excluded (report name; the view directories
+      keep this suffix)
+    release_id: LO_V3_1
+    phase_version: wide_prefix_v3_1
+    registry_id: split_registry_v3_1_scored_signal_excluded_overlap_audit_v1
+    pairing: rarest_first
+    population: 2605423
+    label_rule_version: lo_final_score_catalog_normalized_v3_1
+    label_threshold_set: CATALOG_NORMALIZED_PRIMARY_V3_1__EXCLUDE_NO_SCORED_SIGNAL
+    blocks:
+      A: 1787557
+      B: 78090
+      C: 78591
+      D: 200842
+      E: 200844
+      F: 129426
+      G: 130073
+    block_classes:
+      A:
+        c0: 1782182
+        c1: 4720
+        c2: 655
+      B:
+        c0: 77306
+        c1: 532
+        c2: 252
+      C:
+        c0: 77066
+        c1: 525
+        c2: 1000
+      D:
+        c0: 200812
+        c1: 23
+        c2: 7
+      E:
+        c0: 200810
+        c1: 23
+        c2: 11
+      F:
+        c0: 129283
+        c1: 94
+        c2: 49
+      G:
+        c0: 128965
+        c1: 1079
+        c2: 29
+    qa22:
+      W1: PASS
+      W2: PASS
+      W3: PASS
+    assignment_qa:
+      multi_block_enrollments: 0
+      multi_split_per_window: 0
+      multi_block_units: 0
+      unmapped: 0
+      note: source audits available; refresh against the V3.1 release after materialize
+        [V3.1 §13]
+    superseded:
+    - v2_2_reference (label lo_operational_performance_v1)
+    - v2.2.sourcefaithful (label lo_final_score_sourcefaithful_v2)
+    - v3_catalog_normalized (label lo_final_score_catalog_normalized_v3)
+    relation_to_cq: same calendar, same unit rule, different population and label;
+      distinct split_version by design
+    single_offering_cells:
+      W1_TEST_c2: 1,000 of 1,000 E from the top-E offering of T1 (79.87% of 1,252)
+      W3_TEST_c1: 1,074 of 1,079 G from the top-G offering of T3
+    derived_minority_shares_pct:
+      A:
+        c1_G: 0.264
+        c2_E: 0.037
+      B:
+        c1_G: 0.681
+        c2_E: 0.323
+      C:
+        c1_G: 0.668
+        c2_E: 1.272
+      D:
+        c1_G: 0.011
+        c2_E: 0.003
+      E:
+        c1_G: 0.011
+        c2_E: 0.005
+      F:
+        c1_G: 0.073
+        c2_E: 0.038
+      G:
+        c1_G: 0.83
+        c2_E: 0.022
+      note: 'W1: the E prior in TEST (C) is 3.9x VALIDATION (B) and 34x TRAIN (A),
+        and all TEST E rows belong to one offering; a majority predictor scores macro-F1
+        0.330 and balanced accuracy 0.333 on C (POST_MATERIALIZE_CHECKS[15])'
+    status: LOCKED 2026-10-01 [V3.1 §12]; catalog-denominator audit closed without
+      a V3.2, so no further re-pair is foreseen [V3.1.2 §14.4]
+    source: '[V3.1 §6.1, §8]'
+evaluation_windows:
+  CQ:
+    primary:
+    - W1
+    - W2
+    - W3
+  LO:
+    primary:
+    - W1
+    exploratory:
+    - W2
+    - W3
+    reason: LO W2 minority support 7-23 per split, LO W3 E 29-49 and TEST G 99.5%
+      from one offering [V3 §6, §8]; all windows are still run so the meta-dataset
+      is complete
+    status: CONFIRMED 2026-10-01 [V3.1 §6]
+run_manifest_required:
+- scenario
+- release_id
+- split_version
+- phase_version
+- split_registry_id
+- parent_manifest_id
+- parent_audit_ids
+- code_hash
+- config_hash
+- seed
+- augmentation_seed
+- augmentation_seed_policy
+- parent_imputation_run_id
+- parent_augmentation_run_id
+- label_rule_version
+- label_threshold_set
+- feature_source
+- model_revision
+release_manifest_required:
+- task
+- release_id
+- split_registry_id
+- split_version
+- phase_version
+- feature_dictionary_version
+- label_rule_version
+- label_threshold_set

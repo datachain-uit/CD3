@@ -1,0 +1,28 @@
+{
+  "date": "2026-11-26",
+  "pass": "second",
+  "source": "six numbered answers of the author of 26/11 to the summary of the first pass of round 34; written into the registry on 2026-11-26",
+  "decisions": {
+    "59": "RATIFIED (b) [Q-48], 2026-11-26",
+    "60": "RATIFIED (a) [Q-49], 2026-11-26",
+    "61": "RATIFIED (a) [Q-50], 2026-11-26"
+  },
+  "answers_2026-11-26_second_pass": {
+    "1": "agreed: Method v0.5 (EN) and Online Resource 1 v0.1 (S1 to S4) are approved",
+    "2": "Q-48: (b)",
+    "3": "Q-49: (a)",
+    "4": "Q-50: (a)",
+    "5": "no pre-submission inquiry to the Editor-in-Chief of TOIS",
+    "6": "the writing side prepares the complete request file for the code team, so that the team carries the remaining work to completion"
+  },
+  "consequences": [
+    "Method v0.5.1 and Online Resource 1 v0.2 apply the three decisions to the approved texts (six places in the Method, S4 in the supplement); the approved versions are archived unchanged; no experimental number is added",
+    "metamodel 0.3.1 and the hand-off of 26/11; check 48 opened for the control-only re-run of the team",
+    "the two labelled post hoc analyses are computed by the writing side from delivered files (follow-up of check 47); their figures enter the manuscript at the Experiments step through 03_claims section B",
+    "00_contributions.md v0.18: the mechanism cell of C3 no longer names a fitted cost model; the experiment cell of C4 names H7 as registered and the implemented row"
+  ],
+  "not_decided": [
+    "Q-51 (decision 62)",
+    "licence of the code and of the data, time of the release tag, and whether the internal documents under docs/ of the public repository stay public"
+  ]
+}

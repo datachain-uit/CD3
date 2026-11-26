@@ -1,0 +1,38 @@
+{
+  "Q-27": {
+    "decision": 38,
+    "recommended": "(a)",
+    "executed_by_team": "(a)",
+    "needs": "ratification of the LO r2 package as citable"
+  },
+  "Q-28": {
+    "decision": 39,
+    "recommended": "(a) on 09/11, (c) as executed on 10/11",
+    "executed_by_team": "(c)",
+    "needs": "ratification of S0 v4"
+  },
+  "Q-29": {
+    "decision": 40,
+    "recommended": "(a)",
+    "executed_by_team": "(a)",
+    "needs": "record only; M-15 by 13/11; gate 14/11"
+  },
+  "Q-30": {
+    "decision": 41,
+    "recommended": "(b)",
+    "executed_by_team": "(b)",
+    "needs": "ratification of F2 = CQ V0-V16 in the tables and in the meta release"
+  },
+  "Q-31": {
+    "decision": 42,
+    "recommended": "(a)",
+    "executed_by_team": null,
+    "needs": "tolerance / reference-copy contract for check 38"
+  },
+  "Q-32": {
+    "decision": 43,
+    "recommended": "(a)",
+    "executed_by_team": "(a) provisionally",
+    "needs": "acceptance of the retroactive mapping and the NULL V0 cells"
+  }
+}

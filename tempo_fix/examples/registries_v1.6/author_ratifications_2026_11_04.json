@@ -1,0 +1,25 @@
+{
+  "date": "2026-11-04",
+  "source": "author replies in the 04/11 writing session (Ra_soat_tien_do_2026-11-04.md §1); checklist questions Q-01, Q-02, Q-03, Q-05, Q-16 .. Q-19 and the phase-1 scope",
+  "decisions": {
+    "32": "RATIFIED (a) [Q-16]: MATCH_MASTER_SEED stays the registered augmentation seed policy; the team restores LO/registries.py and the tests; S2 for seeds 43/44 are 144 runs without GPU; no seed-43/44 cell before the four places agree (check 35)",
+    "33": "RATIFIED (a) [Q-17]: keep the artefacts; the method is named \"Radius-SMOTE with nearest-neighbour fallback\"; the fallback rate is printed per window x class in the paper; the sensitivity label of D-11 stays; no rerun",
+    "34": "RATIFIED (a) [Q-18]: a flag single_offering_dominant (top_offering_share >= 0.5) is added to cell_flags for CQ and LO; clustered (offering-unit) bootstrap CIs are produced for flagged cells; flagged cells are presented as findings like D-17 (LO W1 class E)",
+    "35": "RATIFIED (a) [Q-19]: D-15 unchanged (TIME is the primary cost basis for both tasks); the LO static-v2 grid carries NVML_POWER_SAMPLING_ESTIMATE for 204/204 runs (lo_resource_per_run.csv, 0.4967 kWh), so ENERGY may be used as a labelled sensitivity for LO too; the sentence \"LO NOT_MEASURED\" in 00_contributions C3 and 02_baselines is corrected",
+    "36": "RATIFIED [scope (c) of 04/11, amends D-N3 (A)]: the phase-1 submission (TOIS, deadline 2026-11-20) uses seed 42 only, F1 of both tasks (CQ R4 1632 cells; LO static-v2 1632 cells) and F2 PatchTST CQ V0-V6 (168 cells); the meta layer (assemble + MM0-MM6) is run by the team on these facts with planned_seeds = [42] (M-13 F0 CQ / S0 profile / Z_M by 2026-11-09 together with M-14 assemble; M-15 run by 2026-11-12); if M-15 is later than 2026-11-14 the paper falls back to reporting C1, C4, C5 only; seeds 43/44, V7-V16 and LO F2 move to the full release (phase 2); every hypothesis test in phase 1 uses cluster bootstrap over cells/offering units and no across-seed variance decomposition",
+    "D-S1-5": "RATIFIED [Q-01]: framework name TEMPO-MDS (Temporal Meta-Dataset for intervention Selection), successor of TEMPO-DQ",
+    "D-S1-8": "RATIFIED (b) [Q-03]: LO_HEURISTIC_PROGRESS_GRADE is NOT_AVAILABLE in phase 1; F0 reference features exist for CQ only (CQ_PARTIAL_TRIAD); LO rows keep the V0 and imputer-only references; stated in threats and future work",
+    "D-S1-6": "CONFIRMED [Q-02]: SASMOTE = Kosolwattana et al. (2023), bib key kosolwattana2023selfinspected",
+    "Q-05": "P2, P4, P8 are outside phase 1; P8 (controlled calibration-error injection to validate s_cal) is listed as future work"
+  },
+  "applied_in": [
+    "Ra_soat_tien_do_2026-11-04.md §1",
+    "00_contributions.md v0.8, 02_baselines.md v0.8, 03_claims.md v1.0 (04/11)",
+    "Content/4 Method.tex v0.4 (TEMPO-MDS; §4.1.2 Radius-SMOTE with nearest-neighbour fallback; single_offering_dominant flag; phase-1 scope; energy label)",
+    "Yeu_cau_tang_meta_doi_code_2026-11-04.docx (M-13/M-14/M-15 with the two milestones)"
+  ],
+  "still_open": {
+    "M-15": "meta-layer results awaited (milestone 2026-11-12)",
+    "outline": "Experiments outline §6 of Ra_soat_tien_do_2026-11-01 approved implicitly on 04/11 by the instruction to start writing; adjusted for decision 36"
+  }
+}
