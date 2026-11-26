@@ -1,0 +1,22 @@
+{
+ "created": "2026-11-26T11:09:15.331594+00:00",
+ "criteria": {
+  "a_package_tree": true,
+  "b_ten_controls": true,
+  "c_delivered_passes_total": true,
+  "d_verify_bootstrap": true,
+  "e_accepted_runs_unchanged": true,
+  "f_environment_record": true,
+  "g_post_hoc_tables_equal": true
+ },
+ "verdict": "PASS",
+ "totals": {
+  "folds": 115,
+  "delivered_passes": 57,
+  "dtype_preserved_passes": 63,
+  "flags_changed": 22
+ },
+ "pytest_log_present": false,
+ "pytest_last_line": null,
+ "note": "criterion (a) of the request also asks for the test suite of the package: python run_negative_control_r2.py tests --out OUT"
+}

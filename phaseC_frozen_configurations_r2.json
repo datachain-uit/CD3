@@ -1,0 +1,69 @@
+{
+ "metamodel_version": "0.3.0 (2026-11-21)",
+ "release_id": "CQ_LO_full_F1F2F3_seeds42_43_44_5subgroups_r2",
+ "common_options": "--protocols E1-A E1-B E2 E3 --learners L1 L2 L3 L4 --extra-learners L5 L6 --n-trials 50 --learner-seeds 5",
+ "frozen_on": "2026-11-23",
+ "command": "python -m metamodel.cli run --meta <release>/meta_dataset_seed_agg.parquet --out <dir>/<name> --release-id CQ_LO_full_F1F2F3_seeds42_43_44_5subgroups_r2 --protocols E1-A E1-B E2 E3 --learners L1 L2 L3 L4 --extra-learners L5 L6 --n-trials 50 --learner-seeds 5 <flags> --expect-digest <mm_config_sha256> --progress",
+ "runs": [
+  {
+   "name": "full_main_cal_time",
+   "role": "primary design, main configuration (PAPER_COMPOSITE_CAL, cost basis TIME)",
+   "flags": "--design full",
+   "mm_config_sha256": "7c17b34f6cdd17e73f664b4d710768a956967d8dc47f20081f4d2c21d1d74b2f"
+  },
+  {
+   "name": "full_sens_v1",
+   "role": "primary design, objective AccTEMPO_M3 v1",
+   "flags": "--design full --objective META_PRIMARY_M3_V1",
+   "mm_config_sha256": "65f7c9022ee2a9e5ba4dc7d98d61a449b0d81183b651d5fdd23484cd8ec87177"
+  },
+  {
+   "name": "full_sens_energy",
+   "role": "primary design, energy estimates accepted for the cost basis",
+   "flags": "--design full --accept-energy-estimates",
+   "mm_config_sha256": "a048bb3bd423b23080d8d6d470cba46c57b487c3cff8c76b5d81df46922bca42"
+  },
+  {
+   "name": "full_sens_conservative",
+   "role": "primary design, conservative recommendation rule",
+   "flags": "--design full --conservative",
+   "mm_config_sha256": "a4be8b576bd25c4e89147275484dc95ca657c864d1f660daa39dab3265996dac"
+  },
+  {
+   "name": "full_obj_perf",
+   "role": "primary design, objective S_perf",
+   "flags": "--design full --objective PAPER_PERF_AXIS",
+   "mm_config_sha256": "aa76a61aacefaff21b379b72b1d0c2a75f1a52ad82a392378fc052a310e13a12"
+  },
+  {
+   "name": "full_obj_macrof1",
+   "role": "primary design, objective Macro-F1",
+   "flags": "--design full --objective SECONDARY_MACRO_F1",
+   "mm_config_sha256": "25408bf302e7780144739258c82884d6e1042330d99e58688ffb1021998b7e10"
+  },
+  {
+   "name": "var_all_only_main",
+   "role": "V1: robustness variant of Table 42 (training on the (ALL, ALL) rows) with the registered per-task folds",
+   "flags": "--design full --training-subgroups all-only",
+   "mm_config_sha256": "f3c2e88f8505156163390232626d90fec3714b8533ab2281058054cc531a4186"
+  },
+  {
+   "name": "var_task_pooled_main",
+   "role": "V2: task-pooled E1 of Appendix E.4 on the five subgroups (decision 52 (a): labelled sensitivity)",
+   "flags": "--design full --e1-scope pooled",
+   "mm_config_sha256": "6c1382b873d1de689892f8a94c33c88858b230c06cd15df316f6dc6bad30f733"
+  },
+  {
+   "name": "var_all_rows_baselines_main",
+   "role": "V3: baselines and inner selection on every training row (decision 53: labelled sensitivity)",
+   "flags": "--design full --baseline-scope all-rows",
+   "mm_config_sha256": "eeb15fd612f28a07326f872ea4c1167aec45ae57e8a5699182b4e99d9b1ac3b7"
+  },
+  {
+   "name": "var_drop_small_main",
+   "role": "V4: secondary rows flagged small_subgroup_flag kept out of the fits (sensitivity)",
+   "flags": "--design full --small-subgroups drop-from-training",
+   "mm_config_sha256": "2f81db5fea1e5b186240cf0315504a5f48b0dbbd9923696eefea62eac0db0ca4"
+  }
+ ]
+}

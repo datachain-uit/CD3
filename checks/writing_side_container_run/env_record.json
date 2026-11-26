@@ -1,0 +1,28 @@
+{
+ "python": "3.13.18",
+ "python_implementation": "CPython",
+ "platform": "Linux-6.18.44-fc-v880-x86_64-with-glibc2.39",
+ "machine": "x86_64",
+ "cpu_count": 2,
+ "learner_threads_n_jobs_minus_one": 1,
+ "libraries": {
+  "pandas": "3.0.5",
+  "numpy": "2.5.3",
+  "sklearn": "1.9.1",
+  "scipy": "1.18.1",
+  "lightgbm": "4.7.0",
+  "optuna": "5.0.0",
+  "pyarrow": "26.0.1",
+  "yaml": "6.0.3"
+ },
+ "thread_env": {
+  "LOKY_MAX_CPU_COUNT": "1",
+  "OMP_NUM_THREADS": "1",
+  "OPENBLAS_NUM_THREADS": "1",
+  "MKL_NUM_THREADS": "1",
+  "NUMEXPR_NUM_THREADS": "1",
+  "VECLIB_MAXIMUM_THREADS": null
+ },
+ "metamodel_version": "0.3.1 (2026-11-26)",
+ "env_id": "7c6bec7236151314"
+}
