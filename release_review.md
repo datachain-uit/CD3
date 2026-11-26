@@ -49,4 +49,4 @@ The tracked tree contains the code that reads the source dataset and the registr
 
 - Commit 1: `metamodel/` (0.3.1) and `tempo_fix/` (registry revision 2026-11-26b) from the delivered package, 120 files; the blobs equal the sha256 list `handoff_2026-11-26_tree_sha256.txt` (checked file by file); `.gitattributes` (`-text` for the two folders) keeps the bytes as delivered.
 - Commit 2: `run_negative_control_r2.py`, `phaseC_frozen_configurations_r2.json`, `handoff_2026-11-26_tree_sha256.txt`, `checks/` (post hoc script and the reference tables of the writing side), `requirements-meta.txt`, `meta_analysis/README.md` (reproduction), `tools/mq08_dtype_finding/` (scripts of the 24/11/2026 dtype investigation) and `tools/m15_3seed/verify_m18_vs_facts_seed44.py` (per-cell check of the M-18 package).
-- Not committed: the release tables and the results of the ten runs of phase C (see the release asset plan, `RELEASE_ASSETS_PLAN.md` in the working folder of the team).
+- Not committed: the release tables and the results of the ten runs of phase C (see the release asset plan, `RELEASE_ASSETS_PLAN.md` at the repository root).
