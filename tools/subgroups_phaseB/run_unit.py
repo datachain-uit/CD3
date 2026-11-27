@@ -120,15 +120,21 @@ for k, srcs in need.items():
     elif cands and not any(x[0] == 'tar' and rank(x[1]) < 2 for x in srcs):
         loose[k] = cands[0][1]
 if loose:
-    listing = tmp / '_files_from.txt'
     rel = {k: v.split('L1_runs/S3_model/')[-1] for k, v in loose.items()}
-    listing.write_text('\n'.join(rel.values()) + '\n', encoding='utf-8')
     dst = tmp / '_loose'
-    subprocess.run(RC + ['copy', f'gdrive:{TASK}/L1_runs/S3_model', str(dst), '--files-from', str(listing), '--transfers', '8', '-q'], capture_output=True)
-    for k, r_ in rel.items():
-        f = dst / r_
-        if f.exists() and f.stat().st_size > 0:
-            L = local(*k); L.parent.mkdir(parents=True, exist_ok=True); shutil.move(str(f), str(L)); got.add(k)
+    for attempt in range(1, 5):          # Drive sometimes drops single files of a large --files-from copy: retry only the missing ones
+        todo = {k: r_ for k, r_ in rel.items() if k not in got}
+        if not todo:
+            break
+        listing = tmp / '_files_from.txt'
+        listing.write_text(chr(10).join(todo.values()) + chr(10), encoding='utf-8')
+        res_ = subprocess.run(RC + ['copy', f'gdrive:{TASK}/L1_runs/S3_model', str(dst), '--files-from', str(listing), '--transfers', '4', '--retries', '5', '--low-level-retries', '10'], capture_output=True, text=True)
+        for k, r_ in todo.items():
+            f = dst / r_
+            if f.exists() and f.stat().st_size > 0:
+                L = local(*k); L.parent.mkdir(parents=True, exist_ok=True); shutil.move(str(f), str(L)); got.add(k)
+        if len(todo) != len([k for k in todo if k in got]):
+            log(f'loose copy attempt {attempt}: {len([k for k in todo if k not in got])} files still missing; rclone: ' + (res_.stderr or '')[-200:].replace(chr(10), ' '))
 # 2) tars for the rest
 rest = want - got
 tars = {}
