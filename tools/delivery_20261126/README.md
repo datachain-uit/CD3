@@ -6,7 +6,7 @@ Mỗi thư mục là mã của một sản phẩm đã giao ở `Results/cross_t
 |---|---|
 | `qa_tables_b2` | B.2: bảng QA01–QA24 của release r2 |
 | `qa_extra_qa4` | B.2 bổ sung: QA14, QA17, QA22, QA23 |
-| `qa_prediction_audit_qa5` | B.2 bổ sung: QA07, QA11, QA12, QA13, QA21 (kiểm dự đoán và manifest, 36 đơn vị) |
+| `qa_prediction_audit_qa5` | B.2 bổ sung: QA07, QA11, QA12, QA13, QA21 (kiểm dự đoán và manifest, 36 đơn vị; `qa_fill_*`: bổ sung hai đơn vị LO seed 42 thiếu file ở lượt đầu) |
 | `static_layout_radius_b34` | B.3 layout khối tĩnh; B.4 tỷ lệ fallback Radius-SMOTE |
 | `slices_per_class_d` | D: gói gộp lát đánh giá và chỉ số theo lớp ba seed |
 | `proxy_provenance_p` | P: nguồn gốc ba họ cột `*_catalog_coverage`, cờ proxy, layout, QA23 theo lát, ước lượng ablation |
@@ -25,6 +25,8 @@ Mỗi thư mục là mã của một sản phẩm đã giao ở `Results/cross_t
 | `qa_prediction_audit_qa5/qa_pred_audit.py` | `01324eedf5cb796ad264a256eae6eb13ad4caaa0d29c34df56097535564287bd` | `01324eedf5cb796ad264a256eae6eb13ad4caaa0d29c34df56097535564287bd` |
 | `qa_prediction_audit_qa5/run_all_qa5.py` | `14641478523174a8a5ea18d52c64313f16ec4067d8fc12aecf1ee8a387f0f245` | `14641478523174a8a5ea18d52c64313f16ec4067d8fc12aecf1ee8a387f0f245` |
 | `qa_prediction_audit_qa5/verify_independent.py` | `22ffd70972ea0b928fc2aca0b7855d72556646292d78005520c1a3c0c9ac6aed` | `22ffd70972ea0b928fc2aca0b7855d72556646292d78005520c1a3c0c9ac6aed` |
+| `qa_prediction_audit_qa5/qa_fill_pred_audit.py` | `1762071a548d1af4dd72bd13d183f4dc1ca9ea68c91d4d35a74730f48f985fbe` | `1762071a548d1af4dd72bd13d183f4dc1ca9ea68c91d4d35a74730f48f985fbe` |
+| `qa_prediction_audit_qa5/qa_fill_merge.py` | `a44047c5234849464a91deedaaddfc2d7bdbfe790feab5e6f540ac5b43ec7367` | `a44047c5234849464a91deedaaddfc2d7bdbfe790feab5e6f540ac5b43ec7367` |
 | `static_layout_radius_b34/build_radius_fallback_class.py` | `8f7c3ccdff6bba63ccf9b98f65e5375cf3c50d028ebc9c3edbb02eed42d32264` | `efd8a41975bdf27a88932212fa6b98b70aec08c7411f28ee0c9269688562c39d` |
 | `static_layout_radius_b34/build_static_layout_by_unit.py` | `48bb55b233c01744e259f5c2d27462ceeec223ab23d07041cd5015dbb16cf0e7` | `a6856db996f4c6872a602ac07d9b60fbb9e3cbcb8fe8d7e1f8c5b9e8acda4f49` |
 | `static_layout_radius_b34/extract_s2_manifests_seed44.py` | `cbc6cc096e190c17b8f31ff246e71120ad68e2249781bb84dfcb19dbdf33fb9c` | `cbc6cc096e190c17b8f31ff246e71120ad68e2249781bb84dfcb19dbdf33fb9c` |
