@@ -1,0 +1,43 @@
+date: '2026-11-13'
+source: author answers in the 13/11 session, after the round-28 review and after check
+  42 on the packages copied by the author
+decisions:
+  '38': 'RATIFIED (a) [Q-27]: the LO PatchTST r2 package (one probe, reference copied)
+    is the citable LO F2 source'
+  '39': 'RATIFIED (c) [Q-28]: S0 profile v4 without tr_inactive_learner_ratio is the
+    registered state profile'
+  '41': 'RATIFIED (b) [Q-30]: F2 of phase 1 = CQ PatchTST V0-V16; the meta release
+    has 3,672 seed-level rows; tables T05/T17/T18/F07 are regenerated from the r2
+    packages'
+  '42': 'RATIFIED (a) [Q-31]: reference-copy contract: every F2/F3 export carries
+    the registered s_leak; check 38 is an identity <= 1e-9 (metamodel 0.2.4 TOL_LEAK_IDENTITY
+    = 1e-9); probe reproduction is the diagnostic check 41 with tolerance 1e-3 and
+    the thread mode recorded'
+  '43': 'RATIFIED (a) [Q-32]: the retroactive runner-commit basis (*_RETROACTIVE)
+    is accepted with its label for CQ MANTIS_V2 r3, LO MANTIS_V2 and LO PatchTST r2,
+    and the three NULL Mantis V0 cells stay NULL with their reason; new F1/F2 runs
+    record the commit at run time'
+  '44': 'RATIFIED (a) [Q-33]: the primary objective stays PAPER_COMPOSITE_CAL (D-18);
+    phase-1 results are reported as measured (full H1-H8 table of the six configurations,
+    single-seed limitation stated); M-15 is re-run on the three-seed seed_agg before
+    the conclusions of 5.3/5.4'
+  '45': 'RATIFIED (a) [Q-34]: H8: the phase part is the test, the tr_missing_rate
+    part is descriptive, a verdict needs at least 10 clusters; implemented in metamodel
+    0.2.4 before any three-seed run; the phase-1 run of 13/11 keeps its tables under
+    the earlier definition'
+other:
+  Q-14: 'executed by the author: 13 phase-1 packages copied from the Drive; check
+    42 PASSED; packages placed under input/results/GD* in round 28c'
+  check_42_d: 'reading accepted: release 20261112 differs from 20261109 only through
+    the r2 facts (CQ PATCHTST rows, <= 1.74e-5), the filled macro_f1 columns and the
+    QA flag'
+  correction: the 4.98e-5 deviation attributed on 2026-11-10 to the CQ PatchTST V0-V6
+    facts was measured by the writing side on a report-derived file with rounded s_leak;
+    the facts deviate by 1.24e-5 as the team states
+still_open:
+- Q-20
+- Q-21
+- Q-22
+- Q-23
+- Q-24
+- Q-26

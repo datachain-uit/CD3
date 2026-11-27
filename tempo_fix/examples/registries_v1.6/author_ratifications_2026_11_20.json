@@ -1,0 +1,48 @@
+{
+  "date": "2026-11-20",
+  "source": "author answers in the 20/11 session, after the round-30 review (checklist v1.15, Ra_soat_tien_do_2026-11-20.md) and after the comparison of the three options of Q-40 that the author asked for; recorded in the second pass of 20/11 (checklist v1.16)",
+  "decisions": {
+    "46": "RATIFIED (b) [Q-35]: the base-tier tables move to three-seed means with the across-seed SD (seeds 42, 43, 44); T05/T17/T18/F07 are regenerated from the facts packages of the three seeds; Method and Experiments are restated; every statement about a best pipeline is worded with the between-seed instability measured on the three seeds",
+    "47": "RATIFIED (a) [Q-36]: NULL variant_role is accepted in the facts of PRIMARY_GRID runs; the role is a registered property of the family (MODEL_REGISTRY); check 39 item 2 reads model_tier and run_purpose on every row and variant_role on exploratory packages; no re-export",
+    "48": "RATIFIED (a) [Q-37]: the fallback written into decisions 36 and 44 is applied: main contributions C1 (meta-dataset with the three-seed robustness analysis), C3 (cost-aware recommendation), C4 as a descriptive decomposition and C5; C2 is reported as the registered comparison without a superiority claim. Because decision 51 (b) was ratified in the same session, the conclusion on C2 is written on the full-design run (check 47), not on the analysis of 20/11; until then the manuscript states no outcome of H1. If the full-design run supports H1, the writing side reports it and the author revisits this decision; the writing side does not change the contributions contract",
+    "49": "RATIFIED (a) [Q-38]: the 8 seed-44 CQ cells keep an empty energy value; cost follows TIME (D-15); energy totals are reported on the measured runs with their count (1,605 of 1,836); the proposal of the team stays a note; no re-run",
+    "50": "RATIFIED (a) [Q-39]: the pinned Windows PC environment (Python 3.12.1, the environment of the 13/11 package) is the environment of record of the meta tier; the Linux host run is reported as a cross-platform replication with its measured differences; the pip freeze and the platform string of both machines go into the package",
+    "51": "RATIFIED (b) [Q-40]: the registered design is completed before C2 is concluded: the five mandatory subgroups enter the meta release and E1 is run per task; the conclusion of decision 48 is written on that run. The text of the decision and of option (b) is corrected in four places, see 'corrections'"
+  },
+  "corrections": {
+    "cohort_audits": "decision 51 said that 'the cohort audits of the facts packages hold the four other slices' and option (b) that the team 'exports the facts of the four cohort subgroups from the stored audits'. Wrong: cohort_audit/V*/seen_unseen_strict_overlap_metrics.csv holds the joint slices SEEN_COURSE / UNSEEN_COURSE x STRICT / OVERLAP with n_eval, macro_f1, balanced_accuracy and class supports (96 rows per pipeline), under a definition without the cutoff condition of Table 10; there is no LEARNER slice and no marginal COURSE slice with the full metric set. The four slices are recomputed from the stored per-sample predictions; nothing is trained and no inference is run (CODE_REFERENCE['subgroup_tooling_2026-11-20b'])",
+    "situations": "decision 51 said that E1-B 'has 48 recommendation situations (one per cluster) instead of 240'. Under Table 42 (section 10.3) the main report slice of the registered design is (ALL, ALL): E1-B is scored on the same 48 situations; the five subgroups enlarge the meta-training set (subgroup is a context feature; 120 recommendation groups per task and window, 24 of them on the main slice) and add the SEEN / UNSEEN slices as secondary reports",
+    "executed_analysis": "training and evaluation on (ALL, ALL) only is the robustness variant registered in Table 42 ('Chỉ subgroup (ALL, ALL)'); the analysis of 13/11 and 20/11 is that variant, run with the task-pooled E1 folds of Appendix E.4, where section 10.10 registers the main grid per task",
+    "effort": "option (b) needs more than a facts export: seen flags by the registered rule for every evaluated enrollment and phase, subgroup facts of the 1,836 runs (58,752 new rows), an S0 profile with subgroup rows (240 rows) and an extension of the reference package, which trains and evaluates on one subgroup up to 0.2.6"
+  },
+  "consequences": [
+    "check 39 item 2 is read as ratified (decision 47): the twenty PRIMARY_GRID directories of seeds 43 and 44 pass it",
+    "check 45: the three-seed M-15 is re-issued in the PC environment (decision 50) with metamodel 0.2.6; its item (i) moves to checks 46 and 47",
+    "new checks 46 (five-subgroup facts and release) and 47 (full-design M-15)",
+    "new decisions 52, 53, 54 (Q-41, Q-42, Q-43): three points of the full-design analysis that the registered documents leave open; they are answered before any five-subgroup result exists",
+    "per-task E1 runs are not added to the re-issue of check 45: they are part of the full-design run, so that no new result is read before decisions 52-54 are taken",
+    "the six three-seed configurations of 20/11 are labelled 'robustness variant of Table 42, task-pooled E1' wherever they are recorded and are not cited as the registered test",
+    "decision 46 (b): T05/T17/T18/F07 are regenerated as three-seed means with SD; this is manuscript work under the plan-then-approval rule of the project"
+  ],
+  "applied_in": [
+    "tempo_fix/registries.py rev 2026-11-20b",
+    "metamodel 0.2.6",
+    "checklist v1.16",
+    "03_claims.md v1.9",
+    "00_contributions.md v0.12",
+    "Ra_soat_tien_do_2026-11-20_luot2.md",
+    "Yeu_cau_doi_code_2026-11-20_ban2 (md + docx)",
+    "input/results/README_results.md rules 38-42"
+  ],
+  "still_open": [
+    "Q-20",
+    "Q-21",
+    "Q-22",
+    "Q-23",
+    "Q-24",
+    "Q-26",
+    "Q-41",
+    "Q-42",
+    "Q-43"
+  ]
+}

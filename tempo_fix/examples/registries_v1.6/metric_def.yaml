@@ -1,0 +1,183 @@
+metric_def_version: metric_def_v1.3
+v1_3_change_2026-10-24:
+  authority: author ratification D-18 of 2026-10-24 (AUTHOR_RATIFICATIONS_2026_10_24);
+    registered here on 2026-10-25
+  names:
+    acctempo_m3: 'AccTEMPO_M3 (S_san+ v1): pre-registered primary of the meta-dataset,
+      kept as the sensitivity objective of every paper test'
+    acctempo_m3_cal: 'AccTEMPO_M3^(cal) = clip(S_perf, 1e-3)^0.6 x clip(S_san+ v2,
+      1e-3)^0.4 (S_san+ v2: s_cal replaces s_ent); exporter column acctempo_m4 (5b14052);
+      the composite objective of the paper'
+  objectives:
+    PAPER_COMPOSITE_CAL: acctempo_m3_cal
+    PAPER_PERF_AXIS: s_perf
+    META_PRIMARY_M3_V1: acctempo_m3
+    SECONDARY_MACRO_F1: macro_f1
+  default_objective: PAPER_COMPOSITE_CAL
+  hypothesis_objectives:
+    H1: PAPER_COMPOSITE_CAL
+    H2: PAPER_COMPOSITE_CAL
+    H3: PAPER_COMPOSITE_CAL
+    H4: PAPER_COMPOSITE_CAL
+    H5: PAPER_COMPOSITE_CAL
+    H6: PAPER_COMPOSITE_CAL
+    H7: PAPER_COMPOSITE_CAL vs SECONDARY_MACRO_F1
+    H8: PAPER_COMPOSITE_CAL
+  sensitivity_objective: META_PRIMARY_M3_V1
+  trend_and_ranking_rule: phase trends (P1 -> P4) and family or pipeline rankings
+    in the paper are read on S_perf, macro-F1 and balanced accuracy; both composites
+    are printed next to them; neither composite carries a W2 trend (s_leak of the
+    V0 parent falls 0.232 -> 0.019 on CQ TEST W2)
+  disclosure: the Method section states that the composite objective was changed after
+    the seed-42 F1 results were read (hedging reward of s_ent); the meta-dataset keeps
+    v1 as pre-registered
+  code_mirror: metamodel.contracts.OBJECTIVES / HYPOTHESIS_OBJECTIVES / SENSITIVITY_OBJECTIVE
+    (v0.2.0) use the same names; CQ/registries.CQ_METRIC_AND_QA23_POLICY (5b14052)
+    records the same rule for the team; metrics_core still computes acctempo_m3 only
+    (M3^(cal) is derived in the exporters)
+  evidence_2026-10-25: 'per-pipeline means over 12 window x phase cells (CQ TEST,
+    R4): M3 spans 0.63-0.70 within every family while M3^(cal) spans 0.737-0.747 and
+    macro-F1 0.704-0.726; balanced minus imputation-only pipelines: M3 +0.055 to +0.060,
+    M3^(cal) +0.002 to +0.003, macro-F1 +0.001 to +0.003; Spearman(M3^(cal), S_perf)
+    0.94-0.98, Spearman(M3^(cal), macro-F1) 0.79-0.87, Spearman(M3, M3^(cal)) 0.54-0.66'
+class_index:
+  CQ:
+    c0: W
+    c1: A
+    c2: G
+  LO:
+    c0: ID
+    c1: G
+    c2: E
+risk_class: c0
+majority_class:
+  CQ: c0
+  LO: c0
+macro_policy: FIXED_K_CLASSES
+zero_division: 'NULL'
+macro_policy_code_status_2026-10-17: 'metrics_core/evaluation.py @ 294a17d computes
+  macro_f1 with labels=CLASS_IDS and zero_division=0: an absent class contributes
+  F1 = 0 instead of NULL, so a 3-class macro-F1 on a slice without one class is capped
+  at 0.667; per-class metrics do return None for an absent class. Main TEST cells
+  have every class present; slices (UNSEEN_COURSE in LO W1, STRICT/OVERLAP x phase)
+  may not. Which convention the slice audit uses is unknown (POST_MATERIALIZE_CHECKS[17])'
+acctempo_structure_note_2026-10-17: s_ent = 1 - |median(normalised predictive entropy)
+  - 0.5| / 0.5 rewards hedged predictions; on the 2026-10-16 seed-42 tables 92-98%
+  (CQ) and 65-70% (LO) of the log-range of AccTEMPO across the 17 pipelines comes
+  from S_san+, almost entirely via s_ent, while macro-F1 is flat (CQ -0.002, LO +0.009
+  balanced vs imputer-only) and PR-AUC falls (-0.026 / -0.022). AccTEMPO_M3 v1 stays
+  the preregistered primary; every table must show S_perf, S_san+ and s_ent next to
+  it and v2 (s_cal) as the sensitivity (PENDING_DECISIONS[18])
+acctempo_m4_export_note_2026-10-23: acctempo_m4 = clip(S_perf, 1e-3)^0.6 x clip(S_san+_v2,
+  1e-3)^0.4 with S_san+_v2 = geometric mean of (s_nan, s_maj_jsd, s_cal, s_drift,
+  s_eff, s_leak), computed read-only in tools/export_cq_recurrent_grid_report.py and
+  build_cq_current_recurrent_patchtst_report.py (5b14052), not in metrics_core; it
+  is the sensitivity composite of CQ_METRIC_AND_QA23_POLICY. M4 removes the hedging
+  term but keeps s_leak, which for the V0 parent at W2 falls 0.232 (P1) -> 0.019 (P4)
+  on TEST (identical for PatchTST and the recurrent V0 cells), so M4 also falls P1
+  -> P4 on W2 while macro-F1 rises; phase trends are read from S_perf / macro-F1 /
+  balanced accuracy only, composites are reported next to them
+core_metrics:
+- acctempo_m3
+- s_perf
+- macro_f1
+- balanced_acc
+- mcc
+- kappa
+- pr_auc_macro
+- gmean
+extended_metrics:
+- accuracy
+- weighted_f1
+- roc_auc_macro_ovr
+- log_loss
+- brier
+- ece
+ece_bins: 15
+ece_type: top_label
+probability_clip: 1.0e-12
+prob_sum_tolerance: 0.0001
+per_class:
+- precision
+- recall
+- specificity
+- f1
+- gmean
+- ap
+- support
+- predicted_count
+bootstrap:
+  B: 2000
+  unit: ENROLLMENT
+  ci: 0.95
+support_flags:
+  small_support_flag:
+    rule: n_support < 400
+    granularity: cell = (task, window, phase, eval_split, subgroup, class); applies
+      to the TEMPORAL STRICT/OVERLAP slice and to every mandatory subgroup
+    rationale: 95% CI of a proportion near 0.5 wider than +/-5 points
+    effect: per-class metrics kept, always reported with bootstrap CI; never used
+      alone as pipeline evidence
+  small_subgroup_flag:
+    rule: n_g < 30 or any class support < 5
+    source: '[PLAN §2.5]'
+    kept_separately: true
+  class_absent:
+    rule: per-class metrics NULL with null_reason = CLASS_ABSENT; never 0 or interpolated
+pipeline_comparison:
+  rule: paired_bootstrap_delta, B = 2000, unit ENROLLMENT; mandatory for every LO
+    W2/W3 cell and for every cell with small_support_flag = 1
+probability_metrics_for_exploratory_windows:
+  rule: log_loss and pr_auc_macro reported next to macro_f1 in every window whose
+    minority cells all carry small_support_flag = 1 (currently LO W2); pr_auc_macro
+    is NULL with null_reason = CLASS_ABSENT when a class is absent
+  applies_to:
+    LO:
+    - W2
+cluster_bootstrap:
+  rule: 'when n_offerings_with_class <= 2 for a (cell, class), add an offering-cluster
+    bootstrap CI: resample whole offerings (offering_id x timeline_source units) with
+    replacement, B = 2000, ci = 0.95; the enrollment bootstrap is still reported'
+  known_cells:
+    LO_W1_TEST_c2: 1,000 of 1,000 E from one offering
+    LO_W3_TEST_c1: 1,074 of 1,079 G from one offering
+  reason: positives from a single offering share one context; enrollment resampling
+    understates the uncertainty
+course_score_ceiling_observed:
+  definition: highest PRIMARY final_score observed in the course over all its enrollments
+    [V3.1.2 §14.1]
+  role: CONTEXT_REPORT_ONLY
+  derived_from_labels: true
+  model_input: FORBIDDEN (uses labels of every enrollment, including evaluation ones)
+  use: 'post-hoc stratification: ceiling bands < 60, 60-85, >= 85; reported per slice
+    and per cell'
+checkpoint_selection:
+  metric: MEAN_PHASE_MACRO_F1
+  split: VALIDATION
+  tiebreak: MEAN_PHASE_CROSS_ENTROPY_MIN
+  log:
+  - selection_margin
+  - selected_epoch
+  - n_checkpoints_within_margin
+  note: LO W1 VALIDATION minority classes come from a single offering (E 1,000 of
+    1,000; G 525) [V3 §6, §8]; read selection_margin before interpreting LO W1
+prediction_level_context_columns:
+- timeline_source
+- duration_days
+- long_offering_flag
+- label_threshold_set
+- n_offerings_with_class
+- course_score_ceiling_observed
+long_offering_flag:
+  rule: offering duration > 270 days
+  source: '[CL §8], [V3 §8]'
+  use: report-only stratification; not a filter; not a new mandatory subgroup
+sanity_reporting:
+  rule: S_san+ v1 (primary) and s_cal-based v2 (auxiliary) reported side by side in
+    every cell with all components; the v1 s_ent component sits at the eps floor on
+    99.8-99.9%-majority slices (LO W2/W3), which is discussed with the v2 column but
+    never used to re-rank pipelines [DEC §2]
+small_subgroup_flag_implementation_note: 'CLOSED 2026-10-06: metrics_core.evaluation.classification_metrics
+  @ 799cf9e applies the registered rule (n < 30 or any class support < 5); regression
+  test tests/test_registry_release_alignment.py::test_small_subgroup_flag_follows_registered_rule;
+  small_support_flag (< 400) lives in model/metrics.py'

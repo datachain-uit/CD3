@@ -1,0 +1,28 @@
+Q-44:
+  decision: 55
+  summary: 'full-design run: the secondary SEEN / UNSEEN slices are reports outside
+    the Holm family (as implemented) or tests inside it'
+  recommendation: (a) reports, as Table 42 registers them
+Q-45:
+  decision: 56
+  summary: 'for the record: had the author seen the tables of the exploratory per-task
+    run of 20/11 before answering Q-41 to Q-43'
+  recommendation: none (statement of fact)
+answered_2026-11-21:
+  Q-41: (a)
+  Q-42: (a)
+  Q-43: (b)
+confirmed_2026-11-21:
+- the three conventions of the facts contract (check 46)
+- the reading of decisions 48 (a) and 51 (b)
+still_open:
+- Q-20
+- Q-21
+- Q-22
+- Q-23
+- Q-24
+- Q-26
+- Q-44
+- Q-45
+note: 'neither Q-44 nor Q-45 blocks the runs: the per-group outcomes of the secondary
+  slices are written by the run, and Q-45 is a statement for the Experiments section'

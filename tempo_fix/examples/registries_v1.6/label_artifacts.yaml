@@ -1,0 +1,322 @@
+CQ:
+  label_rule_version: cq_vector_proximity_v1_zero_activity_policy
+  label_threshold_set: CQ_VECTOR_PROXIMITY_PRIMARY_V1
+  aliases:
+    label_rule_version:
+    - CQ_TRIAD_PROXIMITY_v1 (PLAN v1.6 name)
+    label_threshold_set:
+    - PRIMARY (PLAN v1.6 name)
+  zero_activity_policy:
+    rule: 200,000 enrollments with cq_active_event_any = 0 and CQ_label_final = warning
+      are removed from the labelled population by a deterministic hash sample (sha256
+      of "20260917:" + enrollment_id, lowest 200,000 ranks); their label is set to
+      NULL with cq_exclusion_reason = v3_sampled_zero_activity_warning_removal; every
+      other zero-activity enrollment keeps its label
+    source: CQ/Feature_extraction/labels/build_cq_labels.py @ dff9a3f (LABEL_VERSION,
+      zero_activity_warning)
+    to_confirm: that the split population 2,684,090 is counted after this removal;
+      the report v1.8 population reconciliation must state the pre-removal count and
+      this rule
+  score: cq_score_g_final = 1 - TRIAD_distance_final/sqrt(3) (alias CQ_proximity_final)
+  thresholds:
+    W: < 0.10
+    A: '[0.10, 0.30)'
+    G: '>= 0.30'
+  invalid_component_policy: NULL with exclusion_reason; never coerced to W
+  population:
+    n_enrollments: 2684090
+    source: release V1 (REPORT_CQ_V1); [CL §8.3] distinct enrollment 2,684,090
+    class_counts:
+      c0: 2582414
+      c1: 56129
+      c2: 45547
+LO:
+  label_rule_version: lo_final_score_catalog_normalized_v3_1
+  label_threshold_set: CATALOG_NORMALIZED_PRIMARY_V3_1__EXCLUDE_NO_SCORED_SIGNAL
+  aliases:
+    label_threshold_set:
+    - CATALOG_NORMALIZED_PRIMARY_V3 (registry name until 2026-10-04)
+  v3_1_change: same formula and bands as V3; courses without any observed attempt
+    in every weighted assignment/exam component are excluded with reason no_scored_signal_in_course
+    (102 courses, 172,003 enrollments) [V3.1 §4]
+  label_field: LO_performance_label_3
+  score_field: performance_score
+  score_semantics: activity_derived_weighted_score
+  final_grade_claim: not_an_independently_observed_final_grade
+  formula: performance_score = video_weight*watch_percent + assignment_weight*assignment_ratio_catalog
+    + exam_weight*exam_ratio_catalog
+  components:
+    watch_percent: min(1, watched_videos / video_counts)
+    assignment_ratio_catalog: sum over catalog assignment problems of best automatic
+      correct ratio (best score / full score over attempts) / catalog assignment problem
+      count; unattempted = 0
+    exam_ratio_catalog: same rule over catalog exam problems; unattempted = 0
+    exam_problem_rule: exam problems = problems of the last hierarchical chapter when
+      the course has exam_weight; every other problem is an assignment problem [LO
+      §5]
+    weights: course_limit.csv (video, assignment, exam); weight total must equal 100
+  structural_bound:
+  - 0.0
+  - 100.0
+  thresholds:
+    ID: '[0, 60)'
+    G: '[60, 85)'
+    E: '[85, 100]'
+  monotone_in_performance: true
+  sensitivity_sets:
+    TEMPO_LEGACY_CLIP:
+      rule: legacy attempt-level score (exam component = sum of correct ratios over
+        attempted exam problems, not normalised) clipped at 100; same bands
+      role: SENSITIVITY_ONLY
+      note: reproduces the CD2/TEMPO prevalence regime; identical to the 2026-09-30
+        morning label except for the clip
+  superseded_versions:
+  - label_rule_version: lo_operational_performance_v1
+    reason: exam component unbounded (sum of correct ratios), score > 100 kept as
+      E; 21,141 enrollments > 100 [LO §8]
+  - label_rule_version: lo_final_score_sourcefaithful_v2
+    reason: 'score > 100 mapped to I/D: non-monotone in performance (Danh_gia_LO_V2.2_nhan.docx
+      §2); replaced by V3 [V3 §2]'
+  - label_rule_version: lo_final_score_catalog_normalized_v3
+    reason: kept courses with no scored signal at all (profile EXAM max 0.000); replaced
+      by V3.1 after the course-ceiling audit [V3.1 §4, §5]
+  cohort:
+    raw_enrollments: 11807090
+    eligible_enrollments: 2605423
+    eligible_share_of_raw: 0.22067
+    eligible_courses: 711
+    class_counts:
+      c0: 2596424
+      c1: 6996
+      c2: 2003
+    exclusion_reasons:
+      missing_course_limit_weights:
+        enrollments: 8615401
+        courses: 3610
+      missing_assignment_problem_catalog:
+        enrollments: 200140
+        courses: 159
+      no_scored_signal_in_course:
+        enrollments: 172003
+        courses: 102
+        rule: no observed attempt in every weighted assignment/exam component
+      nonpositive_course_weight_total:
+        enrollments: 134618
+        courses: 102
+      course_weight_total_not_100:
+        enrollments: 69729
+        courses: 16
+      missing_exam_problem_catalog:
+        enrollments: 9776
+        courses: 1
+    source: '[V3.1 §4]'
+    technical_exclusions_inside_assigned_slices:
+      by_slice_and_reason:
+        A:
+          missing_assignment_problem_catalog: 37
+          course_weight_total_not_100: 154
+          missing_exam_problem_catalog: 943
+          nonpositive_course_weight_total: 1
+        T1:
+          missing_assignment_problem_catalog: 1
+        T2:
+          missing_assignment_problem_catalog: 2453
+          course_weight_total_not_100: 361
+          missing_exam_problem_catalog: 55
+          nonpositive_course_weight_total: 6
+        T3:
+          missing_assignment_problem_catalog: 8946
+          course_weight_total_not_100: 4980
+          missing_exam_problem_catalog: 61
+          nonpositive_course_weight_total: 10
+      total: 18008
+  label_status: 'FINAL 2026-10-01 [V3.1.2 §14.4]: no V3.2; label, split and materialize
+    are not rebuilt for the ceiling finding'
+  course_score_ceiling:
+    ceiling_below_60:
+      courses: 493
+      enrollments: 1668604
+      share_of_cohort: 0.64044
+    ceiling_below_85:
+      courses: 675
+      enrollments: 2372394
+      share_of_cohort: 0.91056
+    ceiling_ge_60:
+      courses: 218
+      enrollments: 936819
+      share_of_cohort: 0.35956
+    ceiling_ge_85:
+      courses: 36
+      enrollments: 233029
+      share_of_cohort: 0.08944
+    remaining_no_scored_signal_candidates: 0
+    decision: no automatic drop of low-ceiling courses; ceiling is a report-only context
+      field [V3.1 §5], [V3.1.2 §14.1]
+    implication: class G can only occur in 218 courses, class E in 36 courses; must
+      appear in the dataset description and in the interpretation of COURSE SEEN/UNSEEN
+      subgroups
+    by_slice:
+      A:
+        enrollments: 1787557
+        ceiling_ge_60: 659474
+        ceiling_ge_85: 166159
+      T1:
+        enrollments: 156681
+        ceiling_ge_60: 59054
+        ceiling_ge_85: 10237
+      T2:
+        enrollments: 401686
+        ceiling_ge_60: 120925
+        ceiling_ge_85: 24864
+      T3:
+        enrollments: 259499
+        ceiling_ge_60: 97366
+        ceiling_ge_85: 31769
+    prevalence_within_reachable_courses:
+      G_given_ceiling_ge_60:
+        A: 0.00716
+        T1: 0.0179
+        T2: 0.00038
+        T3: 0.01205
+      E_given_ceiling_ge_85:
+        A: 0.00394
+        T1: 0.1223
+        T2: 0.00072
+        T3: 0.00246
+      reading: 'reachable-course shares are similar across slices (30-38% for >= 60),
+        yet G within reachable courses is 47x lower in T2 than in T1: the T1 vs T2/T3
+        contrast is within-course temporal variation, not course composition; log
+        coverage per slice (S0) remains the last alternative explanation to check'
+  catalog_denominator_audit:
+    active_problem_rule: catalog problem with >= 1 automatic-score event from any
+      enrollment of the course; only components with positive weight enter the denominator
+    active_ratio_by_ceiling_band:
+      <60:
+        courses: 493
+        enrollments: 1668604
+        p50: 0.9
+        p90: 1.0
+        mean: 0.74
+      60-<85:
+        courses: 182
+        enrollments: 703790
+        p50: 1.0
+        p90: 1.0
+        mean: 0.986
+      '>=85':
+        courses: 36
+        enrollments: 233029
+        p50: 1.0
+        p90: 1.0
+        mean: 0.993
+    conclusion: inflated catalogs do not explain the low ceilings for the bulk of
+      courses (median active ratio 0.90 in the < 60 band); the mean of 0.74 shows
+      a tail of courses with inactive catalog items, to be described, not corrected
+    decision: keep catalog-normalised V3.1 as PRIMARY; active-catalog denominator
+      not adopted; no V3.2
+  score_range_by_profile:
+    VIDEO:
+      eligible: 7377
+      min: 0.0
+      max: 25.806
+      E: 0
+      G: 0
+    ASSIGNMENT+EXAM:
+      eligible: 76661
+      min: 0.0
+      max: 100.0
+      E: 220
+      G: 150
+    ASSIGNMENT:
+      eligible: 15069
+      min: 0.0
+      max: 100.0
+      E: 28
+      G: 25
+    VIDEO+ASSIGNMENT:
+      eligible: 887408
+      min: 0.0
+      max: 90.0
+      E: 4
+      G: 623
+    VIDEO+ASSIGNMENT+EXAM:
+      eligible: 1618809
+      min: 0.0
+      max: 97.198
+      E: 1751
+      G: 6198
+    VIDEO+EXAM:
+      eligible: 99
+      min: 0.0
+      max: 5.0
+      E: 0
+      G: 0
+    removed_by_no_scored_signal:
+      EXAM: 31334
+      VIDEO+ASSIGNMENT+EXAM: 117389
+      VIDEO+ASSIGNMENT: 22097
+      VIDEO+EXAM: 922
+      ASSIGNMENT: 200
+      ASSIGNMENT+EXAM: 61
+      total: 172003
+  proxy_contract:
+    contract_id: lo_proxy_contract_v3
+    canonical_fields:
+      score_weights:
+      - performance_score
+      - video_weight
+      - assignment_weight
+      - exam_weight
+      - course_weight_total
+      video:
+      - watched_videos
+      - video_counts
+      - watch_percent
+      - video_catalog_coverage
+      problem:
+      - assignment_problem_catalog_count
+      - exam_problem_catalog_count
+      - assignment_best_correct_sum
+      - exam_best_correct_sum
+      - assignment_ratio_catalog
+      - exam_ratio_catalog
+      - problem_catalog_coverage
+      - problem_score_catalog_coverage
+      sensitivity:
+      - tempo_legacy_unclipped_score
+      - tempo_legacy_score_clipped
+    n_canonical_fields: 19
+    names_to_confirm: []
+    names_confirmed_on: '2026-10-01 [V3.1.2 §15.1]: assignment_problem_catalog_count,
+      exam_problem_catalog_count, assignment_best_correct_sum, exam_best_correct_sum
+      (denominators and numerators of the two ratios)'
+    phase_variants_rule: any canonical field with suffix _P1, _P2, _P3, _P4 (or the
+      pipeline equivalent) inherits is_label_proxy = 1
+    exclusion_scope:
+    - imputer_predictors (QA21)
+    - model input of LO_FULL_EARLY, LO_NO_CURRENT_GRADE, LO_NO_PROGRESS
+    audit_artifact: final_score_contract_audit_v3_catalog_normalized/{label_semantics_contract,
+      proxy_feature_contract, exclusion_reason_summary, score_range_by_profile}
+    audit_status: 'refresh pending: current snapshot must record all 19 fields incl.
+      the three coverage fields [V3 §4, §9]; all 19 names are now confirmed (POST_MATERIALIZE_CHECKS[3])'
+    current_grade_group:
+      status: LOCKED 2026-10-01 [V3.1 §6]
+      columns:
+      - score_sum
+      - score_mean
+      - score_std
+      - score_fraction_mean
+      - score_fraction_std
+      - correct_problem_count
+      - incorrect_problem_count
+      - correct_ratio
+      - correct_ratio_std
+      regimes:
+        LO_FULL_EARLY: included
+        LO_NO_CURRENT_GRADE: removed
+        LO_NO_PROGRESS: per PLAN §2.6
+      note: attempt-level, not catalog-normalised; problem_score_catalog_coverage
+        stays a label proxy in every regime; QA23 (Spearman |rho|, NMI vs final_score)
+        is run per phase on this group and reported
+  invalid_component_policy: enrollment not label-eligible -> excluded with proxy_exclusion_reason;
+    never coerced to ID

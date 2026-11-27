@@ -1,0 +1,37 @@
+{
+  "Q-41": {
+    "decision": 52,
+    "summary": "full-design run: which E1 analysis carries the verdicts (per-task training of section 10.10 or the task-pooled run of Appendix E.4)",
+    "recommendation": "(a) per-task primary, verdict rows on the 48 clusters of the two tasks, task-pooled run as sensitivity"
+  },
+  "Q-42": {
+    "decision": 53,
+    "summary": "full-design run: baselines and inner selection on the matched slice or on all five subgroups",
+    "recommendation": "(a) matched slice, all-rows variant as sensitivity"
+  },
+  "Q-43": {
+    "decision": 54,
+    "summary": "full-design run: Holm inside the primary family or over every row of mm_hypotheses",
+    "recommendation": "(a) primary family only, other rows adjusted inside their analysis role"
+  },
+  "answered_2026-11-20": {
+    "Q-35": "(b)",
+    "Q-36": "(a)",
+    "Q-37": "(a)",
+    "Q-38": "(a)",
+    "Q-39": "(a)",
+    "Q-40": "(b)"
+  },
+  "still_open": [
+    "Q-20",
+    "Q-21",
+    "Q-22",
+    "Q-23",
+    "Q-24",
+    "Q-26",
+    "Q-41",
+    "Q-42",
+    "Q-43"
+  ],
+  "note": "Q-41 to Q-43 block only the full-design run (check 47): the re-issue of check 45 and the five-subgroup facts and release of check 46 do not wait for them; they are answered before any five-subgroup result exists"
+}

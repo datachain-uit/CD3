@@ -1,0 +1,91 @@
+date: '2026-11-21'
+source: author answers of 21/11 to the three questions opened in the second pass of
+  20/11 and to the two points the writing side had set itself, sent with the code
+  team's reply PHAN_HOI_YEU_CAU_20-11_BAN2_2026-11-21.docx (sha256 dbd2db4f451395ad58ab57671be24c9b6efae69efb4b0c85a167d7974ae464e2)
+decisions:
+  '52': 'RATIFIED (a) [Q-41]: per-task training is primary; one model per task and
+    fold, each scored on its own task; the verdict rows of E1-B are computed on the
+    clusters of the two tasks together (48 on the registered grid) and the 24-cluster
+    rows of each task are reported beside them; E1-A is the replication and the 96-cluster
+    test follows section 10.8; the task-pooled run of Appendix E.4 is a labelled sensitivity
+    analysis'
+  '53': 'RATIFIED (a) [Q-42]: matched slice; B2, B3, the thresholds of B4 and the
+    neighbours of B5 are estimated on the training rows of the subgroup of the situation
+    they score; the inner selection minimises the mean regret of the (ALL, ALL) groups
+    of the inner validation part; the all-rows variant is a labelled sensitivity analysis'
+  '54': 'RATIFIED (b) [Q-43]: one family; Holm over every test row of mm_hypotheses,
+    so that each added row changes the adjusted p of the primary rows; the writing
+    side had recommended (a)'
+confirmations:
+  facts_contract_conventions: 'agreed by the author: s_leak of a subgroup row is inherited
+    from the ALL cell, as for STRICT / OVERLAP; an empty or one-class slice keeps
+    a row with NULL metrics and its group leaves the training set (INFEASIBLE), a
+    small slice with at least two classes stays with small_subgroup_flag; the ALL
+    rows keep their order in the facts table (POST_MATERIALIZE_CHECKS[46][''conventions''])'
+  reading_of_decisions_48_and_51: 'agreed by the author: C2 is the registered comparison
+    without a superiority claim; its result is written on the full-design run of check
+    47; no outcome of H1 is stated in the manuscript before that run; if the run supports
+    H1 the writing side reports it and the author revisits decision 48'
+implementation:
+  decision_52: 'metamodel 0.3.0, e1_scope = PER_TASK: E1-A, E1-B and E3 are built
+    once per task (section 10.10 registers the main grid as task (2) x fold (2) and
+    E3 as 3 tiers x 2 tasks); E2 is cross-task by definition; evaluation units: one
+    task, or the two tasks together (every situation scored by the model of its own
+    task); rows of mm_hypotheses: PRIMARY (E1-B, two tasks), PER_TASK (E1-B, one task),
+    REPLICATION_E1A (E1-A, two tasks), POOLED_2FOLD (E1-A and E1-B, two tasks), TRANSFER_E2
+    (H5)'
+  decision_53: 'baseline_scope = MATCHED_SLICE: on the main report slice the baselines
+    are computed from the (ALL, ALL) training rows, so they equal those of the ALL-only
+    analysis (tested); the learners are fitted on the rows of the five subgroups with
+    subgroup_axis and subgroup_value as context features (FS0); hyper-parameters and
+    the k of B5 are selected on the (ALL, ALL) groups of the inner validation part'
+  decision_54: 'Holm at alpha_stat = 0.05 over every row of mm_hypotheses that carries
+    a bootstrap p, except the rows marked DESCRIPTIVE (author decision of 13/11);
+    the flag `supported` stays the confidence-interval criterion of Table 50 and the
+    adjusted p is reported beside it; count of the design, not a result: on the registered
+    grid the family holds at most 32 tests (five units, namely PRIMARY, PER_TASK CQ,
+    PER_TASK LO, REPLICATION_E1A and POOLED_2FOLD, times the six hypotheses with a
+    bootstrap p, H1-H4, H6 and H8, plus the two directions of H5) against 8 in the
+    analysis executed so far; the bootstrap p has a step of 0.001 (B = 2,000, two-sided)'
+readings_recorded_by_the_writing_side:
+  secondary_slices: 'Table 42 registers the four SEEN / UNSEEN slices as secondary
+    report slices and Table 50 defines H1-H8 on the primary protocol: metamodel 0.3.0
+    writes the secondary-slice comparisons to mm_metrics_secondary as descriptions
+    (summary, intervals, paired difference to B3) and does not put them into mm_hypotheses,
+    so they are outside the Holm family; this reading is submitted to the author as
+    decision 55 (Q-44); the per-group outcomes are kept in mm_recommendations_secondary,
+    so the other reading can be computed from the same runs'
+  verdict_rows: the verdict of a hypothesis is read on the PRIMARY rows; PER_TASK,
+    REPLICATION_E1A and POOLED_2FOLD rows are reported beside them and change the
+    adjusted p of the primary rows (decision 54 (b))
+  small_slices: rows flagged small_subgroup_flag stay in the fits (convention agreed
+    by the author); `--small-subgroups drop-from-training` is a labelled sensitivity
+    run (V4 of check 47)
+state_of_knowledge_at_the_decision:
+  known_to_the_writing_side_and_reported_to_the_author_on_20/11: 'the task-pooled
+    three-seed results (H1 not supported on E1-B: +0.0029 [0.0006; 0.0057]) and the
+    post-hoc split of the pooled model by task computed by the writing side (E1-B
+    CQ +0.0006, LO +0.0052; 03_claims section D.5)'
+  exploratory_per_task_run: the code team's reply of 21/11 declares an exploratory
+    per-task run of 20/11 and states that its regret and hypothesis results are not
+    in the reply; the writing side has not opened them; whether the author had seen
+    those tables before answering Q-41 to Q-43 is asked for the record (decision 56,
+    Q-45)
+applied_in:
+- tempo_fix registries rev 2026-11-21
+- metamodel 0.3.0
+- Checklist_tien_do_CD3 v1.17
+- 03_claims.md v1.10
+- 00_contributions.md v0.13
+- Ra_soat_tien_do_2026-11-21.md
+- Yeu_cau_doi_code_2026-11-21 (md + docx)
+- input/results/README_results.md rules 43-47
+still_open:
+- Q-20
+- Q-21
+- Q-22
+- Q-23
+- Q-24
+- Q-26
+- Q-44
+- Q-45

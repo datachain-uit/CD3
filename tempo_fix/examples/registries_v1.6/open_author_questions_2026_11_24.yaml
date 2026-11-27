@@ -1,0 +1,38 @@
+Q-46:
+  decision: 57
+  summary: 'fitted meta-models (mm_models/ of the design document) and SHAP are not
+    produced by metamodel 0.3.0: (a) record and state the deviation, no re-run; (b)
+    export added in 0.3.1 and a labelled reproduction run of the main configuration;
+    (c) of the ten configurations. Recommendation of the writing side: (a)'
+Q-47:
+  decision: 58
+  summary: 'negative control MQ08 passes in 5/12 folds of the main configuration:
+    (a) reported as measured, no further run; (b) labelled multi-permutation sensitivity
+    analysis. Recommendation of the writing side: (a)'
+for_the_author_2026-11-24:
+- 'disclosure: the intervals and p values of mm_hypotheses depend on the pandas version
+  through the cluster order of the bootstrap (POST_MATERIALIZE_CHECKS[47][''acceptance_2026-11-24''][''findings''][''bootstrap_cluster_order'']);
+  the values of record are those of the environment of record; under the other order
+  0 supported flags change in the ten configurations; the writing side proposes to
+  keep the tables of record and to fix the order in the next package version; open
+  to a veto of the author'
+- 'decision 48 (a): on the row that carries the verdict H1 is supported in none of
+  the ten configurations, so the clause that would have reopened the decision is not
+  triggered; C2 is the registered comparison without a superiority claim'
+- the revised mapping table of 00_contributions.md section 2 announced on 20/11 for
+  after check 47 is proposed in 00_contributions.md v0.16 and is not applied before
+  the author approves it
+- the exploratory per-task run of 20/11 is still unopened by the writing side; the
+  condition 'until check 47 is accepted' is met; it is opened only if the author asks
+  (variant V1 replaces it)
+still_open:
+- Q-20
+- Q-21
+- Q-22
+- Q-23
+- Q-24
+- Q-26
+- Q-46
+- Q-47
+note: neither question blocks the writing of the Method section; the table plan T05
+  / T17 / T18 / F07 of decision 46 (b) is still owed by the writing side

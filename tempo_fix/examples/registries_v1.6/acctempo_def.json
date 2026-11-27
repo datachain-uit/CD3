@@ -1,0 +1,30 @@
+{
+  "acctempo_def_version": "acctempo_m3_v1.1",
+  "alpha": 0.6,
+  "beta": 0.4,
+  "acctempo_eps_floor": 0.001,
+  "formula": "AccTEMPO_M3 = S_perf^0.6 * S_san+_v1^0.4; S_perf = (macroF1 * BA * (MCC+1)/2 * (kappa+1)/2)^(1/4); every factor clipped to [1e-3, 1] before the product",
+  "primary_s_san_version": "v1",
+  "also_compute": [
+    "v2"
+  ],
+  "report_rule": "v1 is the preregistered primary comparison; v2 (s_cal = 1 - ECE_15 in place of s_ent) is reported only as a calibration sensitivity analysis and never changes the primary ranking [DEC §2]",
+  "mandatory_columns": [
+    "acctempo_m3",
+    "s_perf",
+    "s_san_plus",
+    "s_nan",
+    "s_maj_jsd",
+    "s_ent",
+    "s_drift",
+    "s_eff",
+    "s_leak",
+    "s_cal",
+    "s_san_plus_v2"
+  ],
+  "interpretation_rule": "S_san+ is a data/pipeline quality score, not a predictive score; an AccTEMPO difference is reported together with the S_perf difference and the component that drives it. The GD1 decomposition (92-94% of the CQ V13 -> V14 AccTEMPO gain attributable to s_ent) is explanatory only and does not redefine the primary metric after results are observed [DEC §2]",
+  "bootstrap_rule": "S_perf, s_nan, s_maj_jsd, s_ent/s_cal, s_drift recomputed per resample; s_eff, s_leak fixed (run-level)",
+  "decision_status": "LOCKED 2026-10-05; primary v1, v2 auxiliary sensitivity [DEC §2]",
+  "author_mapping_2026-11-01": "D-18 confirmed and Q-06/Q-09 signed: in the paper AccTEMPO_M3^(cal) = acctempo_m4 is the composite objective, S_perf / macro-F1 / balanced accuracy carry trends and rankings, M3 v1 is the sensitivity and the pre-registered primary of the meta-dataset (AUTHOR_RATIFICATIONS_2026_10_24[18], _2026_11_01)",
+  "decomposition_patchtst_2026-11-03": "report-derived (decision 27 (a) tag), seed 42, TEST means over 12 cells: M3 gains of the balanced variants over their parent are V2 +0.036, V3 +0.056, V4 +0.060, V6 +0.074 while S_perf moves +0.017 to +0.023 and s_ent +0.09 to +0.23; under M3^(cal) (s_cal 0.966-0.984 for every pipeline) the same gains are +0.010, +0.008, +0.011, +0.013; imputation without balancing (V1, V5) is below V0 on M3 (-0.004, -0.010), M3^(cal) (-0.007, -0.003) and macro-F1 (-0.019, -0.014). The interpretation_rule applies: every F2 AccTEMPO difference is reported with the S_perf difference and with s_ent named as the driver [BAO_CAO_CQ_PATCHTST_V0_V6_2026-11-02, tables 3-10]"
+}

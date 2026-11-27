@@ -1,0 +1,25 @@
+{
+  "Q-51": {
+    "decision": 62,
+    "summary": "negative control: (a) labelled table of five permutations for the ten configurations in Online Resource 1, beside the registered control; (b) for the main configuration only; (c) registered control only. Recommendation of the writing side: (a)"
+  },
+  "answered_2026-11-26_second_pass": {
+    "Q-48": "(b)",
+    "Q-49": "(a)",
+    "Q-50": "(a)"
+  },
+  "for_the_author_2026-11-26b": [
+    "H7 as registered is not supported on the verdict unit: the health gain of the composite objective over the MacroF1 objective is +0.000236 with an interval that barely excludes 0, and the lower limit of the MacroF1 difference (-0.0126) is below the tolerance; the implemented row is not supported either",
+    "cost at the decision moment: with a cost estimate taken from earlier windows the cost of the recommendation does not fall on the verdict unit (+0.0542 log2 units against -0.3023 with the recorded cost); the claim of C3 has to be limited to the rule with known cost",
+    "public repository: licence of the code and of the data, time of the release tag, a persistent identifier for the data, and the fate of the internal documents under docs/ are decisions of the author",
+    "Method v0.5.1 and Online Resource 1 v0.2 wait for a reading of the sixteen listed changes",
+    "the Experiments outline v0.2 is the next step and is submitted for approval before any table is generated"
+  ],
+  "still_open": [
+    "Q-20",
+    "Q-22",
+    "Q-23",
+    "Q-24",
+    "Q-51"
+  ]
+}

@@ -1,0 +1,45 @@
+Q-48:
+  decision: 59
+  summary: 'negative control after the dtype defect of metamodel 0.3.0: (a) report
+    the dtype-preserved control with disclosure, the team delivers and commits the
+    115-fold table, no new run; (b) in addition a control-only re-run with 0.3.1;
+    (c) leave the control out, with disclosure. Recommendation of the writing side:
+    (a)'
+Q-49:
+  decision: 60
+  summary: 'cost at decision time: (a) rule described as run plus a labelled post
+    hoc analysis with a decision-time cost estimate from delivered files; (b) as run
+    only; (c) F-COST implemented and re-run. Recommendation of the writing side: (a)'
+Q-50:
+  decision: 61
+  summary: 'H7: (a) the registered comparison computed from the two delivered configurations
+    and reported with the implemented row; (b) implemented row only, with disclosure;
+    (c) re-run. Recommendation of the writing side: (a)'
+answered_2026-11-24_second_pass:
+  Q-46: (a)
+  Q-47: (a), superseded by Q-48
+answered_2026-11-26:
+  Q-26: (a)
+  Q-21: T17 and T18 stay in the main text (answer 6, plan section 4)
+for_the_author_2026-11-26:
+- 'Method v0.5 and Online Resource 1 (S1 to S4) are written and wait for approval;
+  measured length of the Method in the acmsmall layout: about fourteen pages with
+  four tables and two figures, above the estimate of the plan'
+- 'scope of TOIS: the reframed paper is arguable under the charter items on evaluation
+  methodology and on applications that expose weaknesses of techniques, but it stays
+  at the edge of information retrieval; a pre-submission inquiry to the Editor-in-Chief
+  is the way to know'
+- 'open comments of Method v0.5: outcome table of QA01 to QA24 for release r2, interpreter
+  version of the phase C environment, static layout of the CQ recurrent runs of seed
+  42, Radius-SMOTE fallback rates for the three seeds'
+- Q-22 and Q-23 are replaced by the approved table plan as proposed in section 6 of
+  the plan; they are confirmed with the Experiments outline v0.2; Q-20 and Q-24 are
+  submitted again at their steps
+still_open:
+- Q-20
+- Q-22
+- Q-23
+- Q-24
+- Q-48
+- Q-49
+- Q-50

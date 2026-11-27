@@ -1,0 +1,23 @@
+{
+  "date": "2026-11-01",
+  "source": "author reply to Ra_soat_tien_do_2026-11-01.md §5 (recorded in §9); checklist questions Q-04, Q-06, Q-07, Q-09, Q-10",
+  "decisions": {
+    "17": "RATIFIED (a) [Q-04]: the LO W1 TEST class E single-offering support is presented as a finding; contract unchanged; facts carry the single-offering flag",
+    "20": "RATIFIED (a-v2) [Q-04]: the 13-field static contract v2 applies to every new grid (F1 reruns, F2, seeds 43/44)",
+    "23": "RATIFIED (a) [Q-06]: protocol v2 (lr 1e-3, warm-up 0, no clipping, batch 2048 = 4 x 512) is the single F2 protocol; the three NEW V0 runs of 31/10 are the base of the grid; D23 stays a sensitivity; the 48 CQ and 51 LO cells may open (shard plan from the V0 run root, one runner, no --exclude-completed against the old pilot)",
+    "24": "RATIFIED (b) [Q-07]: the LO static-v2 seed-42 grid (13 fields, runner b0e5ae1) is the LO F1 grid of the paper; r3 and the historical grid are archived evidence",
+    "26": "RATIFIED (a) [Q-10]: the 11-field CQ / 13-field LO contracts stay; the two availability assumptions are declared in Method §4.1.2 and in the threats section; SEEN/UNSEEN slices are the empirical check; primary_risk_set dropped at the next contract revision",
+    "27": "RATIFIED (a) [Q-09]: report-derived numbers may enter the draft with the tag [source: results/<package>/<file>, row ...; report-derived] and a mandatory re-check against the L2 export before submission"
+  },
+  "applied_in": [
+    "Content/4 Method.tex v0.3 (§4.1.2 static branch and availability assumptions, §4.8 one protocol, D23 as sensitivity)",
+    "00_contributions.md v0.6, 02_baselines.md v0.6, 03_claims.md v0.6, input/results/README_results.md (01/11)"
+  ],
+  "still_open": {
+    "Q-01": "framework name (D-S1-5)",
+    "Q-02": "SASMOTE reference (Kosolwattana et al. 2023?)",
+    "Q-03": "F0 LO definition (D-S1-8)",
+    "Q-05": "phase set P2/P4/P8 wording",
+    "outline": "Experiments outline §6 of Ra_soat_tien_do_2026-11-01 and the writing-order exception for W-EN-02"
+  }
+}

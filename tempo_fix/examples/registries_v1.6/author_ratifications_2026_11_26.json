@@ -1,0 +1,34 @@
+{
+  "date": "2026-11-26",
+  "source": "author answers of 24/11 (second pass: Q-46, Q-47) and of 26/11 (twelve numbered answers to working/Documents/Ke_hoach_viet_bai_2026-11-24.md section 7, with the short report of the code team attached); written into the registry on 2026-11-26",
+  "decisions": {
+    "57": "RATIFIED (a) [Q-46], 2026-11-24",
+    "58": "RATIFIED (a) [Q-47], 2026-11-24; premise withdrawn on 2026-11-26, superseded by decision 59 (Q-48)"
+  },
+  "answers_2026-11-26": {
+    "1": "agreed: the delivered tables of the environment of record stay the tables of the paper; metamodel 0.3.1 fixes the cluster order of first appearance explicitly, with a reproduction test; the paper states the convention, the library versions and the sensitivity",
+    "2": "agreed: the revision of section 2 of 00_contributions.md proposed in v0.16 is applied with four adjustments (SHAP removed; block ablation replaced by the nested sets FS0 to FS5; (alpha, beta) sensitivity dropped; numeric-material cells of C1 and C5 updated) and the two axes of section 0 are swapped (main axis: temporal meta-dataset, pre-specified evaluation protocol and registered comparison with its negative result; secondary: C3, C4, C5); C1 to C5 unchanged",
+    "3": "agreed: English main text of at most 35 pages with an online supplement (Online Resource 1, S1 to S5); the Vietnamese report (Chuyen de 3) is the full version; on 26/11 the author adds that the report has no page limit and that its main content is recommended to stay under 50 pages",
+    "4": "agreed: Method plan v0.5 (structure 4.1 to 4.8 kept, design described as run, 'pre-specified' instead of 'pre-registered', dated protocol history)",
+    "5": "agreed: Figures 1 and 2 redrawn for the evaluated design; the meta-observation figure moves to the supplement",
+    "6": "agreed: table plan of section 4 of the plan (base-tier tables as three-seed mean and SD; meta-tier tables from the phase C package) and the three labelled descriptive analyses computed from delivered files",
+    "7": "agreed: the writing side searches recent IR references and proposes candidates with DOI; the author verifies them and adds them to input/references/ before any is cited",
+    "8": "agreed, Q-26 (a): the two MantisV2 entries of references_additions_2026-11-06.bib are merged into references.bib",
+    "9": "the meta-dataset and the code are published at https://github.com/datachain-uit/CD3; the statement on the use of AI tools is checked against the rules and written by the author herself",
+    "10": "agreed: Author = 'Thu Nguyen' in the properties of the figure files (PDF, PNG, SVG, .drawio) and of the chart data files; the writing side reviews the project resources to revise and produce figures and tables",
+    "11": "agreed: the paper stays with ACM TOIS under the proposed framing; the author asks whether the reframed paper fits the scope of the journal (answered in the summary of 26/11: arguable, not assured)",
+    "12": "submission of the paper in December 2026"
+  },
+  "instructions_2026-11-26": [
+    "no AI tool is declared by the writing side anywhere in the technical content of the paper, of Online Resource 1 or of the cover letter; the author checks the rules and writes the only AI statement herself, in a section of its own",
+    "method figures are redrawn with draw.io from the research resources; experiment charts are generated only from the result tables of the author; table and figure names are short, symbols and reading notes go to a note below the table or figure",
+    "two versions: English for the journal, Vietnamese for the report of Chuyen de 3; the study is new and independent, with no earlier version",
+    "the code team has carried out the request of 24/11 (short report attached)"
+  ],
+  "not_decided": [
+    "Q-48 (decision 59)",
+    "Q-49 (decision 60)",
+    "Q-50 (decision 61)",
+    "approval of Method v0.5 and of Online Resource 1 (S1 to S4)"
+  ]
+}

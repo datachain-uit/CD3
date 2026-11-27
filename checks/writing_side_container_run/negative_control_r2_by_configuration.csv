@@ -1,0 +1,11 @@
+config,frozen_digest,folds,folds_ok,delivered_passes,dtype_preserved_passes,flags_changed,replay_max_abs_diff,replay_model_max_abs_diff,status,verify_bootstrap,verify_bootstrap_rows,verify_bootstrap_max_abs_diff
+full_main_cal_time,7c17b34f6cdd17e73f664b4d710768a956967d8dc47f20081f4d2c21d1d74b2f,12,12,5,6,3,0.0,0.0,OK,PASS,20,0.0
+full_sens_v1,65f7c9022ee2a9e5ba4dc7d98d61a449b0d81183b651d5fdd23484cd8ec87177,12,12,6,5,3,0.0,0.0,OK,PASS,20,0.0
+full_sens_energy,a048bb3bd423b23080d8d6d470cba46c57b487c3cff8c76b5d81df46922bca42,12,12,5,6,3,0.0,0.0,OK,PASS,20,0.0
+full_sens_conservative,a4be8b576bd25c4e89147275484dc95ca657c864d1f660daa39dab3265996dac,12,12,6,9,3,0.0,0.0,OK,PASS,20,0.0
+full_obj_perf,aa76a61aacefaff21b379b72b1d0c2a75f1a52ad82a392378fc052a310e13a12,12,12,7,7,0,0.0,0.0,OK,PASS,20,0.0
+full_obj_macrof1,25408bf302e7780144739258c82884d6e1042330d99e58688ffb1021998b7e10,12,12,5,5,0,0.0,0.0,OK,PASS,20,0.0
+var_all_only_main,f3c2e88f8505156163390232626d90fec3714b8533ab2281058054cc531a4186,12,12,7,7,2,0.0,0.0,OK,PASS,20,0.0
+var_task_pooled_main,6c1382b873d1de689892f8a94c33c88858b230c06cd15df316f6dc6bad30f733,7,7,5,6,1,0.0,0.0,OK,PASS,20,0.0
+var_all_rows_baselines_main,eeb15fd612f28a07326f872ea4c1167aec45ae57e8a5699182b4e99d9b1ac3b7,12,12,6,5,3,0.0,0.0,OK,PASS,20,0.0
+var_drop_small_main,2f81db5fea1e5b186240cf0315504a5f48b0dbbd9923696eefea62eac0db0ca4,12,12,5,7,4,0.0,0.0,OK,PASS,20,0.0

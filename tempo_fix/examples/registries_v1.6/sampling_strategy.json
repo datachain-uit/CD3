@@ -1,0 +1,55 @@
+{
+  "primary": {
+    "sampling_strategy_id": "IR10_K10",
+    "type": "IR_TARGET_WITH_CAP",
+    "ir_target": 10,
+    "max_expansion_per_class": 10,
+    "rule": "n_target_c = min(max(n_c, ceil(n_max / ir_target)), max_expansion_per_class * n_c); majority never undersampled",
+    "decided_on": "2026-09-27",
+    "basis": "Phuong_an_sampling_strategy.docx; tempo_fix.sampling.plan_targets"
+  },
+  "sensitivity": [
+    {
+      "sampling_strategy_id": "IR5_K20",
+      "type": "IR_TARGET_WITH_CAP",
+      "ir_target": 5,
+      "max_expansion_per_class": 20
+    },
+    {
+      "sampling_strategy_id": "IR20_K5",
+      "type": "IR_TARGET_WITH_CAP",
+      "ir_target": 20,
+      "max_expansion_per_class": 5
+    }
+  ],
+  "reference_train_pools": {
+    "CQ": {
+      "W1": {
+        "c0": 1576716,
+        "c1": 19394,
+        "c2": 13166
+      },
+      "source": "[CL §7.5] CQ W1 train (block A), release V1 population 2,684,090"
+    },
+    "LO": {
+      "W1": {
+        "c0": 1782182,
+        "c1": 4720,
+        "c2": 655
+      },
+      "W2": {
+        "c0": 1936554,
+        "c1": 5777,
+        "c2": 1907
+      },
+      "W3": {
+        "c0": 2338176,
+        "c1": 5823,
+        "c2": 1925
+      },
+      "source": "[V3.1 §6.1] LO train pools under lo_final_score_catalog_normalized_v3_1 (c1, c2 identical to V3; c0 smaller by the excluded courses); replaces the June 2026 counts (c0 2,947,015 / c1 8,886 / c2 31,441) used in Phuong_an_sampling_strategy.docx"
+    }
+  },
+  "v3_consequence": "Under LO V3.1 the max_expansion_per_class = 10 cap binds for c1 and c2 in every window: post-sampling IR is 37.8/272.1 (W1), 33.5/101.5 (W2), 40.2/121.5 (W3) for c1/c2 instead of approaching ir_target [V3.1 §6.1]. The reason for the cap (synthetic share <= 90% of a class) is unchanged, so the primary scheme is kept; the consequence table in PLAN §2.3 and the sampling note must be rewritten with these numbers.",
+  "status": "PRIMARY_CONFIRMED 2026-10-01 [V3.1 §6]"
+}

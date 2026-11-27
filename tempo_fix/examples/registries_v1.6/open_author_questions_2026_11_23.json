@@ -1,0 +1,23 @@
+{
+  "answered_2026-11-21_second_pass": {
+    "Q-44": "(a)",
+    "Q-45": "(a)"
+  },
+  "restated_2026-11-23": {
+    "Q-45": "(a)"
+  },
+  "new_questions": "none",
+  "for_the_author_2026-11-23": [
+    "technical confirmation given by the writing side to the code team, open to a veto of the author: the ALL rows of the accepted fact packages are not recomputed, so six metric columns of the ALL rows of the eight F1 units of seed 42 keep the accepted values, which differ from the values the present builder recomputes (largest differences in POST_MATERIALIZE_CHECKS[46]['acceptance_2026-11-23']['report_only_differences']); none of the six is an objective; three of them feed warm-start inputs (FS4, FS5)",
+    "disclosure: a smoke test of the full-design code path was run by the writing side on the rebuilt table after the ten digests had been computed (POST_MATERIALIZE_CHECKS[47]['smoke_test_2026-11-23'])"
+  ],
+  "still_open": [
+    "Q-20",
+    "Q-21",
+    "Q-22",
+    "Q-23",
+    "Q-24",
+    "Q-26"
+  ],
+  "note": "no author question blocks phase C; the table plan T05 / T17 / T18 / F07 of decision 46 (b) is still owed by the writing side"
+}

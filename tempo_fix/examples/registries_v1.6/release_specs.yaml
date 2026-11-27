@@ -1,0 +1,20 @@
+CQ_V2_2:
+  task: CQ
+  input_dir: CQ_v2_2
+  split_version: v2_2
+  phase_version: wide_prefix_v2_2
+  phase_views_dir: phase_views_v2_2
+  test_prefix_views_dir: test_prefix_views_v2_2
+  split_registry_id: split_registry_v2_2_overlap_audit_v1_r2
+  label_rule_version: cq_vector_proximity_v1_zero_activity_policy
+  label_threshold_set: CQ_VECTOR_PROXIMITY_PRIMARY_V1
+LO_V3_1:
+  task: LO
+  input_dir: LO_v3_1
+  split_version: v3_1
+  phase_version: wide_prefix_v3_1
+  phase_views_dir: phase_views_v3_1_scored_signal_excluded
+  test_prefix_views_dir: test_prefix_views_v3_1_scored_signal_excluded
+  split_registry_id: split_registry_v3_1_scored_signal_excluded_overlap_audit_v1
+  label_rule_version: lo_final_score_catalog_normalized_v3_1
+  label_threshold_set: CATALOG_NORMALIZED_PRIMARY_V3_1__EXCLUDE_NO_SCORED_SIGNAL

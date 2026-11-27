@@ -1,0 +1,14 @@
+{
+  "rec_rule_version": "rec_v1.1",
+  "rec_objective": "TEST_ACCTEMPO_M3_DELTA",
+  "rec_eps": 0.005,
+  "secondary_objective": "TEST_MACRO_F1_DELTA",
+  "utility_lambda_grid": [
+    0,
+    0.01,
+    0.02,
+    0.05
+  ],
+  "cost_basis": "ENERGY_IF_MEASURED_ELSE_TIME",
+  "cost_basis_rule": "energy_gpu_run_kwh_ratio when every candidate in the rec_group has a MEASURED value; otherwise time_run_total_s_ratio; never mixed inside a rec_group"
+}

@@ -1,0 +1,80 @@
+v1:
+  s_san_formula_version: s_san_v1_jsd_base2_six_components
+  components:
+  - s_nan
+  - s_maj_jsd
+  - s_ent
+  - s_drift
+  - s_eff
+  - s_leak
+  aggregation: geometric_mean
+  s_eps_floor: 0.001
+  jsd_base: 2
+  s_ent: 1 - min(|median(h_i) - 0.5| / 0.5, 1), h_i normalised entropy
+  s_eff: 'run-level: mean of the dynamic mask channels over the REAL TRAIN tensor
+    of the parent imputation input (model_inputs/train.parquet, pooled P1-P4); synthetic
+    rows of a balanced artifact are excluded (real-row contract, s_eff_definition_version
+    model_input_mask_mean_v1) [DEC §2]'
+  s_leak: 1 - 2*max(AUC_probe - 0.5, 0); probe = multinomial logistic regression on
+    the per-phase mask matrix only; fit once on the REAL TRAIN rows pooled over P1-P4
+    (probe_rows_per_phase 0 = all rows) and reused for every (eval_split, phase) slice;
+    record n_fit, n_eval, eval_split (real-row contract) [DEC §2]
+  s_drift_reference: TRAIN real class distribution before balancing (trpool_class_count)
+  s_maj_jsd_reference: true class distribution of the evaluated slice
+  team_alignment_2026-10-31: LO/registries.py @ df2a867 rewrote its s_eff and s_leak
+    sentences to this real-row contract (s_eff "mean(mask) on unaugmented parent-imputation
+    real TRAIN, pooled P1-P4; inherited by augmented variants"; s_leak "fit once on
+    unaugmented parent-imputation real TRAIN pooled P1-P4; evaluate on real parent
+    evaluation prefix per (eval_split, phase)"); the two registries now agree on both
+    components
+  component_behaviour_2026-11-03: because the mask channels do not depend on the imputer
+    or the balancer, s_nan (= 1), s_eff (0.6635 / 0.6646 / 0.6650 for W1 / W2 / W3)
+    and s_leak (0.019-0.556 by window x split x phase) are identical across V0-V16
+    for a given cell; s_drift and s_maj_jsd move at the third decimal; across pipelines
+    S_san+ v1 therefore moves through s_ent alone (PatchTST V0-V6 TEST means of s_ent
+    0.072-0.326, of S_san+ v1 0.460-0.586) [BAO_CAO_CQ_PATCHTST_V0_V6_2026-11-02,
+    sections 5]
+  component_behaviour_2026-11-09: 'verified on the exports of 09/11: s_nan, s_eff,
+    s_leak and s_leak_probe_auc take one value per (window, split, phase) across the
+    68 family x pipeline rows of the CQ R4 export and of the LO static-v2 export (phase-1
+    facts), across the 10 pipelines of CQ PatchTST V7-V16 and across the 17 pipelines
+    of CQ MANTIS_V2; CQ F2 and F3 equal the R4 probe within 1.2e-5. The LO PatchTST
+    V0-V16 export does NOT: three probe fits coexist (V14 = LO F1 export exactly;
+    V5, V6, V8, V9, V10, V13, V15, V16 from the bundle audits, |diff| <= 1.13e-3;
+    V0-V4, V7, V11, V12 from the re-audit of 09/11, |diff| up to 0.0234 at W3, probe
+    AUC 0.8401 vs 0.8400 vs 0.8402 at W1 TEST P4 with identical probe_fit_rows 7,150,228,
+    n_eval and probe_seed 42), which moves acctempo_m3 by up to 0.0139 and acctempo_m4
+    by up to 0.0163 per cell and changes the LO M4 ordering of the mid-ranked pipelines
+    (decision 38, check 38); the formula itself is reproduced from the exported components
+    to 2.6e-15 (v1), 4.4e-16 (v2), M3 1.7e-16, M4 2.2e-16'
+  component_behaviour_2026-11-10: 'LO r2 (lo_patchtst_v0_v16_full_facts_20261109_r2):
+    s_leak and s_leak_probe_auc equal the LO F1 static-v2 reference in all 408 cells
+    (|diff| 0.0, spread across the 17 pipelines 0.0); exactly six columns changed
+    against the 09/11 package (s_leak 384 cells, max 0.02342; s_leak_probe_auc 384,
+    0.01171; s_san_plus 392, 0.02673; s_san_plus_v2 389, 0.03551; acctempo_m3 390,
+    0.01425; acctempo_m4 387, 0.01658), every other column identical; v1 / v2 / M3
+    / M4 reproduce from the components to 2.7e-15 / 3.3e-16 / 2.2e-16 / 2.2e-16; the
+    TEST M4 order (mean over phases and windows) keeps V7 first and V16 last but moves
+    V6 from 7th to 2nd. The three accepted CQ packages keep their own probe fit: |s_leak
+    - CQ R4 reference| up to 4.98e-5 for PatchTST V0-V6 (126 of 168 rows above 1e-5),
+    1.24e-5 for PatchTST V7-V16 (30 of 240) and 1.24e-5 for MANTIS_V2 (51 of 408);
+    the deterministic probe of ea19afa reproduces the CQ W1/V0 reference to 2.09e-6
+    (team report, environment unrecorded for the F1 fit) -> decision 42 (tolerance
+    and reference-copy contract)'
+v2:
+  s_san_formula_version: s_san_v2_calibration
+  components:
+  - s_nan
+  - s_maj_jsd
+  - s_cal
+  - s_drift
+  - s_eff
+  - s_leak
+  aggregation: geometric_mean
+  s_eps_floor: 0.001
+  s_cal: 1 - ECE_15 (top-label, 15 equal-width bins)
+  calibration_convention_note_2026-11-03: the audit computes s_cal (and NLL / Brier
+    / ECE) with probabilities clipped at 1e-12, the model metrics with 1e-7; the two
+    conventions differ beyond 1e-6 on some ALL cells, so the 03/11 reconciled slice
+    export copies ALL from R4 and recomputes STRICT/OVERLAP with the model convention
+    while the sanity composites keep the audit convention (check 32)

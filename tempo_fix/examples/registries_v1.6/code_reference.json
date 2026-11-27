@@ -1,0 +1,447 @@
+{
+  "repository": "https://github.com/datachain-uit/CD3",
+  "commit": "acd11c1",
+  "review_2026-11-26b": {
+    "checked_on": "2026-11-26 (second pass)",
+    "origin": "origin/main at acd11c1, unchanged since the first pass of 26/11 (110 commits, 858 files)",
+    "public_release_state": [
+      "the repository page is served without sign-in; no licence, no release, no description (read on the page, 26/11)",
+      "the analysis package is not in the repository: no metamodel/ and no tempo_fix/ directory (only the driver tools/subgroups_phaseB/run_metamodel_single_core.py, which runs the package from the hand-off folder); the meta-dataset release and the ten run directories of phase C are on the Drive of the team, not in the repository",
+      "no LICENSE and no CITATION file; largest tracked file 454,589 bytes",
+      "docs/ holds 8 files of internal reports and replies of the team in a public repository; whether they stay public is a decision of the author",
+      "release tables: meta_dataset_seed_agg.parquet 164,712,412 bytes (157.1 MiB), meta_dataset_seed_level.parquet 88,784,875 bytes (84.7 MiB); warning above 50 MiB, files above 100 MiB blocked in a regular repository (GitHub Docs, About large files on GitHub, read 26/11)"
+    ],
+    "asked_of_the_team": "request of 26/11 (second pass), part C: commit of metamodel 0.3.1 and tempo_fix, release assets, review before publication; licence, tag and the fate of docs/ wait for the author"
+  },
+  "review_2026-11-26": {
+    "checked_on": "2026-11-26",
+    "origin": "origin/main at acd11c1ec6671105675e33720cfbddf5dc3e7a14 (commit of 2026-11-24T18:36:53+07:00); 1 commit since ecad59d: 3 files changed, 123 insertions(+)",
+    "verdict": "the commit adds the three scripts of phase C asked for on 24/11 under tools/subgroups_phaseB/ (run_phasec_r2_controller_20261123.py, finalize_phasec_r2_20261124.py, verify_phasec_parts_20261124.py); nothing else changes; static reading, nothing of the repository was run",
+    "notes": [
+      "driver (tools/subgroups_phaseB/run_phasec_r2_controller_20261123.py, sha256 of the repository version 2386e986380b...): it checks the hand-off tree and the ten digests before the first run and writes the line 'PREFLIGHT PASS' found in progress.log of the delivery, sets the thread variables of the numerical libraries to 1 and launches each configuration through run_metamodel_single_core.py; this closes the item 'driver of phase C not in the repository' of 24/11",
+      "the reply of the team of 24/11 states that the versions of the three scripts that were run are not byte-identical to the committed ones and gives their sha256; the configurations run are identified by their digests, as before, and not by the driver",
+      "the script of the dtype-preserved negative control (code/mq08_dtype_preserved_12fold_20261124.py of the evidence folder) is not in the repository"
+    ]
+  },
+  "commits_reviewed_2026-11-26": [
+    "acd11c1 (2026-11-24 18:36) Add phase C execution and delivery tooling"
+  ],
+  "resolved_since_2026-11-24": [
+    "the driver of phase C, the QA and packaging script and the verification script of the split files are in origin/main at acd11c1"
+  ],
+  "not_in_repository_2026-11-26": [
+    "the script of the dtype-preserved negative control and the table of its 115 folds over the ten configurations (evidence of the MQ08 finding of 24/11)"
+  ],
+  "review_2026-11-24": {
+    "checked_on": "2026-11-24",
+    "origin": "origin/main at ecad59d7ea81bf2f21fb8ad00954409ac93b5f92 (commit of 2026-11-23 17:30:33 +0700); 6 commits since fc361b6: 24 files changed, 1831 insertions(+), 51 deletions(-)",
+    "verdict": "the commits add tools and one reply document: 24 files (docs/ 2, tools/ 22); no file under model/, metrics_core/, f3_mantis/, imputation_core/, augmentation_core/, tempo_core/, release_core/, tests/, CQ/, LO/ or modal_jobs/; the 22 Python files changed compile; static reading, nothing of the repository was run; no test was added",
+    "notes": [
+      "builder of the 36 unit packages of phase B (tools/subgroups_phaseB/build_subgroup_facts.py): the sha256 recorded in 27 summary.json (249132bbd023...) is the file at commits e0da303 and e182a6f; these summaries name repo_commit d19fb122b795, at which the file still has the sha256 of fc361b6 (a8d0e7f2c853...): the 27 units were produced by a working copy that was committed afterwards, so they are traced by the sha256 of the file and not by the commit they name; the sha256 recorded in the 9 summaries of seed 42 (c3da76a6973f...) is the file at b13e1b9 and ecad59d",
+      "difference between the two builder versions (e182a6f -> b13e1b9; 1 file changed, 38 insertions(+), 2 deletions(-)): legacy_cols() added and used only when the accepted facts carry the older column names (LEGACY = 'f1_macro' in the fact columns); REPORT_ONLY widened from two to six metrics; COPY_COLS extended by the probe_* / s_leak* / calibration_bins columns present in the facts; the ALL-row check extended to array columns; metric_row() unchanged; the computed values of the 27 units do not depend on it, so the fifth builder amendment asked on 21/11 (one builder commit for the 36 units) is closed without regenerating a unit",
+      "the three copies delivered in code_provenance/ on 23/11 against the repository: infer_s0_hour_histogram_bins.py identical; assemble_release_5subgroups_20261122.py (3 lines replaced by 3) and compute_s0_v5_eval_jsd.py (1 by 2) differ only in lines where a machine path is replaced by an environment variable",
+      "S0 profile v5 and its dtype-fixed re-issue: tools/subgroups_phaseB/assemble_s0_v5.py (the dtype of every column is set to that of the v4 reference before writing; output folder taken from the first argument); the six compute_s0_v5_eval_*.py, infer_s0_hour_histogram_bins.py, preflight_s0_v5.py, check_s0_jsd_hour_parity.py and verify_s0_v5_subgroup_packages.py are present",
+      "B.5: tools/subgroups_phaseB/run_b5_then_phasec.py (release id from TEMPO_5SUBGROUP_RELEASE_ID, TEMPO_B5_ONLY=1 stops after B.5; its phase C branch reads the r1 file phaseC_frozen_configurations.json and writes other log lines than the delivered progress.log); run_metamodel_single_core.py and prepare_b5_dtype_diagnostic.py are present; A.9: tools/m15_3seed/verify_m18_vs_facts_seed44.py is present",
+      "mm_run_registry.code_commit of the ten runs of phase C is ecad59d7ea81bf2f21fb8ad00954409ac93b5f92, the head of origin/main",
+      "two commits of 21/11 (f4e6de5, d19fb12) change the reply document of 21/11 (docs/21112026/PHAN_HOI_YEU_CAU_20-11_BAN2_2026-11-21.docx; docs/21112026/PHAN_HOI_YEU_CAU_20-11_BAN2_2026-11-21.md); by their subjects section 11 describes the exploratory per-task run without its regret or hypothesis results and A.3 copies tables of the three-seed report; the writing side did not open that document in this round"
+    ]
+  },
+  "commits_reviewed_2026-11-24": [
+    "f4e6de5 (2026-11-21 08:38) Reply 20/11 (version 2): section 11 now describes the exploratory per-task E1 run (method, completion table, location) without its regret or hypothesis results",
+    "d19fb12 (2026-11-21 08:40) Reply 20/11 (version 2), A.3: results of the re-run (regret tables and H1-H8) copied from the three-seed report",
+    "e0da303 (2026-11-22 08:34) Phase B: builder with per-file salt detection and all-column ALL check, unit runner with source ranking, finish_unit, driver; extras (end-date spread, 48-row cr",
+    "e182a6f (2026-11-22 08:34) Phase B: temp folder of the unit runner taken from the work root (no machine-specific path)",
+    "b13e1b9 (2026-11-22 08:40) Phase B builder: columns of the older fact schema (accuracy, f1_weighted, per_class_*, roc_auc_macro_ovr, strict shares) recomputed on each slice for the R4 and",
+    "ecad59d (2026-11-23 17:30) Add phase B subgroup release and verification tools"
+  ],
+  "not_in_repository_2026-11-24": [
+    "the driver that launched the ten runs of phase C on release r2: progress.log carries the lines 'PREFLIGHT PASS: ten approved digests and metamodel tree verified', 'BATCH START PRIMARY', 'BATCH PASS VARIANTS' and 'PHASE_C_ALL_COMPLETE; packaging and QA required', which neither run_phaseC_r2.sh of the hand-off of 23/11 nor tools/subgroups_phaseB/run_b5_then_phasec.py writes; the configurations run are identified by their digests (--expect-digest values equal to the frozen ones), not by the driver",
+    "the script that wrote qa_phaseC_20261124.json (status PASS_STRUCTURAL)",
+    "the script that split the 28 CSV files above 10 MB into 74 parts (large_file_parts/parts_manifest.json)"
+  ],
+  "resolved_since_2026-11-23": [
+    "the local history is pushed: d19fb122b795 and b13e1b963092 exist in origin and both builder versions are found by their sha256",
+    "the scripts of the S0 profile v5, of its dtype fix and of the 240-row assembly",
+    "assemble_release_5subgroups_20261122.py and the driver of B.5 with the two diagnostic runs",
+    "tools/m15_3seed/verify_m18_vs_facts_seed44.py"
+  ],
+  "review_2026-11-23": {
+    "checked_on": "2026-11-23",
+    "origin": "git ls-remote origin lists HEAD and refs/heads/main only, both at fc361b651208102796c6d4b80a9fd7170d2c1632 (commit of 2026-11-21 08:35:30 +0700); no commit, branch or tag has been pushed since the review of 21/11, although the request of 23/11 states that the code changes are on GitHub",
+    "not_in_repository": [
+      "the two versions of tools/subgroups_phaseB/build_subgroup_facts.py that produced the 36 unit packages of phase B: sha256 249132bbd023... (27 units, local commit d19fb122b795) and c3da76a6973f... (9 units of seed 42, local commit b13e1b963092); the file at origin/main has sha256 a8d0e7f2c853...; neither local commit exists in origin",
+      "build_seen_flags.py and build_support_table.py at origin/main carry the sha256 recorded in the 36 summary.json files (unchanged since 21/11)",
+      "the builder of the S0 profile v5 and its dtype-fixed re-issue (evaluation-slice tables eval_time, eval_masks, eval_zero, eval_overlap, eval_psi, eval_jsd and the 240-row table) is not delivered; three scripts are delivered as copies in the Drive folder code_provenance/ only: assemble_release_5subgroups_20261122.py, compute_s0_v5_eval_jsd.py, infer_s0_hour_histogram_bins.py",
+      "the driver of the six ALL-only runs of step B.5 and of the two diagnostic runs is not delivered; mm_run_registry.code_commit of B.5 r2 is b13e1b963092be5d0ca68118f178632473e2f31c, a commit that is not in origin"
+    ],
+    "delivered_copies_read_by_the_writing_side": [
+      "assemble_release_5subgroups_20261122.py: runs `metamodel.cli assemble` of the hand-off of 21/11 once per task (accepted fact packages plus the 18 unit tables of the task, resources, S0 profile, model context, F0 for CQ) with --require-subgroups and --compare-all-with, stops on a non-zero exit code or on subgroup_report.ok false, concatenates the two child tables, writes list-valued object columns as JSON text, splits the seed-level table into 30 parts (task x subgroup x seed) and checks that the parts rebuild it exactly; the release id is restricted to ..._5subgroups_r1 and ..._5subgroups_r2",
+      "compute_s0_v5_eval_jsd.py: TRAIN-versus-evaluation Jensen-Shannon divergence per feature on the histogram bins stored in the S0 distribution sketch, by subgroup, mean over features; refuses to write unless the ALL slice reproduces v4 within 1e-10",
+      "infer_s0_hour_histogram_bins.py: mapping hour -> bin of most_common_hour_sin found by integer programming from the eight stored ALL histograms of a task and window (4 phases x VALIDATION / TEST), candidates restricted to the bins of the sine value and of its three floating-point neighbours on each side; an hour that is observed and admits a second exact solution makes the script stop; the mapping is a function of the hour only, and a subgroup is a subset of the ALL population, so the subgroup histograms follow from it"
+    ],
+    "asked_2026-11-23": "push the local history (at least the commits d19fb122b795 and b13e1b963092 and the scripts listed above) to origin/main; the writing side then compares the two builder versions and the three delivered copies with the repository"
+  },
+  "commits_reviewed_2026-11-21": [
+    "8494886 (21/11 08:26) review of 20/11, version 2: the scripts missing from the repository (phaseB_orch.py, the two Mantis CQ seed-44 launchers, the M-18 repair scripts, the three-seed M-15 scripts run_local_all_1t.sh / m15_run_logged.py / run_six_mm026.sh / run_e1_per_task.sh, scan_release_ids.py, verify_err_tars.py, the assemble energy-fix patch of release 20261120, the n_jobs=1 patch of the other session, the report builders, combine_meta_release_3seed_mm026.py), the phase B builders (tools/subgroups_phaseB: build_seen_flags.py, build_support_table.py, build_subgroup_facts.py, build_pred_catalog.py, scan_predictions.py) and the reply of 21/11 (docs/21112026); machine paths replaced by environment variables",
+    "f6cefe7 (21/11 08:30) build_energy_proposal_seed44.py rebuilt from the method description of the delivered folder (the original script is lost); reproduces the delivered CSV to within 0.001 kWh",
+    "35e806e (21/11 08:32) reply of 21/11, item A.7.7 rewritten",
+    "fc361b6 (21/11 08:35) three-seed report of 20/11: M-15 and meta-dataset sections updated to the metamodel 0.2.6 release and re-run (docs/20112026 with 13 tables)"
+  ],
+  "review_2026-11-21": {
+    "verdict": "the four commits add scripts, builders and documents only: 42 files, all under tools/ and docs/; model/, metrics_core/, f3_mantis/, imputation_core/, augmentation_core/ and tests/ are unchanged since 6274591; every new Python file compiles; no test was added",
+    "notes": [
+      "the eight items listed as not in the repository on 20/11 are present; item 7 (energy proposal of seed 44) is a rebuilt script that reproduces the delivered values to within 0.001 kWh, the original being lost",
+      "tools/m15_3seed/m15_run_logged.py wraps metamodel.experiment._learner_cell and _negative_control to print progress and returns their results unchanged; the five configurations that do not use energy reproduce the earlier pc_one_thread set exactly, which is the evidence that the wrapper changes nothing; metamodel 0.3.0 has `run --progress`, so the wrapper is not needed any more",
+      "tools/subgroups_phaseB/build_seen_flags.py implements seen_v1_train_partition_only on the TRAIN partition of the window with the cutoff of the phase view; offering_end_date is derived per enrollment as enroll_time + (cutoff_time_P4 - enroll_time) / 0.90, and the phases P1-P3 give the same date to within 3 s; one CQ offering of 3,309 and one LO offering of 2,169 have an end-date spread above 60 s",
+      "tools/subgroups_phaseB/build_subgroup_facts.py recomputes the ALL row of every (run, split, phase) and compares it with the accepted facts on eight columns (macro_f1, s_perf, s_san_plus_v2, s_drift, s_nan, s_maj_jsd, s_cal, acctempo_m3); log_loss, brier and the per-class columns are outside that self-check",
+      "the copies of the three builders in the pilot folder on Drive differ from the committed files only in the paths (absolute machine paths against environment variables)",
+      "tools/m15_3seed/run_e1_per_task.sh is the script of the exploratory per-task run declared by the team (GRID_POLICY['execution_status_2026-11-21']['exploratory_run'])"
+    ],
+    "open": [
+      "scan output of the M-08 ledger (per manifest: path, data_release_id, class) is not in the repository or on Drive; the confirmation of item A.8 is a statement of the reply",
+      "output of verify_err_tars.py (two truncated archives) is not delivered as a file",
+      "cell-by-cell reconciliation of the six seed-44 fact packages with the archives used to build M-18: not done (stated by the team)",
+      "pip freeze of the Linux host 17429 is lost (machine deleted); only the Python version survives in m15_progress_17429.log"
+    ]
+  },
+  "subgroup_tooling_2026-11-20b": {
+    "reviewed_for": "what the repository at 6274591 holds for the five mandatory subgroups (decision 51 (b)); static reading, nothing was run",
+    "findings": [
+      "tools/vastai_audit_shared.py _slice_rows computes the slices ALL, STRICT and OVERLAP of every run, split and phase from predictions/{validation|test}_{phase}.parquet (y_true, prob_c0, prob_c1, prob_c2, temporal_strict_{phase}) with metrics_core.evaluation.classification_metrics; s_eff is the value of the run and s_leak the canonical value of the (window, parent pipeline, split, phase) cell, passed in unchanged for every slice; STRICT + OVERLAP = ALL is asserted on the confusion matrices",
+      "tools/audit_prediction_course_cohort.py joins the predictions to course_id through the private prediction salt and writes the joint slices SEEN_COURSE / UNSEEN_COURSE x STRICT / OVERLAP with n_eval, macro_f1, balanced_accuracy and the class supports (96 rows per pipeline); SEEN_COURSE = the course_id occurs in the real parent TRAIN of the window, without the cutoff condition of Table 10",
+      "no LEARNER slice, no marginal COURSE slice with the full metric set, no S0 profile row and no F0 row by subgroup, and no job for the five mandatory subgroups (Appendix D of the Meta-Dataset-Report lists 'subgroup with STRICT/OVERLAP' among the five R4 jobs due before the result tables)"
+    ],
+    "consequence": "the subgroup facts are an extension of _slice_rows with four masks built from seen flags; the flags need user_id and course_id of every evaluated enrollment, its cutoff at each phase and the TRAIN partition of the window; nothing is trained and no inference is run"
+  },
+  "commits_reviewed_2026-11-20": [
+    "7c24981 (19/11) seed 43/44 facts pipeline: build_facts_package_mantis_lo_20261109.py gains --seed, --kind patchtst, --task, --model and writes the seed into the README title; vastai_audit_shared.py gains --skip-probe-refit (canonical_s_leak built straight from the reference table, probe_seed = 42 = seed of the reference fit, s_leak_source = REFERENCE_TABLE_COPY_NO_REFIT); build_sleak_reference_seed_20261115.py; Mantis runner-evidence builders for seed 43 (--task, --inventory) and seed 44; build_seed43_receipts_20261116.py; tools/seed43_44_pipeline/ (24 scripts: audit, facts, finalize, M-18, orchestration)",
+    "11941f1 (19/11) build_seed44_receipts_20261119.py (delivery + L2 ingest), fix44_packages_v2.py (README title, single r2 section, probe_seed = 42, builder commit recorded; the verified originals kept in fact_exports_superseded_20261119), m44_build_m18.py, resync_staging44.sh",
+    "6274591 (20/11) machine-specific absolute paths replaced by environment variables (tools/seed43_44_pipeline/tempo_paths.py, hosts.example.json); combine_meta_release_3seed_20261119.py and _20261120.py (row-wise concatenation of the CQ and LO child releases, merged column dictionary, manifest with the sha256 of every input, RUN_LOG, sha256sums)"
+  ],
+  "review_2026-11-20": {
+    "verdict": "the three commits (19-20/11) carry the tooling asked for on 16/11 (item 1): the six seed-43 and the six seed-44 facts packages can now be rebuilt from the repository apart from the files listed in not_in_repository_2026-11-20; every change is under tools/ (36 files, +3,275 lines); model/, metrics_core/, imputation_core/, augmentation_core/, tempo_core/, release_core/, f3_mantis/, tests/, CQ/, LO/, modal_jobs/ and config/ have the same tree hash as at cb575df, so the training core is untouched; static review, no test of the repository was run; no test was added",
+    "notes": [
+      "the seed-44 cells were trained with the runner at 5ba9829 (F1 and PatchTST, commit written at run time) and audited with --s-leak-source copy-reference --skip-probe-refit: s_leak equals the registered reference exactly (check 44)",
+      "the builder commit recorded in the seed-44 packages (7c24981) was made after the packages were built (created 18-19/11, commit 19/11 08:56 UTC) and written in afterwards by fix44_packages_v2.py",
+      "the M-18 scripts shipped inside m18_training_history_seed44_20261119 on the Drive are the _repair variants (absolute Windows paths, an expected-cell assertion, a different rule for truncated archives); they differ from tools/seed43_44_pipeline/m44_stream.py and m44_build_m18.py",
+      "LO/registries.py still says REGISTRY_REVISION = registries_rev_2026-11-10_d18_mantis_clean; the meta-release manifest records the reference export registries_rev_2026-11-16 (sha256 96b5c1e4...) as asked"
+    ]
+  },
+  "not_in_repository_2026-11-20": [
+    "phaseB_orch.py (imported by tools/seed43_44_pipeline/cq_workers44.py and lo_workers44.py, which therefore cannot be imported from origin/main)",
+    "cq44_mantis_parent.sh and cq44_mantis_child.sh (host-side scripts called by cq_workers44.py)",
+    "report_aggregate_3seed.py (named in the 20/11 report as the source of every table of its sections 2 and 3.2)",
+    "run_assemble_3seed.sh (named in the RUN_LOG of the three-seed release)",
+    "the locally patched metamodel/assemble.py used for the LO half of release 20261120 (the RUN_LOG says 'copy in this package'; the Drive folder holds no copy; builder_version still reads metamodel 0.2.4)",
+    "the launch scripts of the three-seed M-15 runs (one process per configuration, thread caps by environment variables) and the n_jobs=1 patch of the other session named in PROVENANCE.txt",
+    "the script behind energy_proposal_seed44_20261119",
+    "m44_stream_repair.py and m44_build_m18_repair.py (shipped in the M-18 seed-44 package only)"
+  ],
+  "resolved_since_2026-11-16": [
+    "the five uncommitted tools of 16/11 (--skip-probe-refit, build_sleak_reference_seed_20261115.py, --seed/--kind patchtst/--model, --task/--inventory, m43_stream.py and m43_build_m18.py) are in 7c24981",
+    "README title and probe_seed corrected from the seed-44 packages on (seed 43 documented in seed43_package_notes_20261120, no re-export)"
+  ],
+  "commits_reviewed_2026-11-16": [
+    "2152d49 request 2026-11-13 items 1.1/1.2: vastai_audit_shared.py --s-leak-source copy-reference (default) copies the registered s_leak into canonical_s_leak (s_leak_probe_auc = 1 - s_leak/2), keeps the refit as s_leak_refit* diagnostics, records probe_mode and probe_threads in the audit manifest; probe_environment() lists the thread pools again; vastai_run_f1_grid_20261110.sh exits 2 without S_LEAK_REFERENCE; Q-32 labels in the L2 ingest receipts; test tests/test_audit_s_leak_copy_reference_20261113.py",
+    "3eb7bc0 M-15 full42 packaging tool; receipts include the full42 and p1 packages",
+    "293c43a Q-28 wording: ratified by the author on 2026-11-13 in the builders; receipts rebuilt",
+    "f9dd908 probe reproduction check: tolerance 1e-3 (check 41, Q-31 a) and the probe mode of each run in the report",
+    "cb575df reply to the 13/11 request (batch 28): docs/13112026/PHAN_HOI_YEU_CAU_13-11_2026-11-13.md + .docx"
+  ],
+  "review_2026-11-16": {
+    "verdict": "the five commits (all of 13/11) implement items 1.1 and 1.2 of the 13/11 request and the Q-28/Q-31/Q-32 wording; no commit touches the training core; static review, no test of the repository was run; the seed-43 runs were trained with the runner at 5ba9829 (10/11) and audited afterwards with the 2152d49 audit in COPY_REFERENCE mode",
+    "notes": [
+      "apply_reference_s_leak() recomputes S_san+ v1/v2, M3 and M4 from the copied s_leak (verified on the exported facts: formulas reproduce to 1.2e-15)",
+      "the facts of the seed-43 packages carry probe_seed = 43 although the probe was not refit (probe_fit_rows_source = REFERENCE_PROBE_FIT_SEED42_SAME_REAL_DATA): documentation inconsistency, no numeric effect",
+      "the 15-16/11 tooling (build_sleak_reference_seed_20261115.py, --skip-probe-refit, --seed/--kind patchtst/--model of build_facts_package_mantis_lo_20261109.py, --task/--inventory of build_mantis_seed43_runner_evidence_20261112.py, m43_stream.py, m43_build_m18.py) is not committed: the six seed-43 packages cannot be rebuilt from origin/main"
+    ]
+  },
+  "uncommitted_tools_2026-11-16": [
+    "tools/vastai_audit_shared.py --skip-probe-refit",
+    "tools/build_sleak_reference_seed_20261115.py",
+    "tools/build_facts_package_mantis_lo_20261109.py --seed/--kind patchtst/--model",
+    "tools/build_mantis_seed43_runner_evidence_20261112.py --task/--inventory",
+    "m43_stream.py and m43_build_m18.py (shipped inside m18_training_history_seed43_20261116 on the Drive)"
+  ],
+  "commits_reviewed_2026-11-13": [
+    "18d00fe tools/vastai_run_s2_augmentation.py: one S2 cell outside Modal; run_augmentation taken from modal_jobs/augmentation_app.py by AST (not re-implemented); environment sidecar; resource_summary keeps the values hard-coded in the Modal runner",
+    "5ba9829 tools/recompute_cq_sleak_20261110.py: decision 42 option (a) applied to the three CQ packages (s_leak copied from the reference, four columns recomputed, r2_changes.csv); wording of pending author decisions",
+    "238c7d4 tools/build_s2_sampling_artefacts_20261110.py: plan, run summary, ledger inventory, kappa_reached and Radius fallback of one master seed from the 72 run manifests",
+    "d735cea tools/vastai_run_f1_grid_20261110.sh: F1 grid of one task and seed; vastai_train_shared.py writes runner_git_commit at run time; the family audit passes --s-leak-reference only when S_LEAK_REFERENCE is set and never --s-leak-tolerance (default 1e-9) while the audit probe is single-threaded",
+    "fcabc19 LO Mantis: mantis_standardize_runs_20261110.py, run_lo_mantis_audit_pipeline_20261110.py (--s-leak-tolerance default 1e-3), build_facts_package --kind lo_mantis",
+    "78b4100 metrics_core/evaluation.py probe_environment(): thread-pool listing dropped, library versions and platform kept; test updated",
+    "af59411 tools/compare_pilot_det_20261109.py: cache manifest.json (created_at_utc) excluded from the determinism claim, exclusions listed",
+    "2b17334 request 2026-11-10 items 4.1-4.3: ratification wording in builders and evidence, C3 script writes the v0_cells dict and counts hosts from data, REGISTRY_REVISION = registries_rev_2026-11-10_d18_mantis_clean",
+    "46a04ef tools/build_delivery_receipts_20261112.py and the reply of 12/11",
+    "8eada42 reply 12/11: default (multi-thread) probe mode and the deterministic-mode differences",
+    "f4310ca tools/build_mantis_seed43_runner_evidence_20261112.py (Mantis CQ seed-43 cells carry no runner commit: retroactive mapping again) and verify_mantis_zstd_cache_fixed_20261108.py",
+    "3b09db3 tools/build_m15_package_20261113.py (RUN_LOG, pip freeze, sha256sums, supported lists)",
+    "e2583c5 reply 12/11: M-15 p1 delivered; proposal on library versions",
+    "a777ee1 tools/build_l2_ingest_receipts_20261113.py: placement, byte identity and checkable ingest conditions of nine packages",
+    "7cad8b1 reply to the 10/11 request as .docx (status 13/11), sha256 da42b927...5f01"
+  ],
+  "review_2026-11-13": {
+    "verdict": "the fifteen commits are tooling and records; no commit changes the training core; items 4.1-4.3 of the 10/11 request are closed (static review, no test of the repository was run)",
+    "notes": [
+      "F1 grid audit: single-thread probe + default tolerance 1e-9 against a reference produced in the default multi-thread mode (team report: single-thread differs by 2.1e-5 at CQ W1 and up to 9.6e-4 at LO W2) -> assert_s_leak_matches_reference stops the audit before the facts are written; the LO Mantis pipeline already had to use 1e-3",
+      "probe_environment() no longer records the thread pools although the thread mode is what moves the probe",
+      "Mantis CQ seed-43 cells were run from a code tar without a run-time commit, against the phase-2 gate stated on 2026-11-10",
+      "S2 outside Modal keeps the Modal hard-coded resource fields: S2 cost of seeds 43/44 is not comparable with seed 42 until the real host is recorded",
+      "the reply of 10/11 (2.09e-6, thread independent) and the probe README of 12/11 (2.1e-5 single thread, 0.0 multi-thread) disagree"
+    ]
+  },
+  "team_registry_revision_2026-11-13": "registries_rev_2026-11-10_d18_mantis_clean in LO/registries.py @ 7cad8b1 (2b17334); export registry_export_repo_20261110 on the Drive, not compared",
+  "not_copied_2026-11-13": "the Drive is not reachable from the writing-side machines in this session; only six mm_hypotheses.csv were rebuilt and hash-matched; see input/results/_pending_drive_packages_2026-11-13.json",
+  "commit_subject": "Add phase C execution and delivery tooling",
+  "commit_full": "acd11c1ec6671105675e33720cfbddf5dc3e7a14",
+  "checked_on": "2026-11-26",
+  "previous_reference": "ecad59d (checked 2026-11-24)",
+  "previous_reference_2026-11-24": "fc361b6 (checked 2026-11-21, unchanged on 2026-11-23)",
+  "previous_reference_2026-11-21": "6274591 (checked 2026-11-20)",
+  "previous_reference_2026-11-20": "cb575df (checked 2026-11-16)",
+  "previous_reference_2026-11-16": "7cad8b1 (checked 2026-11-13)",
+  "previous_reference_2026-11-13": "193b584 (checked 2026-11-10)",
+  "previous_reference_2026-11-10": "421dbcd (checked 2026-11-09)",
+  "previous_reference_2026-11-09": "5872cac (checked 2026-11-03)",
+  "previous_reference_2026-11-03": "3bdb8b6 (checked 2026-10-31)",
+  "team_registry_revision_2026-11-10": "registries_rev_2026-11-08_d32_mantis_local (string unchanged) in LO/registries.py @ 193b584 (8cf8b9b): METRIC_DEF v1_3_change_2026-10-24 now carries the D-18 objective mapping (PAPER_COMPOSITE_CAL = acctempo_m4 primary, v1 sensitivity) with acctempo_m4_export_note_2026-10-23; MANTIS_V2 row without max_seq_len / patch_len / patch_stride, with licence (Apache-2.0), pretraining_data (synthetic CauKer, 2 million series) and references; tests/test_registry_release_alignment.py asserts the mapping (test_metric_def_maps_the_paper_objectives_d18)",
+  "commits_reviewed_2026-11-10": [
+    "8cf8b9b (10/11, D2/D4/E1/E3): tests/test_adapter_store.py, test_encoder.py, test_probe_cell.py, test_spec.py (the 34 f3_mantis package tests) + conftest.py; tests/test_dedup_zstd_store.py (6 tests: per-entry identity fields, lossless round-trip, hash check on open, ensure/reusable unchanged); LO/registries.py as above; CQ/Feature_extraction/labels/README.md ACELO provenance note (production rule with_comment; the builder in the repository drops comments and does not reproduce 30,231 rows, 0.95 %; the artefact is the source of truth)",
+    "8c3fd80 (10/11, B/C1/D1): tools/combine_meta_release_p1_20261109.py (row-wise concatenation of the CQ and LO child releases, union of columns, merged column dictionary, manifest with the sha256 of every input, f2_scope and s0_profile strings, known_qa_note), tools/check_meta_release_acceptance_20261109.py (seeds, partial rows, row counts vs input fact rows, QA rates, imputer-only ref N10, F0 columns, FS1-FS3 leakage checks MQ01/MQ06/MQ10, required S0 columns non-null, feature_regime non-null, row status), tools/recompute_lo_patchtst_sleak_r2_20261109.py (s_leak and s_leak_probe_auc copied from the canonical 24-value table of the LO F1 static-v2 export; s_san_plus, s_san_plus_v2, acctempo_m3, acctempo_m4 recomputed; formula reproduction <= 1e-9 asserted before the replacement; r2_changes.csv with old/new/diff per cell; new sha256sums), tools/compare_pilot_det_20261109.py and tools/ops_20261109/pilot_det.sh (determinism pilot: two fresh cache roots, per-class sha256 comparison, cell record and library versions), tools/compare_repro_runs_20261109.py, tools/build_m13_s0_v4_20261109.py (S0 v4), tools/build_d3_mantis_facts_zm_20261109.py (Z_M v2), tools/verify_facts_of_record_20261109.py (rclone copy of the 198 listed files, sha256 and bytes compared), tools/ops_20261109/lo_mantis_child.sh",
+    "ea19afa (10/11, C2): metrics_core/evaluation.py PROBE_CONFIG (lbfgs, C 1.0, tol 1e-4, max_iter 500), fit_missingness_probe(..., deterministic=True) under threadpool_limits(1), probe_environment() (python, numpy, scipy, scikit-learn, threadpools); tools/vastai_audit_shared.py --s-leak-reference, --s-leak-tolerance (default 1e-9), --no-s-leak-reference, assert_s_leak_matches_reference (RuntimeError \"not reproducible\" / \"lacks cells\"), manifest blocks probe_config, probe_environment, s_leak_check; tests/test_leak_probe_determinism.py (4 tests: bitwise repeatability under 1/2/4 ambient threads, registered parameters, environment record, reference assertion accepts/rejects)",
+    "ba5c1c6 (10/11, C3): tools/build_c3_runner_commit_inventory_20261109.py (LO: host code directory lo_patchtst_seed42_code, 38 files compared with the repository history after CRLF/LF normalisation, 37 equal to the tree, check_gpu.py not in the repository, earliest matching commit recorded; Mantis: runner blob sha256 2cc8e3f8... found in the history; V0 cells NULL; source_inventory.json per package; README revision r2b; sha256sums rewritten), tools/build_delivery_receipts_20261109.py (per file: bytes, sha256 re-checked against sha256sums.txt, local MD5 and Drive MD5; status DELIVERED_AND_BYTE_VERIFIED_NOT_L2_INGESTED), (verify_facts_of_record_20261109.py is in 8c3fd80)",
+    "f478b23 (10/11, C2 on real data): tools/check_leak_probe_reproduction_20261109.py (two deterministic runs and one default multi-thread run of the canonical s_leak computation of one window/parent, compared with the reference table; environment and platform recorded in the report)",
+    "193b584 (10/11): tools/ops_20261109/lo_mantis_child.sh skips a child assigned to another host (skip_<V>_<W> marker); operational only"
+  ],
+  "review_2026-11-10": {
+    "verdict": "the six commits implement C1, C2, C3, D2, D3, D4, E1, E3 of the 09/11 request as specified; static review only (the environment does not run the team repository)",
+    "notes": [
+      "build_c3_runner_commit_inventory writes v0_cells as a string, but the delivered runner_commit_evidence.json of the Mantis r2 package carries a v0_cells dict with \"author decision 2026-11-10\" and indirect evidence: the delivered file is not byte-reproducible from the committed script, and the author has not decided (decision 43)",
+      "build_m13_s0_v4 and combine_meta_release_p1 label Q-28 and Q-30 as \"author decision 2026-11-09\": the writing-side recommendations were applied before the author answered (decisions 39, 41)",
+      "check_leak_probe_reproduction: the CQ W1/V0 report cited in the response (6,437,104 probe rows, 43 iterations, bitwise repeatable, thread-independent, max |diff| vs the F1 reference 2.09e-6) is not on the Drive; LO not run (RAM)",
+      "hosts_with_identical_37_file_set: 12 is a literal in the inventory script, not a computed value",
+      "the W1/V0 determinism-pilot reports (CQ and LO) and the bench output of check 37 (c)/(d) cited in the response are not on the Drive; only repro_V2_W2_seed42_20261109 (CQ V2 W2, bit-identical) is"
+    ]
+  },
+  "team_registry_revision_2026-11-09": "registries_rev_2026-11-08_d32_mantis_local (LO/registries.py @ 421dbcd)",
+  "commits_reviewed_2026-11-09": [
+    "cfcfd40 (09/11: LO/registries.py: EXPERIMENT_SEEDS augmentation_policy FIXED_SEED_42 -> MATCH_MASTER_SEED (\"use the S2 balanced TRAIN artifact whose augmentation seed matches the model master seed\"), decision 9 rewritten \"CLOSED updated 2026-11-04 D-32\", status \"LOCKED D-32 2026-11-04\"; MODEL_REGISTRY: MOMENT rows moved to RETIRED_MODEL_ROWS, MANTIS_V2 row (pinned revision, library, PCA8 adapter, guard, cache levels, strict weight loading; carries max_seq_len 4 / patch_len 16 / patch_stride 16 copied from the PatchTST update loop); TEMPORAL_FAMILY_POLICY F3_MANTIS_V2 (13 core + 4 sensitivity pipelines, master seeds 42/43/44, requires cache, determinism pilot and cost pilot of check 37); model/metrics.py calibration_metrics clips at 1e-12 in float64 and renormalises (METRIC_DEF v1.3, M-16; historical facts keep their provenance); model/architectures.py and model/config.py register mantis_v2; modal_jobs/model_app.py and model_preflight_app.py: augmentation_seed default -1 = follow the run seed, negative values rejected; tools/vastai_audit_shared.py --include-static-ablation; tests: test_probability_clip_contract.py, test_registry_release_alignment.py asserts MATCH_MASTER_SEED and that the MANTIS_V2 row equals f3_mantis/spec.py)",
+    "6a69b7f (09/11: f3_mantis/ package (adapter, cell, cli, determinism, encoder, metrics, probe, spec, store) byte-identical to the writing-side f3_mantis_v0.1.0_2026-11-06 (sha256 of all 10 files equal); the 34 package tests (tests/test_adapter_store.py, test_encoder.py, test_probe_cell.py, test_spec.py) are NOT in the repository; CQ/LO mantis_v2 configs; tools/run_mantis_grid_zstd_20261109.py (task CQ|LO) and run_mantis_cq_grid_zstd_20261108.py call f3_mantis.cell.run_cell with backbone_pin.json and MANTIS_V2_SPEC but replace cell.EmbeddingStore by tools/mantis_zstd_dedup_store_20261107.DedupZstdStore (subclass: write/open overridden, lossless zstd frames with per-row dedup and a round-trip check, encoder-identity check on write, sha256 of frames/index/row_ids verified on open; ensure/reusable inherited); run_purpose EXPLORATORY_CACHE_VALIDATION, microbatch 4,096, precision bf16; tools/mantis_standardize_runs_20261108.py rebuilds the standard run layout (\"nothing is invented\", provenance_notes.json per key; runner_git_commit null because the runner ships as a tar); tools/rebuild_mantis_v0_predictions_20261109.py; refit/prepare adapter tools; tools/build_report_patchtst_mantis_audit_20261109.py (report tables computed from the audit tables)",
+    "421dbcd (09/11: 267 files, 11,052 lines: MOMENT pilots of 04-06/11 (modal_jobs/moment_*), Mantis cache probes, PatchTST V7-V16 and LO PatchTST queues/supervisors/resume scripts, M-09/M-10 receipt and facts-of-record builders, M-13 S0/F0 builders, split registry and offering ledger tools, cohort and facts-package builders (build_cq_patchtst_v7_v16_full_facts_20261109.py, build_facts_package_mantis_lo_20261109.py, run_lo_patchtst_cohort_20261109.py), tempo_core.dq baseline tools, Drive organisation PowerShell scripts; scripts with rented-host addresses excluded)"
+  ],
+  "registry_drift_2026-11-09": {
+    "augmentation_policy": "CONVERGED: MATCH_MASTER_SEED in LO/registries.py EXPERIMENT_SEEDS and decision 9 (cfcfd40), modal_jobs/README.md (lines 157, 168, 277), modal_jobs/run_model_grid.ps1 default match_model_seed, tools/vastai_train_shared.py default match_model_seed with the runtime check, modal_jobs/model_app.py and model_preflight_app.py default -1 = run seed; test_registry_release_alignment asserts it (check 35 PASS on the code side)",
+    "metric_def_v1_3": "clip 1e-12 float64 now in model/metrics.py (M-16 code contract); the D-18 objective mapping is still not written into LO/registries.py METRIC_DEF (open item of check 35)",
+    "mantis_v2_row": "team row agrees with MODEL_REGISTRY here on revision, library, adapter, guard, cache levels, strict loading and parameter counts; it adds max_seq_len 4, patch_len 16, patch_stride 16 from the shared update loop (meaningless for Mantis; harmless) and does not carry the references, licence and pretraining_data keys",
+    "f3_mantis_tests": "the repository has no tests for f3_mantis/ (the package tests were not copied); only test_registry_release_alignment reads f3_mantis/spec.py",
+    "cache_store": "DedupZstdStore (team, 07/11) is a subclass of the reviewed EmbeddingStore and is not covered by the writing-side review or tests; its write path keeps the identity fields (input_sha256, adapter_digest, encoder_digest, encoder_fingerprint, backbone_pin) and its open path verifies file hashes; check 37 (h)"
+  },
+  "seed_policy_consistency_2026-11-09": "CONSISTENT: the four places of check 35 and the two Modal entry points read MATCH_MASTER_SEED / match_model_seed; every LO PatchTST launch script of 07/11 passes --augmentation-seed-policy match_model_seed; seeds 43/44 still need the 144 S2 runs",
+  "drive_layout_2026-11-09": "move-only migration on 09/11 (DRIVE_LAYOUT_MIGRATION_20261109.md, MODEL_LAYOUT_MIGRATION_20261109.md, README.md at the Results root): Results/{CQ,LO}/{L0_registry,L1_runs,L2_facts,L3_meta}, Results/cross_task_meta/{accepted,work_in_progress,retroactive_receipts}; the former Jobs/ tree is kept for hash reconciliation; Drive file ids are unchanged by the move (the 03/11 ids still resolve); FACTS_OF_RECORD.md (198 files, 16 folders, with FACTS_OF_RECORD_sha256.txt) names the paper facts of phase 1 and lists the 09/11 full-grid packages as phase-2 facts",
+  "results_package_2026-11-09": "input/results gains four packages built from hash-verified Drive files: GD2_CQ_PATCHTST_F2_V7_V16_facts_20261109 (sanity 240, cohort 960, checkpoint 30, resource 30, summary, source inventory, README, sha256sums), GD2_LO_PATCHTST_F2_V0_V16_facts_20261109 (sanity 408, cohort 1,632, checkpoint 51, resource 51; status MIXED_LEAK_PROBE, decision 38), GD3_CQ_MANTIS_V2_F3_exploratory_facts_20261109 (sanity 408, cohort 1,632, checkpoint 51, resource 51; EXPLORATORY) and GD4_meta_inputs_M13_phase1_20261108 (S0 profile 48 rows, Z_M 5 rows, F0 CQ 24 rows); the large per-class, bootstrap and slice files are listed with their Drive ids for the author sync",
+  "not_in_repository_or_drive_2026-11-10": [
+    "determinism-pilot reports of CQ/W1/V0 and LO/W1/V0 (check 37 (d)) and the bench / estimate output of check 37 (c): reported in the 10/11 response, no file on the Drive",
+    "leak-probe reproduction report of CQ W1/V0 (f478b23 tool): reported, no file on the Drive; LO not run",
+    "LO Mantis facts package (grid running on 09-10/11)",
+    "official L2 ingest receipts (the 10/11 receipts are byte-level code-team receipts)",
+    "M-15 (mm_runs: lightgbm / optuna not installed on the team side)",
+    "S2 seeds 43/44 (144 runs) and every phase-2 cell"
+  ],
+  "resolved_since_2026-11-09": [
+    "f3_mantis tests (34) now in tests/ (8cf8b9b)",
+    "deterministic probe and reference assertion (ea19afa)",
+    "runner commit of the LO PatchTST runs (51/51, retroactive) and of 48/51 Mantis runs (ba5c1c6)",
+    "metamodel package and registry received by the team (M-14 assembled)",
+    "MANTIS_V2 row of Z_M (v2)",
+    "S0 profile v4",
+    "LO r2 with one probe table (decision 38 (a))"
+  ],
+  "not_in_repository_2026-11-09": [
+    "f3_mantis tests (34) and requirements-f3.txt",
+    "backbone_pin.json of the pilots (only the pin block inside the run manifests)",
+    "cost pilot (f3_mantis.cli bench / estimate) and determinism pilot outputs of check 37 (c)/(d)",
+    "the standard-audit code that fits the s_leak probe with a deterministic solver (the 09/11 LO re-audit produced a third probe fit)",
+    "runner commit for the LO PatchTST runs (runner_git_commit null in all 51 resource rows) and for Mantis",
+    "official L2 ingest receipts of the 09/11 facts packages",
+    "metamodel package and registry revision 2026-11-04/06/09 on the team side (M-14 blocked: the team reports that it never received them)",
+    "MANTIS_V2 row of Z_M (M-13b has five rows)",
+    "S2 seeds 43/44 (144 runs)"
+  ],
+  "commits_reviewed_2026-11-03": [
+    "df2a867 (31/10: review patch 2026-10-31 adopted: identify_runner_commit hashes the LF and CRLF renditions of every committed runner version, content_note softened (\"matching runner content alone does not identify the full working tree\"); tools/compare_paired_replay.py (generic matched replay with two salts); tools/package_r21_evidence_20261031.py; LO/registries.py: REGISTRY_REVISION registries_rev_2026-10-31_r22, METRIC_DEF metric_def_v1.3 (version string), S_SAN_FORMULA s_eff/s_leak rewritten to the real-row contract, EXPERIMENT_SEEDS augmentation_policy MATCH_MASTER_SEED -> FIXED_SEED_42 and decision 9 rewritten \"CLOSED updated 2026-10-31\" (see PENDING_DECISIONS[32]); test_registry_release_alignment asserts FIXED_SEED_42; 66 tests)",
+    "834ad30 (03/11: export_lo_static_v2_r4_20261102.py = M-01 (1,632 LO cells with acctempo_m4, 204 resource runs, train-time summary, means, summary.json, sha256sums); export_cq_slices_r4_20261102.py; prepare_cq_patchtst_v0_drive_20261102.py = M-04; build_cq_patchtst_v0_v6_full_facts_20261103.py and append/finalize/check/correct_cq_* tools (facts package V0-V6: 168 sanity cells, 504 slice rows, 504 per-class rows, 1,512 bootstrap rows, 21 resource rows, 672 cohort slices, salt join); report_cq_patchtst_v0_v6_20261102.py (cost rate 0.368 USD/h hard-coded) and add_cq_cost_vnd (25,990 VND/USD); audit_prediction_course_cohort.py salt-based join with train_path = real parent TRAIN; test_prediction_course_cohort_contract.py)",
+    "5872cac (03/11: check_cq_r4_probability_metric_definitions_20261103.py (model clip 1e-7 vs audit 1e-12 -> ALL export blocked), reconcile_cq_r4_slices_from_predictions_20261103.py (ALL copied from immutable R4, STRICT/OVERLAP recomputed with the model convention within 1e-6), prepare_cq_r4_provenance_20261102.py (DRAFT inventory), export_cq_s2_sampling_partial_20261103.py (M-06 partial), export_cq_split_evidence_partial_20261103.py (M-07 partial), export_cq_release_identity_partial_20261103.py (M-08 partial), export_cq_class_offering_support_20261103.py (M-05 CQ), preflight_cq_meta_r4_20261103.py (M-14 trial), package_cq_qa23_evidence_20261103.py (M-10); 68 tests pass at 5872cac; no change to tools/vastai_train_shared.py, model/ or modal_jobs/)"
+  ],
+  "review_patch_2026-10-31_status": "adopted in df2a867",
+  "registry_drift_2026-11-03": {
+    "s_eff_s_leak": "CONVERGED: LO/registries.py @ df2a867 now states s_eff = mean(mask) on the unaugmented parent-imputation real TRAIN pooled P1-P4, inherited by augmented variants, and s_leak = probe fit once on that real TRAIN and evaluated per (eval_split, phase); this is the real-row contract registered here since rev 2026-10-05 [DEC §2]; confirmed numerically by the PatchTST V0-V6 sanity tables (s_eff and s_leak identical for V2/V3/V4 = V1, V6 = V5 and across V0/V1/V5 per window x split x phase)",
+    "augmentation_policy": "DIVERGED: FIXED_SEED_42 in the team registry against MATCH_MASTER_SEED LOCKED 2026-10-05 [DEC §1] here; a closed decision was rewritten without the author; the request list of 02/11 (M-12) asks for MATCH_MASTER_SEED; decision 32 and check 35",
+    "metric_def_v1_3": "the team bumped the version string only; the D-18 objective mapping (H1-H6 on AccTEMPO_M3^(cal), H7 on macro-F1, S_perf as the performance axis, v1 as sensitivity) is not yet written into LO/registries.py METRIC_DEF"
+  },
+  "seed_policy_consistency_2026-11-03": "INCONSISTENT inside the repository: LO/registries.py says FIXED_SEED_42; modal_jobs/README.md (lines 157 and 277) still names MATCH_MASTER_SEED as the registered policy; modal_jobs/run_model_grid.ps1 defaults to match_model_seed; tools/vastai_train_shared.py raises \"MATCH_MASTER_SEED violated\" under match_model_seed; the portable tree therefore still needs one S2 artifact per master seed unless every seed-43/44 launch passes the fixed policy explicitly",
+  "drive_access_2026-11-03": "the author shared the team Drive (Results folder 1GWiedVROrxp8jvGbd0xmvVmWriZUkpOn); the writing side reads it through the Google Drive connector file by file (base64, sha256 checked against each package sha256sums.txt); files above about 40 KB are not transferred this way (decision 31: the author syncs the subfolders to input/results/_drive_mirror_20261029/); 47 small files of 12 packages were verified on 03/11 (analysis_r23_2026-11-03.json, drive_fetch_2026-11-03)",
+  "results_package_2026-11-03": "input/results gains the hash-verified small files of the 03/11 Drive packages: GD2_CQ_PATCHTST_F2_V0_V6_facts_20261103 (facts package V0-V6: resource_per_run, checkpoint_selection, runtime_cost_estimates_vnd, salt diagnostics, summary, source inventory; plus the V0-current report_facts training_history / run_contracts / checkpoint_selection), GD1_LO_V3_1_clean_r1_export_static_v2 (lo_family_window_phase_mean with acctempo_m4, lo_train_time_family_pipeline, summary, README, sha256sums), GD1_CQ_V2_2_clean_r1/_export_2026-11-03 (R4 means, train-time/energy, summary, provenance DRAFT inventory, reconciled-slices summary), and GD1_CQ_V2_2_clean_r1_audits_20261103 (Radius fallback 24 rows, S2 sampling summary 108 rows, class offering support 27 rows, split evidence partial, release identity partial, meta-join trial summary); the large per-cell files are listed by Drive id and size in each package README and wait for the author's sync (decision 31)",
+  "not_in_repository_2026-11-03": [
+    "the V1-V6 run bundles (verified tar.gz on the team disk, sha256 in source_inventory.json) and the V7 partial run",
+    "LO S2 sampling summary and LO Radius audit (M-06 LO)",
+    "LO class-offering flags (M-05 LO)",
+    "the static-v2 ablation (M-03)",
+    "FACTS_OF_RECORD.md at the Jobs/ root (M-09)",
+    "the release identity ledger app output (M-08)",
+    "S2 input trees for seeds 43/44",
+    "the D-18 objective mapping in LO/registries.py METRIC_DEF v1.3",
+    "a builder fix for the appendix encoding defect of the 02/11 report (check 33)"
+  ],
+  "commits_reviewed_2026-10-31": [
+    "93dcf1e (28/10: review patch 2026-10-28 adopted: runner_git_commit per ingest, excluded_runner_commits, replay_provenance; tools/append_complete_cq_lo_evidence_20261028.py = the DAY_DU appendix builder (check 28 closed for the appendix); report titles *_R20)",
+    "e06665f (31/10: review patch 2026-10-29 adopted: receipt-backed runner exceptions, tools/identify_runner_commit.py with the team refinement \"unknown\" when a runner version spans the loop change; new tools: audit_cq_patchtst_v0_current_epoch1_replay.py (one-epoch replay of the current V0 run, bit-exact float64 on three epoch-1 metrics, layout and 16 contract fields), audit_cq_primary_risk_set_v1.py (constant column primary_risk_set: source 1, input 0, mask 0 in the 18 V0 inputs), audit_cq_label_view_consistency_20261031.py (labels of the release views equal the label artifact per window x split; TEST phases share one cohort), build_cq_patchtst_v0_current_r21_report.py (three NEW PatchTST V0 runs, current layout = 11 static fields without timeline_source, audits B = 2,000, comparison with the 12-field pilot and with recurrent V0), build_cq_v0_performance_replay_report.py, update_cq_static_provenance_20261031.py (static availability caveats; baseline runner hash 4077c6c9... = CRLF rendition of eb80516))",
+    "9bc2c21 / e9b488f / 3bdb8b6 (31/10: tools/stage_r21_evidence_20261031.py copies 151 selected files from Drive into CQ/resuilt/input/results/R21_evidence_20261031 with a sha256 manifest, status PARTIAL_NOT_RELEASED; audit_r21_s2_ledger_inventory_20261031.py: 36/36 S2 seed-42 ledgers on Drive); 65 tests pass at 3bdb8b6"
+  ],
+  "review_patch_2026-10-28_status": "adopted in 93dcf1e",
+  "review_patch_2026-10-29_status": "adopted in e06665f",
+  "review_patch_2026-10-31": "on 3bdb8b6: tools/identify_runner_commit.py hashes every committed runner version in its blob, LF and CRLF renditions, names the rendition and explains that a run dated before the commit used that content from the working copy; the 20/10 CQ baseline hash resolves to eb80516 (CRLF), before 044d6c7, superseded by 75eae0c; one test; 66 pass",
+  "baseline_runner_attribution_2026-10-31": "independently reproduced by the writing side: sha256 of the CRLF rendition of tools/vastai_train_shared.py @ eb80516 = 4077c6c91de8f16053653ae315317fb11746a5fa8924873b66be6cbaad14c78e, the value the team reports from the baseline metadata_contract; eb80516 was committed 2026-10-21 17:26 (+07), one day after the run, five days before 044d6c7; the baseline ran the working copy that became eb80516, so its training loop predates 044d6c7",
+  "results_package_2026-10-31": "input/results now holds three report-derived packages built by the writing side (GD1_CQ_V2_2_clean_r1_report_derived: 12 CSV from the 28/10 CQ report and the 23/10 R4 tables; GD1_LO_V3_1_clean_r1_report_derived: 13 CSV from the LO R20 report; GD2_CQ_PATCHTST_F2_evidence_report_derived: 14 CSV from the 23/10, 27/10, 29/10 and 31/10 reports), each with the source docx, README and sha256 manifest, plus a placeholder for the team package R21_evidence_20261031 (151 files, not yet received: the Drive connector of the writing side sees only the folders the author has opened)",
+  "remote_status_2026-10-29": "origin/main still e0ae433 (git ls-remote, 29/10): the changes behind the 29/10 CQ report (matched historical replay tool cq_rnn_matched_historical_20261029, section 14) and the R20 LO report (ONE_CLASS / SLICE_EMPTY statuses, classes min-max, UNSEEN share table, the replay sentence of review patch 2026-10-28 reproduced verbatim) exist only in the team's local checkout; nothing new to review on GitHub",
+  "review_patch_2026-10-29": "series on e0ae433 (includes 2026-10-28): modal_jobs/ingest_lo_vastai_facts_app.assert_uniform_execution(runner_exceptions=...) admits a cell trained from another runner only through an explicit entry {runner_sha256, runner_git_commit, equivalence_receipt_sha256, registered_by} matching the contract lineage (unused or mismatched entries are errors; the receipt lists the exceptions; VASTAI_RUNNER_EXCEPTIONS names the file); tools/identify_runner_commit.py maps lineage.runner_sha256 to the interval of commits whose tools/vastai_train_shared.py has that content and to the side of 044d6c7 (the 20/10 baseline hash resolves to 83c5056..eb80516 = before); replay_provenance attributes a side without a commit through its runner hash; 65 tests",
+  "drive_storage_tree_2026-10-29": "README_STORAGE_TREE_CQ_LO_20261029.md: gdrive:Jobs/{CQ,LO}/organized_moved_20261029/ with L0_registry (release manifest, lineage, Modal L0 copy), L1_runs (S1: 15 attempts per task = 5 imputers x 3 windows, 9 files each, rclone check 0 differences; S2: 12 balanced pipelines x 3 windows, seed 42, balanced_train + ledger + manifest; S3: run bundles and preserved packages), L2_facts (fact_exports, audits_and_evidence, s2 quality/resource facts), input_archives, evidence_packages (CQ only), transfer receipts; no L3. The Drive connector sees the shared root folder but none of its children, so receipts could not be verified from here (check 30)",
+  "commits_reviewed_2026-10-28": [
+    "651b458 (review patch 2026-10-27 adopted verbatim; the test helper loads tests/test_vastai_ingest_and_verify.py by file path)",
+    "29da3b2 (LO/registries.py rev 2026-10-27_r1: MODEL_REGISTRY PatchTST gains optimisation_protocol {HP_PATCHTST_CHANNEL_INDEPENDENT_v2, lr 1e-3, warm-up 0, clip None, PRIMARY_GRID, status LOCKED 2026-10-27} and TEMPORAL_FAMILY_POLICY.F2 gains seed42_optimisation_protocol with the decision text \"D23 v3 remains sensitivity evidence after W3 failed the registered curve criterion\": the team locked decision 23 as (a) before the author ratified it)",
+    "e0ae433 (tools/build_cq_lo_consolidated_reports_20261028.py: CQ R4 + D23 + CQ RNN replay receipt, LO static-v2 grid from four family audits + closure archive sha256 + prefix audit + cohort audit + LO RNN replay receipt; tools/audit_lo_paired_replay_20261028.py (source-id hash join of LO W1/V0/RNN baseline vs replay with each run salt, exact probability equality asserted); tools/run_lo_static_v2_cohort_audit.ps1 (V0-V16 per family); 60 tests pass at e0ae433)"
+  ],
+  "review_patch_2026-10-27_status": "adopted in 651b458 (all five tests kept)",
+  "review_patch_2026-10-28": "on e0ae433: modal_jobs/ingest_lo_vastai_facts_app.assert_uniform_execution also requires one runner_git_commit per ingest (runner_sha256 hashes the runner script only; the training loop lives in model/shared_phase.py since 044d6c7) and records it in the receipt; tools/f2_shard_plan.py records excluded_runner_commits of reused pilot cells and warns when they cannot share an ingest with the shards; tools/build_cq_lo_consolidated_reports_20261028.replay_provenance() prints the runner commits of both sides of a paired replay and states whether a delta of 0 closes check 27 (reference before 044d6c7, current after) or only proves determinism; LO replay sentence read from the receipt; 3 tests; 63 pass",
+  "report_builder_provenance_2026-10-28": "the delivered REPORT_*_2026-10-28_DAY_DU.docx files were not produced by the builder committed in e0ae433: sections 1, 7 and 8 differ in wording and the appendix sections 10-13 (816-cell tables, label distribution, support and bootstrap CI, STRICT/OVERLAP and SEEN/UNSEEN slice means) are generated by no script in the repository; no tool in the repository writes cq_rnn_equivalence_20261028/canonical_facts_comparison.json either (check 28)",
+  "pilot_runner_mismatch_2026-10-28": "the three PatchTST V0 pilot cells (runner 7886a856, 2026-10-23) and the 48 F2 shards (runner e0ae433 or later) carry different runner_sha256 values, so assert_uniform_execution refuses one ingest that mixes them; the shard plan (--exclude-completed pilot root) silently assumes the mix (decision 25)",
+  "not_in_repository_2026-10-31": [
+    "the R21_evidence_20261031 package itself (151 files; on the team disk and Drive, not in the repository, not yet in input/results/)",
+    "the three NEW PatchTST V0 run bundles (cq_patchtst_v0_current_seed42_r21), their audits and the reports REPORT_CQ_PATCHTST_V0_CURRENT_2026-10-31 (+ _STATIC_PROVENANCE) and BAO_CAO_CQ_PATCHTST_V0_HIEU_SUAT_REPLAY_2026-10-31 with run_contracts.csv, training_history.csv, metrics_and_sanity.csv, per_class_recall_ci.csv (not delivered to the author)",
+    "the D23 train_history files (packaged in R21_evidence, not delivered)",
+    "an LO static-v2 fact export (the package stages the r2 historical export under LO/facts/ and the v2 audits under LO/audit_seed42/)",
+    "S2 input trees for seeds 43/44",
+    "release identity ledger.json",
+    "METRIC_DEF v1.3 in LO/registries.py"
+  ],
+  "not_in_repository_2026-10-29": [
+    "everything of 2026-10-28 (origin/main unchanged)",
+    "tools behind the 29/10 CQ report: the matched historical replay of CQ/W1/V0/RNN (cq_rnn_matched_historical_20261029/paired_replay_equivalence.json, baseline cq_rnn_baseline_drive_20261029) and the DAY_DU builder with sections 10-14",
+    "the LO R20 builder changes (ONE_CLASS / SLICE_EMPTY / classes / UNSEEN share)",
+    "the baseline run_manifest of the matched replay with its runner_sha256 (needed to close check 27 by attribution)",
+    "the D23 train_history (still not delivered; the 29/10 CQ report prints no epoch curve)"
+  ],
+  "not_in_repository_2026-10-28": [
+    "the R4 CQ package, the PatchTST pilot package, the D23 pilot package (train_history still not delivered to the author; the regenerated D23 report with section 4b of review patch 2026-10-27 was not sent)",
+    "the LO static-v2 package (lo_static_v2_seed42_20261026: four family audits, LO_static_v2_closure_20261028.tar.gz sha256 9108...40d3, cohort audit 68 x 96 cells, prefix audit summary_static13_full_scan.json, paired_replay_equivalence.json)",
+    "the CQ replay receipt canonical_facts_comparison.json and the tool that wrote it",
+    "the exact builder of the DAY_DU reports (appendix sections 10-13)",
+    "the LO r3 package and the historical r2 package (now archived evidence)",
+    "ablation_comparison.csv and the 128 ablation cohort slices",
+    "release identity ledger.json (CQ, LO)",
+    "QA23 per-base linkage table",
+    "METRIC_DEF v1.3 (repository LO/registries.py still metric_def_v1.2)",
+    "S2 input trees for seeds 43 and 44"
+  ],
+  "commits_reviewed_2026-10-27": [
+    "8d105db (static_feature_contract_id in every manifest and Modal run record; N10 mirrored into LO/registries.py)",
+    "0851aed (tools/vastai_run_lo_static_v2_grid.sh: full LO F1 seed-42 replay under the v2 13-field contract, one family per instance, new output root; salt still read from reference/ablation_salt)",
+    "044d6c7 (model.shared_phase.train_shared_checkpoint: per-update linear warm-up and gradient-norm clipping through one optimizer_step helper used by every family; history records learning_rate_end and optimizer_updates; vastai_train_shared gains --learning-rate, --warmup-epochs, --gradient-clip-norm, --run-purpose {PRIMARY_GRID, STABILITY_PILOT_D23, EXPLORATORY_STATIC_ABLATION}; manifests record warmup_epochs and gradient_clip_norm; tools/vastai_run_cq_patchtst_stability_pilot.sh runs W2/V0 and W3/V0 at lr 3e-4, warm-up 1, clip 1.0)",
+    "b0e5ae1 (launcher accepts code/ and tools/ layouts)",
+    "bc20089 (PIPELINE_LABELS aligned with the registry: N1 closed; tools/build_cq_d23_configuration_report.py)",
+    "af079d8 (review patch 2026-10-25 shard plan, launcher and tests adopted verbatim); 55 tests pass at af079d8"
+  ],
+  "review_patch_2026-10-25_status": "adopted: shard plan + sharded launcher + tests (af079d8), pipeline labels (bc20089), N10 mirror (8d105db)",
+  "review_patch_2026-10-27": "on af079d8: training-protocol provenance after 044d6c7 (contract records learning rate, warm-up, clipping and run purpose and adds them to the immutable identity when they deviate from the registered protocol; ingest asserts one training protocol, one layout policy and one revision per receipt and refuses non-primary runs; shard verify compares the same fields and the static contract id; the F2 report gate includes the registered optimisation protocol); tools/build_cq_d23_configuration_report.py evaluates the registered D-23 (b) criterion from train_history (unimodal spike-free VALIDATION curve or selection away from epoch 1), prints old and D23 histories side by side and makes its conclusion conditional; tests/test_training_protocol_provenance.py; 60 pass",
+  "pipeline_label_defect_N1_status_2026-10-27": "closed in bc20089 (PIPELINE_LABELS follow the registry; the D23 report of 2026-10-27 prints the correct mapping); reports of 2026-10-16..25 keep the swapped words and must not be quoted for pipeline names",
+  "not_in_repository_2026-10-27": [
+    "the R4 CQ package and the PatchTST pilot package (unchanged since 2026-10-23)",
+    "the D23 pilot package (cq_patchtst_d23_stability_pilot_20261026: two run manifests, train_history.parquet, audits): the report prints neither history nor the per-epoch learning rate, so the registered acceptance criterion cannot be checked from the report",
+    "the LO r3 package and the historical r2 package",
+    "ablation_comparison.csv and the 128 ablation cohort slices",
+    "the LO cohort audit numbers (6,528 cells)",
+    "release identity ledger.json (CQ, LO)",
+    "QA23 per-base linkage table",
+    "an equivalence replay of one recurrent cell with the 044d6c7 training loop (check 27)"
+  ],
+  "commits_reviewed_2026-10-25": [
+    "75eae0c (review patch 2026-10-23 adopted and extended: the PatchTST report builder requires run_manifest / train_history / feature_layout per window, checks revision, 2048 = 4 x 512, static_ablation, run_purpose, required provenance fields and one layout policy / layout hash / runner / seed across the three runs, writes a POSTHOC identity receipt (the pilot manifests predate the release-identity fields), and prints lineage, prefix audit, per-pipeline means with M4, time/energy, sanity detail, per-class and bootstrap CI, provenance, epoch history, the V0-vs-V0 comparison and SEEN/UNSEEN x STRICT/OVERLAP cohorts; tools/audit_prediction_course_cohort.py (salted-hash join of predictions with evaluation inputs, STRICT flag equality enforced); vastai_train_shared writes feature_layout_sha256 and the release identity fields (release_id, data_release_id, split/phase versions, ...) into every new run manifest)",
+    "c225961 (LO static feature contract v2: contract_id static_feature_contract_lo_v2_point_in_time, 13 IN_TENSOR fields, timeline_source CONTEXT_ONLY, split_rule_version EXCLUDE, model.data.fit_layout enforces an LO allowlist (LO_STATIC_TENSOR_COLUMNS) and raises on an unregistered numeric static; LO/registries.py PENDING 19 closed by the team; tools/stage_lo_l2_ingest_closure.py (NVML campaign bundles of the four families, RNN W1/V0 replaced by the runner-7886a856 repair cell, ingest vastai_lo_f2_seed42_clean_20261025_r3); tools/build_lo_closure_evidence_report.py; 52 tests pass at c225961)"
+  ],
+  "review_patch_2026-10-23_status": "adopted in 75eae0c (both tests kept, builder extended far beyond the patch)",
+  "review_patch_2026-10-25": "on c225961: tools/f2_shard_plan.py (deterministic shard plan of the remaining PatchTST cells for N parallel instances, --verify against run manifests: completeness, no duplicates, one runner commit / layout policy / revision per ingest) + tools/vastai_run_cq_patchtst_shard.sh (one shard per instance, explicit --static-layout-policy current, skip completed, refuses an instance without the per-seed input tree); LO/registries.py and CQ/registries.py mirror N10 (imputer_only_ref = the pipeline itself when balancer = NONE; validate_pipeline_registry updated); tools/generate_e2e_reports.py PIPELINE_LABELS corrected to the registry mapping (V1 MEDIAN, V5 MEAN, V3 SASMOTE, V4 RADIUS_SMOTE, ...); tests",
+  "pipeline_label_defect_N1_status_2026-10-25": "still open in the repository at c225961: tools/generate_e2e_reports.py PIPELINE_LABELS swaps mean/median and SASMOTE/Radius-SMOTE, and the LO report of 2026-10-25 (its pipeline table and every pipeline name in it) inherits the swapped labels; artefacts and facts follow the registry (imputation_core.meta_storage.PIPELINE_ID, augmentation_core.storage), so numbers by V-id are right and only the words are wrong; fixed in review patch 2026-10-25",
+  "not_in_repository_2026-10-25": [
+    "the R4 CQ package (cq_recurrent_allfamilies_grid_r4_20261023: CSV/parquet, per-class, bootstrap, QA23 linkage, time/energy) and the PatchTST pilot package (manifests, train_history, feature_layout, audits, cohort audit, posthoc receipt): read by the builders from the working tree; none delivered to input/results/",
+    "the LO r3 package (lo_l2_ingest_closure_seed42_20261025, 204 NVML cells, receipt vastai_lo_f2_seed42_clean_20261025_r3) and the historical LO r2 package (lo_recurrent_allfamilies_grid_r2_20261021)",
+    "ablation_comparison.csv and the 128 ablation cohort slices (the P1 table is printed in the 25/10 report; P2-P4 and the CSV are not)",
+    "the LO cohort audit at 68 configurations (6,528 cells computed, counts printed, no numbers)",
+    "release identity ledger.json (CQ, LO) with scan counts",
+    "QA23 per-base linkage table (cq_qa23_reviewed_behavioural_linkage.csv)",
+    "runner commit per family of the LO NVML campaign (only the RNN W1/V0 repair cell names 7886a856)"
+  ],
+  "commits_reviewed_2026-10-23": [
+    "585343e (tools/vastai_run_lo_nvml_historical_grid.sh: full LO matched replay launcher, 204 cells, batch 2048, historical static layout, NVML 1 s; salt read from reference/ablation_salt)",
+    "7886a85 (review patch 2026-10-21 adopted and extended: imputation_core.meta_storage.release_identity_aliases returns the CURRENT and the LEGACY_WITH_LINEAGE identity; every CQ Modal exporter (RNN facts, augmentation facts, canonical S_leak, slice audit) classifies a manifest instead of comparing one id and raises on an unknown identity of the active release; modal_jobs/release_identity_ledger_app.py writes the ledger on the Volume and fails on UNMATCHED / ABSENT / UNREADABLE; tools/release_identity_ledger.py rewritten on the shared helper with OTHER_RELEASE and UNVERSIONED_S2_PARENT labels; canonical S_leak overlay reads both identity partitions and refuses inconsistent duplicates)",
+    "5b14052 (CQ/registries.CQ_METRIC_AND_QA23_POLICY: M3 primary in the meta-dataset, paper phase trends on S_perf / macro-F1 / balanced accuracy, M4 as sensitivity composite, QA23 eight bases APPROVED_PREFIX_OBSERVED_BEHAVIOUR; tools/export_cq_qa23_reviewed_behavioural_linkage.py (per-phase |rho| / NMI of the eight bases); export_cq_recurrent_grid_report.py keeps the full sanity contract, M4, per-class and bootstrap facts (4,896 / 14,688); tools/build_cq_current_recurrent_patchtst_report.py; 37 tests pass at 5b14052)"
+  ],
+  "review_patch_2026-10-21_status": "adopted in 7886a85 (ledger tool rewritten on meta_storage.release_identity_aliases; README section not taken)",
+  "review_patch_2026-10-23": "on 5b14052: tools/build_cq_current_recurrent_patchtst_report.py reads the F2 protocol from the three PatchTST run manifests and fails on a deviation (revision, 2048 = 4 x 512, static_ablation, run_purpose, mixed layout policy or runner commit); checkpoint table reads best_score (selection_score does not exist, Score VAL was blank); new sections 8b provenance (elapsed, NVML energy, GPU) and 8c per-epoch VALIDATION history; tests/test_patchtst_pilot_report_gate.py, tests/test_release_identity_acceptance.py; 52 pass",
+  "not_in_repository_2026-10-23": [
+    "the LO ablation report and ablation_comparison.csv (since 2026-10-21)",
+    "the R4 evidence package CQ/resuilt/cq_recurrent_allfamilies_grid_r4_20261023 (1,632-cell parquet/CSV, per-class, bootstrap, QA23 linkage) and the PatchTST pilot package cq_patchtst_v0_seed42_20261023 (three run manifests, train_history, audit): the report builder reads them from the working tree, the commit carries only the tools",
+    "PatchTST pilot provenance: model_revision, static_layout_policy, runner commit, elapsed time and NVML energy of the three runs are not in the 23/10 report",
+    "the release identity ledger output (ledger.json per task) and the scan counts"
+  ],
+  "commits_reviewed_2026-10-21": [
+    "83c5056 (slice flags must be binary and ids unique; LO static ablation modes --static-ablation no_static|gender_duration and --static-layout-policy historical_reference in the runner; refuse to overwrite a run; portable_run_id carries the layout policy; review patch 2026-10-19 adopted with stricter null handling and a task/seed scope check in export_window_phase_tables)",
+    "eb80516 (report generators, closure and audit scripts committed: 116 files; tools/audit_strict_overlap_partition.py; CQ RNN rerun launcher with the historical static layout; per-class Radius-SMOTE fallback rates; release_inventory excludes materialization_lineage_* from data_release_id; QA23 reviewed behavioural prefix list in audit_cq_label_proxy; 35 tests pass)"
+  ],
+  "review_patch_2026-10-19_status": "adopted in 83c5056 (null strict flags refused instead of counted as OVERLAP)",
+  "review_patch_2026-10-21": "on eb80516: tools/release_identity_ledger.py (both data_release_id values of a release, manifest scan CURRENT / LEGACY_WITH_LINEAGE / UNMATCHED) with tests; 37 pass",
+  "commits_reviewed_2026-10-19": [
+    "6fd6315 (review patch 2026-10-17b adopted and extended: alignment audit with --task CQ, salted-hash cohort join, provisional CQ/registries.py STATIC_FEATURE_CONTRACT; slice facts recomputed with the parent contract (s_eff/s_leak/train counts) and checked ALL == sanity at ingest; runner_git_commit in the contract; tools/vastai_audit_w1.py committed; CQ batch-2048 closure scripts (audit_cq_batch2048_closure, rematerialize_cq_slices_2048, stage_cq_recurrent_2048_ingest, audit_cq_static_compact); 30 tests pass)"
+  ],
+  "review_patch_2026-10-17b_status": "adopted in 6fd6315 (registry note softened by the team; tools extended)",
+  "review_patch_2026-10-19": "on 6fd6315: STRICT + OVERLAP confusion matrices must add up to ALL (slice partition invariant in vastai_audit_shared._slice_rows); tools/export_window_phase_tables.py (per family x split x metric tables at window x phase grain with labelled GROUP_/TREND_ aggregates); tests; 34 pass",
+  "commits_reviewed_2026-10-17": [
+    "20de6db (review patch 2026-10-15 adopted: hash-verified resources, uniform execution, family summaries, per-seed PatchTST launcher, grain verifier, energy window)",
+    "e8ada48 (train_history kept for train_seconds/epochs_run)",
+    "f989540 (canonical S_leak overlay suffix fix in the exporter)",
+    "d8e9670 (tools/audit_prefix_validation_alignment.py: static list with dispositions, prefix mask sample, static parity, cohorts by row order, W1 P1-P4 table)",
+    "e17ae6e (export_w1_phase_validation_test_table.py; split_rule_version excluded in model.data + test)",
+    "46f55d3, c519737, 04a0db8, d449831 (ingest/export generalised to CQ via VASTAI_TASK, VASTAI_FAMILIES, VASTAI_INGEST_ID; ingest_id partition; CQ post-hoc audit launcher)"
+  ],
+  "test_status_d449831": "2 of 21 tests fail (tests/test_vastai_ingest_and_verify.py: the modal stub lacks Image.env() added in c519737); fixed in review patch 2026-10-17b (26 pass)",
+  "access_note_2026-10-17": "the repository was unreadable from the review session earlier on 2026-10-17 (private); public again at 13:30 UTC+7 and reviewed to d449831",
+  "review_patches_pending": [
+    "review_patches_2026-10-17b.patch (on d449831; supersedes 2026-10-17): LO/registries.py STATIC_FEATURE_CONTRACT (15 fields: definition, availability, grain, disposition, course_fingerprint_fields) exported with the registries; audit_prefix_validation_alignment.py reads it, reports macro-F1 under the fixed-K and the present-class convention side by side and gains --full-scan; tools/probe_static_only.py (static-only logistic probe ALL_STATIC / COURSE_FINGERPRINT / NON_COURSE on TRAIN -> VALIDATION, TEST with the majority reference); tools/audit_static_columns.py with --allowlist-from-registry; modal stub fix; registry note fix; 26 tests pass"
+  ],
+  "review_patch_2026-10-15_status": "adopted in 20de6db (four files verbatim; ingest and exporter extended by the team)",
+  "not_in_repository_2026-10-21": [
+    "the LO ablation report (LO/docs/REPORT_LO_..._ABLATION.docx) and its ablation_comparison.csv (results exist locally, not delivered to the author)"
+  ],
+  "resolved_since_2026-10-19": [
+    "report generators and maintenance scripts committed (tools/generate_*, build_*, update_*, report_maintenance/)",
+    "runner sha of the batch-2048 CQ grid reported (sha256:10cd38a2...)",
+    "tools/audit_lo_split_rule_history.py committed",
+    "two-ingest merge replaced by two receipts (RNN historical layout; three families r2)"
+  ],
+  "resolved_since_2026-10-17": [
+    "tools/vastai_audit_w1.py committed",
+    "CQ full-scan prefix audit reproducible with audit_prefix_validation_alignment.py --task CQ --full-scan",
+    "two-ingest merge no longer needed: the batch-2048 CQ grid is one ingest (vastai_cq_f1_batch2048_seed42_slice_r2_20261019)"
+  ],
+  "previous_commits_reviewed": [
+    "dff9a3f (2026-10-05)",
+    "799cf9e (registry identity + subgroup rule)",
+    "c07e02c (release uploader, 2026-10-06)",
+    "67e248c..548d4d4 (PatchTST, MOMENT, 2026-10-11)",
+    "c2856d2, 640be01 (channel-independent PatchTST, phase-as-patch MOMENT, TEMPORAL_FAMILY_POLICY, VastAI runner, 2026-10-12)",
+    "813e7ea (guard adopted, F3 subset fixed, math SDP, 2026-10-13)",
+    "b5f55fe (scoped SDP, VastAI provenance + vocabulary, 2026-10-13)",
+    "265415d, be110a4 (accumulation, seed check, MOMENT deferred, 2026-10-13)",
+    "ce0486e, 23ea1f5, 294a17d (VastAI tooling, power sampler, L2 ingest/export, 2026-10-15)"
+  ],
+  "team_registry_revision": "registries_rev_2026-10-14_r1 (LO/registries.py @ 294a17d; PATCHTST accumulation fields adopted)",
+  "relation": "this file is the tested reference copy; LO/registries.py is the registry the workers import"
+}
