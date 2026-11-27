@@ -13,6 +13,8 @@ Mỗi thư mục là mã của một sản phẩm đã giao ở `Results/cross_t
 | `s2_seed44_b4p` | B4′: tập manifest S2 seed 44 |
 | `errata_e` | E: hai tệp đính chính của release r2 và overlay QA18/QA19 |
 
+Thư mục bổ sung (27/11/2026): `qa_link_qa5m` (nối thêm 180 run Mantis cho QA11/QA13/QA21 và đọc trường `parent` của manifest), `qa14_views` (các test của QA14 trên view), `qa21_leak_guard` (QA21 năm điều kiện và bảng cột LO của QA23), `qa_tables_v2_v3` (dựng bảng QA bản 2 và bản 3 và bảng hỗ trợ quyết định QA23).
+
 | Script | sha256 bản đã chạy | sha256 blob đã commit |
 |---|---|---|
 | `qa_tables_b2/build_qa_outcomes_csv.py` | `6de868bc7485881d5e5dc90471a8caaabc66848a9bd28e5388f7d394c69a9e0f` | `6de868bc7485881d5e5dc90471a8caaabc66848a9bd28e5388f7d394c69a9e0f` |
@@ -53,3 +55,17 @@ Mỗi thư mục là mã của một sản phẩm đã giao ở `Results/cross_t
 | `errata_e/build_null_errata.py` | `4c8d86658c1eaabb590425cd8cdefc32eb77c8038fb0a6bca986ed42df92f572` | `4c8d86658c1eaabb590425cd8cdefc32eb77c8038fb0a6bca986ed42df92f572` |
 | `errata_e/build_roles_errata.py` | `a7a5c155843770b602f598a644b40d284021fe97c4db19a7e4dcbd7fd2607892` | `a7a5c155843770b602f598a644b40d284021fe97c4db19a7e4dcbd7fd2607892` |
 | `errata_e/run_overlay_qa18_qa19.py` | `3584ce16d59d84a50445a29fbd6ecee1a4b77c565cbd78aa40bb7cb42d91049c` | `3584ce16d59d84a50445a29fbd6ecee1a4b77c565cbd78aa40bb7cb42d91049c` |
+
+| `qa_link_qa5m/qa5m_link_extension.py` | `8b75f64b145895e36b7a306d6875f65cdb240e31e3d31647806c7820e94999e2` | `8b75f64b145895e36b7a306d6875f65cdb240e31e3d31647806c7820e94999e2` |
+| `qa_link_qa5m/qa5m_declared_parent.py` | `e5aa2dbab3c67d260865b900e1ac9eef165abe8b4161bde562b86370588b0186` | `e5aa2dbab3c67d260865b900e1ac9eef165abe8b4161bde562b86370588b0186` |
+| `qa14_views/qa14_run.py` | `270c981683f9a79b6a3493286812e9ae6517b46cd33a515745fdf120452a6656` | `270c981683f9a79b6a3493286812e9ae6517b46cd33a515745fdf120452a6656` |
+| `qa21_leak_guard/qa21_ab_keys_labels.py` | `6ba0e1953df43e91ef9ff30efabe668923e2548056bc5439547d287e6f53d2d1` | `6ba0e1953df43e91ef9ff30efabe668923e2548056bc5439547d287e6f53d2d1` |
+| `qa21_leak_guard/qa21_b2_overlap_share.py` | `31bd6d336892a0d6a1d60c4640c07cb509c479b5a320c24b3511cbd752cf1628` | `31bd6d336892a0d6a1d60c4640c07cb509c479b5a320c24b3511cbd752cf1628` |
+| `qa21_leak_guard/qa21_c_grade_group_info.py` | `02f8f450664e8e7e946e3c529861618fbb33ced769991184972b93906cfadd89` | `0856ef5a8e8d86a25b3d45b77c7207bc95b7dcc3e7b1cc58be04e13925c4c54a` |
+| `qa21_leak_guard/qa21_c_predictors_vs_proxy.py` | `e2e2588ce66c695c4cf54f0fd8186738905231d1198d43ecf4dd5aa7467ee114` | `a2c38150c721e5ce442ea24dfd3e40d2aea27451862ad0a90db95ab6685f5b0a` |
+| `qa21_leak_guard/qa21_c_safe_inspect_joblib.py` | `2a8a8aa14cbd34236adae5bebd66aaf065e1d478ec7553a515a0fc4b6cefd224` | `ce74fbe603fe40a852e1d3ece219fc29df9872162ab45ade16d8fda3354a2eb9` |
+| `qa21_leak_guard/qa21_d_lo_review_candidates.py` | `ba18193491be916649f82bebb410fff08a76f68579b15c656dcb3a469a702474` | `7e4c7a48759296db2baa536efcb806b487e5bd3b20c049a2c33fef655e20d715` |
+| `qa21_leak_guard/qa21_c_fetch.sh` | `d527feb5d62f3b19cc6bd09b62e5f6a983a9b5539f066141bea4dc43d9cc56de` | `4ceff221587b42ea4a3972b206b7c6c571a5aba8f19f23e499aa9eaea5a1c2dc` |
+| `qa_tables_v2_v3/build_qa_v2.py` | `7e5538e053c1c90ef3c6a334a6fd6c1a1de2b1e9c0b002d958236da11951611a` | `7e5538e053c1c90ef3c6a334a6fd6c1a1de2b1e9c0b002d958236da11951611a` |
+| `qa_tables_v2_v3/build_qa_v3.py` | `8066d6a46a60a7aff86554c05659f1dedb0dd9e81064e3afe9723a4f64d594b0` | `8066d6a46a60a7aff86554c05659f1dedb0dd9e81064e3afe9723a4f64d594b0` |
+| `qa_tables_v2_v3/build_qa23_decision_support.py` | `96b66b905b9084323f17c01e4703f3f906cb5166ae5ca8f33307667c3e8ee08f` | `96b66b905b9084323f17c01e4703f3f906cb5166ae5ca8f33307667c3e8ee08f` |
