@@ -13,7 +13,7 @@ Mỗi thư mục là mã của một sản phẩm đã giao ở `Results/cross_t
 | `s2_seed44_b4p` | B4′: tập manifest S2 seed 44 |
 | `errata_e` | E: hai tệp đính chính của release r2 và overlay QA18/QA19 |
 
-Thư mục bổ sung (27/11/2026): `qa_link_qa5m` (nối thêm 180 run Mantis cho QA11/QA13/QA21 và đọc trường `parent` của manifest), `qa14_views` (các test của QA14 trên view), `qa21_leak_guard` (QA21 năm điều kiện và bảng cột LO của QA23), `qa_tables_v2_v3` (dựng bảng QA bản 2 và bản 3 và bảng hỗ trợ quyết định QA23).
+Thư mục bổ sung (27/11/2026): `qa_link_qa5m` (nối thêm 180 run Mantis cho QA11/QA13/QA21 và đọc trường `parent` của manifest), `qa14_views` (các test của QA14 trên view), `qa21_leak_guard` (QA21 năm điều kiện và bảng cột LO của QA23), `qa_tables_v2_v3` (dựng bảng QA bản 2, 3 và 4 và bảng hỗ trợ quyết định QA23), `qa13_checkpoints` (độ phủ checkpoint của 1.836 run cho QA13).
 
 | Script | sha256 bản đã chạy | sha256 blob đã commit |
 |---|---|---|
@@ -69,3 +69,9 @@ Thư mục bổ sung (27/11/2026): `qa_link_qa5m` (nối thêm 180 run Mantis ch
 | `qa_tables_v2_v3/build_qa_v2.py` | `7e5538e053c1c90ef3c6a334a6fd6c1a1de2b1e9c0b002d958236da11951611a` | `7e5538e053c1c90ef3c6a334a6fd6c1a1de2b1e9c0b002d958236da11951611a` |
 | `qa_tables_v2_v3/build_qa_v3.py` | `8066d6a46a60a7aff86554c05659f1dedb0dd9e81064e3afe9723a4f64d594b0` | `8066d6a46a60a7aff86554c05659f1dedb0dd9e81064e3afe9723a4f64d594b0` |
 | `qa_tables_v2_v3/build_qa23_decision_support.py` | `96b66b905b9084323f17c01e4703f3f906cb5166ae5ca8f33307667c3e8ee08f` | `96b66b905b9084323f17c01e4703f3f906cb5166ae5ca8f33307667c3e8ee08f` |
+| `qa13_checkpoints/s1_pick_sources.py` | `acb5535690044712703dc123e437241b6b4e3728a968006e3756047dd4af57b4` | `acb5535690044712703dc123e437241b6b4e3728a968006e3756047dd4af57b4` |
+| `qa13_checkpoints/s2_scan_tars.py` | `371e6b228d0e1e1f5c686256177117e9918e3262e6e239ed0408697cc326a501` | `371e6b228d0e1e1f5c686256177117e9918e3262e6e239ed0408697cc326a501` |
+| `qa13_checkpoints/s2b_rescan_errors.py` | `b0f4a699c1fb5ce55d8b6357d2b52746a14cec1c40f05c834bc05ffe117ae44e` | `b0f4a699c1fb5ce55d8b6357d2b52746a14cec1c40f05c834bc05ffe117ae44e` |
+| `qa13_checkpoints/s3_build_coverage.py` | `8d697ac8274c4761105e3e9b942475bf94507f9af7dee6f91581e800ef94190d` | `8d697ac8274c4761105e3e9b942475bf94507f9af7dee6f91581e800ef94190d` |
+| `qa13_checkpoints/tarlist.py` | `9c77f331caf0422a56bb7cfa3533c7b5d2bddfaddd2617ffddc38bd7bb57d1f6` | `9c77f331caf0422a56bb7cfa3533c7b5d2bddfaddd2617ffddc38bd7bb57d1f6` |
+| `qa_tables_v2_v3/build_qa_v4.py` | `f189f9cf3dd14d4dc4ea61ad21666ef91097ce741e0ce1c614eb4425960ee083` | `f189f9cf3dd14d4dc4ea61ad21666ef91097ce741e0ce1c614eb4425960ee083` |
