@@ -75,3 +75,4 @@ Thư mục bổ sung (27/11/2026): `qa_link_qa5m` (nối thêm 180 run Mantis ch
 | `qa13_checkpoints/s3_build_coverage.py` | `8d697ac8274c4761105e3e9b942475bf94507f9af7dee6f91581e800ef94190d` | `8d697ac8274c4761105e3e9b942475bf94507f9af7dee6f91581e800ef94190d` |
 | `qa13_checkpoints/tarlist.py` | `9c77f331caf0422a56bb7cfa3533c7b5d2bddfaddd2617ffddc38bd7bb57d1f6` | `9c77f331caf0422a56bb7cfa3533c7b5d2bddfaddd2617ffddc38bd7bb57d1f6` |
 | `qa_tables_v2_v3/build_qa_v4.py` | `f189f9cf3dd14d4dc4ea61ad21666ef91097ce741e0ce1c614eb4425960ee083` | `f189f9cf3dd14d4dc4ea61ad21666ef91097ce741e0ce1c614eb4425960ee083` |
+| `qa_tables_v2_v3/build_qa_v5.py` | `fc7348500d1be6052d6d2a77c7f4136483847bb7bd068e577fba9f43e8dc3885` | `fc7348500d1be6052d6d2a77c7f4136483847bb7bd068e577fba9f43e8dc3885` |
